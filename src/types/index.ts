@@ -58,6 +58,22 @@ export interface RegistrationRequest {
   claimedBy?: string;
 }
 
+export type RegistrationAttemptStatus =
+  | "code_requested"
+  | "invalid_code"
+  | "account_created"
+  | "failed";
+
+export interface RegistrationAttempt {
+  id: string;
+  email: string;
+  status: RegistrationAttemptStatus;
+  createdAt: Timestamp;
+  approvalCodeProvided?: string;
+  requestId?: string;
+  message?: string;
+}
+
 export interface RankedUser extends AppUser {
   rank: number;
   weeklyRank: number;

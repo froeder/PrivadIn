@@ -19,6 +19,7 @@ import { auth, db, isFirebaseConfigured } from "../services/firebase";
 import type { AppUser, RegistrationRequest } from "../types";
 import { avatarFor } from "../utils/ranking";
 import {
+  createRegistrationAttempt,
   getOrCreateRegistrationRequest,
   getRegistrationRequest,
   markRegistrationRequestUsed,
@@ -88,17 +89,48 @@ async function ensureUserProfile(firebaseUser: User) {
 async function registerWithApprovalCode(email: string, password: string, approvalCode: string) {
   const request = await getRegistrationRequest(email);
   if (!request || request.status !== "pending") {
+    await createRegistrationAttempt({
+      email,
+      status: "failed",
+      approvalCodeProvided: approvalCode,
+      message: "Solicitacao inexistente ou ja utilizada.",
+    });
     throw new Error("Solicitacao de acesso nao encontrada ou ja utilizada.");
   }
 
   if (request.approvalCode.toUpperCase() !== approvalCode.trim().toUpperCase()) {
+    await createRegistrationAttempt({
+      email,
+      status: "invalid_code",
+      approvalCodeProvided: approvalCode,
+      requestId: request.id,
+      message: "Codigo informado nao confere com a solicitacao.",
+    });
     throw new Error("Codigo de acesso incorreto.");
   }
 
-  const credential = await createUserWithEmailAndPassword(auth, normalizeEmail(email), password);
-  const profile = await ensureUserProfile(credential.user);
-  await markRegistrationRequestUsed(email, credential.user.uid);
-  return { credential, profile };
+  try {
+    const credential = await createUserWithEmailAndPassword(auth, normalizeEmail(email), password);
+    const profile = await ensureUserProfile(credential.user);
+    await markRegistrationRequestUsed(email, credential.user.uid);
+    await createRegistrationAttempt({
+      email,
+      status: "account_created",
+      approvalCodeProvided: approvalCode,
+      requestId: request.id,
+      message: "Conta criada com codigo aprovado.",
+    });
+    return { credential, profile };
+  } catch (error) {
+    await createRegistrationAttempt({
+      email,
+      status: "failed",
+      approvalCodeProvided: approvalCode,
+      requestId: request.id,
+      message: error instanceof Error ? error.message : "Falha ao criar conta.",
+    });
+    throw error;
+  }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -164,6 +196,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch (error) {
           if (!approvalCode?.trim() && isMissingAccountError(error)) {
             const request = await getOrCreateRegistrationRequest(email);
+            await createRegistrationAttempt({
+              email,
+              status: "code_requested",
+              requestId: request.id,
+              message: "Usuario tentou entrar sem conta e solicitou codigo.",
+            });
             return { status: "access_code_required", request };
           }
           await signOut(auth).catch(() => undefined);

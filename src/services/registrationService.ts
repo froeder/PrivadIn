@@ -1,5 +1,6 @@
 import {
   Timestamp,
+  addDoc,
   collection,
   doc,
   getDoc,
@@ -9,9 +10,10 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import type { RegistrationRequest } from "../types";
+import type { RegistrationAttemptStatus, RegistrationRequest } from "../types";
 
 export const registrationRequestsRef = collection(db, "registration_requests");
+export const registrationAttemptsRef = collection(db, "registration_attempts");
 
 export function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
@@ -32,6 +34,33 @@ function generateApprovalCode() {
 
 export function registrationRequestsQuery() {
   return query(registrationRequestsRef, orderBy("createdAt", "desc"));
+}
+
+export function registrationAttemptsQuery() {
+  return query(registrationAttemptsRef, orderBy("createdAt", "desc"));
+}
+
+export async function createRegistrationAttempt({
+  email,
+  status,
+  approvalCodeProvided,
+  requestId,
+  message,
+}: {
+  email: string;
+  status: RegistrationAttemptStatus;
+  approvalCodeProvided?: string;
+  requestId?: string;
+  message?: string;
+}) {
+  await addDoc(registrationAttemptsRef, {
+    email: normalizeEmail(email),
+    status,
+    approvalCodeProvided: approvalCodeProvided?.trim().toUpperCase() ?? null,
+    requestId: requestId ?? null,
+    message: message ?? null,
+    createdAt: Timestamp.now(),
+  });
 }
 
 export async function getOrCreateRegistrationRequest(email: string) {

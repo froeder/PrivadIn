@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import {
   useAdminAuditLogs,
   useAllLogs,
+  useRegistrationAttempts,
   useRegistrationRequests,
   useUserLogs,
   useUsers,
@@ -31,6 +32,7 @@ function AppContent() {
   }, [user, users]);
   const adminAuditLogs = useAdminAuditLogs(liveUser?.role === "admin");
   const registrationRequests = useRegistrationRequests(liveUser?.role === "admin");
+  const registrationAttempts = useRegistrationAttempts(liveUser?.role === "admin");
 
   if (loading) {
     return (
@@ -59,6 +61,7 @@ function AppContent() {
           logs={allLogs}
           auditLogs={adminAuditLogs}
           registrationRequests={registrationRequests}
+          registrationAttempts={registrationAttempts}
         />
       ) : null}
     </Shell>

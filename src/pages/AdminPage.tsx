@@ -1,7 +1,13 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
 import { Card } from "../components/Card";
-import type { AdminAuditLog, AppUser, PoopLog, RegistrationRequest } from "../types";
+import type {
+  AdminAuditLog,
+  AppUser,
+  PoopLog,
+  RegistrationAttempt,
+  RegistrationRequest,
+} from "../types";
 import { adjustUserPoints, removeLog, resetWeeklyRanking } from "../services/poopService";
 import { formatDateTime } from "../utils/date";
 
@@ -11,18 +17,33 @@ function actionLabel(action: AdminAuditLog["action"]) {
   return "Reset semanal";
 }
 
+function attemptLabel(status: RegistrationAttempt["status"]) {
+  if (status === "code_requested") return "Codigo solicitado";
+  if (status === "invalid_code") return "Codigo invalido";
+  if (status === "account_created") return "Conta criada";
+  return "Falha";
+}
+
+function attemptClass(status: RegistrationAttempt["status"]) {
+  if (status === "account_created") return "bg-emerald-400/15 text-emerald-100";
+  if (status === "invalid_code" || status === "failed") return "bg-red-500/15 text-red-100";
+  return "bg-yellow-300/15 text-yellow-100";
+}
+
 export function AdminPage({
   admin,
   users,
   logs,
   auditLogs,
   registrationRequests,
+  registrationAttempts,
 }: {
   admin: AppUser;
   users: AppUser[];
   logs: PoopLog[];
   auditLogs: AdminAuditLog[];
   registrationRequests: RegistrationRequest[];
+  registrationAttempts: RegistrationAttempt[];
 }) {
   const [busy, setBusy] = useState(false);
 
@@ -91,6 +112,58 @@ export function AdminPage({
                   <p className="mt-1 font-mono text-3xl font-black tracking-[0.18em] text-yellow-200">
                     {request.approvalCode}
                   </p>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </Card>
+
+      <Card>
+        <div className="mb-4">
+          <p className="text-sm font-bold text-yellow-100">Tentativas de cadastro</p>
+          <h2 className="text-2xl font-black text-white">Historico de criacao de conta</h2>
+          <p className="mt-1 text-sm text-slate-400">
+            Cada tentativa gera um documento proprio no Firestore, inclusive codigo invalido.
+          </p>
+        </div>
+
+        <div className="max-h-[420px] space-y-3 overflow-auto pr-1">
+          {registrationAttempts.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-white/15 p-8 text-center text-slate-400">
+              Nenhuma tentativa registrada ainda.
+            </div>
+          ) : (
+            registrationAttempts.slice(0, 50).map((attempt) => (
+              <div
+                key={attempt.id}
+                className="grid gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 md:grid-cols-[1fr_auto]"
+              >
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`rounded-full px-2 py-1 text-xs font-black ${attemptClass(attempt.status)}`}>
+                      {attemptLabel(attempt.status)}
+                    </span>
+                    <span className="text-xs text-slate-500">{formatDateTime(attempt.createdAt)}</span>
+                  </div>
+                  <p className="mt-2 truncate font-black text-white">{attempt.email}</p>
+                  {attempt.message ? (
+                    <p className="mt-1 text-sm text-slate-400">{attempt.message}</p>
+                  ) : null}
+                </div>
+                <div className="text-left md:text-right">
+                  {attempt.approvalCodeProvided ? (
+                    <>
+                      <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">
+                        Codigo usado
+                      </p>
+                      <p className="font-mono text-lg font-black tracking-[0.16em] text-yellow-200">
+                        {attempt.approvalCodeProvided}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-slate-500">Sem codigo</p>
+                  )}
                 </div>
               </div>
             ))

@@ -10,6 +10,7 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [approvalCode, setApprovalCode] = useState("");
   const [needsCode, setNeedsCode] = useState(false);
+  const [requestedEmail, setRequestedEmail] = useState("");
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -17,6 +18,7 @@ export function LoginPage() {
       const result = await login(email, password, needsCode ? approvalCode : undefined);
       if (result.status === "access_code_required") {
         setNeedsCode(true);
+        setRequestedEmail(result.request.email);
         toast.success("Pedido criado. Peça o codigo para um admin do PrivadIn.");
         return;
       }
@@ -107,24 +109,37 @@ export function LoginPage() {
             </label>
 
             {needsCode ? (
-              <label className="mb-6 block">
-                <span className="mb-2 block text-sm font-bold text-slate-300">Codigo do admin</span>
-                <span className="flex items-center gap-3 rounded-2xl border border-yellow-200/20 bg-slate-950/60 px-4 py-3">
-                  <KeyRound className="text-yellow-200" size={18} />
-                  <input
-                    className="w-full bg-transparent font-mono tracking-[0.18em] text-white outline-none placeholder:tracking-normal placeholder:text-slate-500"
-                    type="text"
-                    value={approvalCode}
-                    onChange={(event) => setApprovalCode(event.target.value.toUpperCase())}
-                    placeholder="ABC123"
-                    required={needsCode}
-                    maxLength={6}
-                  />
-                </span>
-                <p className="mt-2 text-xs text-slate-500">
-                  O codigo aparece na tela Admin para este email.
-                </p>
-              </label>
+              <div className="mb-6 rounded-2xl border border-yellow-200/30 bg-yellow-300/10 p-4">
+                <div className="mb-3 flex items-start gap-3">
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-yellow-300 text-slate-950">
+                    <KeyRound size={18} />
+                  </div>
+                  <div>
+                    <p className="font-black text-yellow-100">Acesso aguardando codigo</p>
+                    <p className="mt-1 text-sm text-slate-300">
+                      Peça ao admin o codigo exibido para{" "}
+                      <span className="font-bold text-white">{requestedEmail || email}</span>.
+                    </p>
+                  </div>
+                </div>
+
+                <label className="block">
+                  <span className="mb-2 block text-sm font-bold text-slate-300">Codigo do admin</span>
+                  <span className="flex items-center gap-3 rounded-2xl border border-yellow-200/20 bg-slate-950/70 px-4 py-3">
+                    <KeyRound className="text-yellow-200" size={18} />
+                    <input
+                      className="w-full bg-transparent font-mono tracking-[0.18em] text-white outline-none placeholder:tracking-normal placeholder:text-slate-500"
+                      type="text"
+                      value={approvalCode}
+                      onChange={(event) => setApprovalCode(event.target.value.toUpperCase())}
+                      placeholder="ABC123"
+                      required={needsCode}
+                      maxLength={6}
+                      autoFocus
+                    />
+                  </span>
+                </label>
+              </div>
             ) : null}
 
             <button
@@ -144,11 +159,23 @@ export function LoginPage() {
                 onClick={() => {
                   setNeedsCode(false);
                   setApprovalCode("");
+                  setRequestedEmail("");
                 }}
               >
                 Voltar para login normal
               </button>
-            ) : null}
+            ) : (
+              <button
+                type="button"
+                className="mt-3 w-full rounded-2xl border border-white/10 px-5 py-3 text-sm font-bold text-slate-300 transition hover:bg-white/10 hover:text-white"
+                onClick={() => {
+                  setNeedsCode(true);
+                  setRequestedEmail(email);
+                }}
+              >
+                Ja tenho codigo
+              </button>
+            )}
             <p className="mt-4 text-center text-xs text-slate-500">
               {isFirebaseConfigured
                 ? "Sem codigo de admin, sem campeonato. Democracia, mas com portaria."

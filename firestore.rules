@@ -47,5 +47,11 @@ service cloud.firestore {
         && request.resource.data.claimedBy == request.auth.uid;
       allow delete: if false;
     }
+
+    match /registration_attempts/{attemptId} {
+      allow create: if true;
+      allow read: if isAdmin();
+      allow update, delete: if false;
+    }
   }
 }

@@ -5,6 +5,7 @@ import type {
   AppUser,
   PoopLog,
   RankedUser,
+  RegistrationAttempt,
   RegistrationRequest,
 } from "../types";
 import {
@@ -15,7 +16,10 @@ import {
 } from "../services/poopService";
 import { isFirebaseConfigured } from "../services/firebase";
 import { rankUsers } from "../utils/ranking";
-import { registrationRequestsQuery } from "../services/registrationService";
+import {
+  registrationAttemptsQuery,
+  registrationRequestsQuery,
+} from "../services/registrationService";
 
 function sortLogs(logs: PoopLog[]) {
   return [...logs].sort((a, b) => {
@@ -153,4 +157,29 @@ export function useRegistrationRequests(enabled = true) {
   }, [enabled]);
 
   return requests;
+}
+
+export function useRegistrationAttempts(enabled = true) {
+  const [attempts, setAttempts] = useState<RegistrationAttempt[]>([]);
+
+  useEffect(() => {
+    if (!enabled || !isFirebaseConfigured) {
+      setAttempts([]);
+      return;
+    }
+
+    return onSnapshot(
+      registrationAttemptsQuery(),
+      (snapshot) => {
+        setAttempts(
+          snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as RegistrationAttempt),
+        );
+      },
+      (error) => {
+        console.error("Erro ao ler tentativas de cadastro:", error);
+      },
+    );
+  }, [enabled]);
+
+  return attempts;
 }
