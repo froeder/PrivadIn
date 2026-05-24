@@ -1,6 +1,6 @@
 import confetti from "canvas-confetti";
 import toast from "react-hot-toast";
-import { Crown, TimerReset } from "lucide-react";
+import { Crown, Share2, TimerReset } from "lucide-react";
 import { Card, MetricCard } from "../components/Card";
 import { RankingList } from "../components/RankingList";
 import type { AppUser, PoopLog, RankedUser } from "../types";
@@ -33,6 +33,29 @@ export function DashboardPage({
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "O vaso recusou o protocolo.");
+    }
+  }
+
+  async function handleShareRanking() {
+    const rankingText = rankedUsers
+      .sort((a, b) => a.rank - b.rank)
+      .map((ranked) => `${ranked.rank}. ${ranked.name} - ${ranked.totalPoints} ponto(s)`)
+      .join("\n");
+    const text = `Ranking atual do PrivadIn:\n\n${rankingText || "Sem jogadores no ranking ainda."}`;
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: "Ranking atual do PrivadIn",
+          text,
+        });
+        return;
+      }
+
+      await navigator.clipboard.writeText(text);
+      toast.success("Ranking copiado. Agora e so jogar no grupo sem piedade.");
+    } catch {
+      toast.error("Nao consegui compartilhar o ranking agora.");
     }
   }
 
@@ -81,9 +104,19 @@ export function DashboardPage({
 
       <section className="grid gap-5 xl:grid-cols-2">
         <Card>
-          <div className="mb-4">
-            <p className="text-sm font-bold text-yellow-100">Geral</p>
-            <h2 className="text-2xl font-black text-white">Ranking ao vivo</h2>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-bold text-yellow-100">Geral</p>
+              <h2 className="text-2xl font-black text-white">Ranking ao vivo</h2>
+            </div>
+            <button
+              onClick={handleShareRanking}
+              className="inline-flex items-center gap-2 rounded-2xl border border-yellow-200/20 bg-yellow-300/15 px-4 py-3 text-sm font-black text-yellow-100 transition hover:bg-yellow-300 hover:text-slate-950"
+              title="Compartilhar ranking atual"
+            >
+              <Share2 size={18} />
+              Compartilhar
+            </button>
           </div>
           <RankingList users={rankedUsers} currentUid={user.uid} />
         </Card>
