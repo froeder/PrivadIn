@@ -3,6 +3,7 @@ import { KeyRound, Lock, Mail, Sparkles } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuth } from "../contexts/AuthContext";
 import { isFirebaseConfigured } from "../services/firebase";
+import { AuthLoginError, loginErrorMessage } from "../utils/authErrors";
 
 export function LoginPage() {
   const { login, loading } = useAuth();
@@ -14,11 +15,18 @@ export function LoginPage() {
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
+    const emailForLogin = needsCode ? requestedEmail || email : email;
+
     try {
-      const result = await login(email, password, needsCode ? approvalCode : undefined);
+      const result = await login(
+        emailForLogin,
+        password,
+        needsCode ? approvalCode : undefined,
+      );
       if (result.status === "access_code_required") {
         setNeedsCode(true);
         setRequestedEmail(result.request.email);
+        setEmail(result.request.email);
         toast.success("Pedido criado. Peça o codigo para um admin do PrivadIn.");
         return;
       }
@@ -30,10 +38,14 @@ export function LoginPage() {
       );
     } catch (error) {
       console.error(error);
+      if (error instanceof AuthLoginError) {
+        toast.error(loginErrorMessage(error.code, needsCode));
+        return;
+      }
       toast.error(
         isFirebaseConfigured
           ? needsCode
-            ? "Codigo invalido ou email ja cadastrado. Chame o admin antes de insistir."
+            ? "Nao foi possivel validar o codigo. Confira email, senha e codigo com o admin."
             : "Nao achei acesso ativo. Vou preparar uma solicitacao de codigo."
           : "Configure o .env com as credenciais Firebase antes de entrar.",
       );
@@ -83,11 +95,12 @@ export function LoginPage() {
               <span className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3">
                 <Mail className="text-yellow-200" size={18} />
                 <input
-                  className="w-full bg-transparent text-white outline-none placeholder:text-slate-500"
+                  className="w-full bg-transparent text-white outline-none placeholder:text-slate-500 disabled:cursor-not-allowed disabled:text-slate-400"
                   type="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="voce@empresa.com"
+                  readOnly={needsCode && Boolean(requestedEmail)}
                   required
                 />
               </span>
@@ -102,7 +115,7 @@ export function LoginPage() {
                   type="password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  placeholder="senha secreta do trono"
+                  placeholder={needsCode ? "crie uma senha (nao e o codigo)" : "senha secreta do trono"}
                   required
                 />
               </span>
@@ -170,7 +183,12 @@ export function LoginPage() {
                 className="mt-3 w-full rounded-2xl border border-white/10 px-5 py-3 text-sm font-bold text-slate-300 transition hover:bg-white/10 hover:text-white"
                 onClick={() => {
                   setNeedsCode(true);
-                  setRequestedEmail(email);
+                  setRequestedEmail(email.trim());
+                  setApprovalCode("");
+                  toast(
+                    "Use o codigo do admin no campo abaixo. A senha e a que voce escolher — nao o codigo.",
+                    { icon: "🔑" },
+                  );
                 }}
               >
                 Ja tenho codigo

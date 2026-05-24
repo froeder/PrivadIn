@@ -25,6 +25,7 @@ import {
   markRegistrationRequestUsed,
   normalizeEmail,
 } from "../services/registrationService";
+import { AuthLoginError, firebaseAuthErrorCode } from "../utils/authErrors";
 
 type AuthResult =
   | { status: "signed_in" }
@@ -87,34 +88,53 @@ async function ensureUserProfile(firebaseUser: User) {
 }
 
 async function registerWithApprovalCode(email: string, password: string, approvalCode: string) {
-  const request = await getRegistrationRequest(email);
-  if (!request || request.status !== "pending") {
+  const normalizedEmail = normalizeEmail(email);
+  const request = await getRegistrationRequest(normalizedEmail);
+
+  if (!request) {
     await createRegistrationAttempt({
-      email,
+      email: normalizedEmail,
       status: "failed",
       approvalCodeProvided: approvalCode,
-      message: "Solicitacao inexistente ou ja utilizada.",
+      message: "Nenhuma solicitacao encontrada para este email.",
     });
-    throw new Error("Solicitacao de acesso nao encontrada ou ja utilizada.");
+    throw new AuthLoginError(
+      "Nenhuma solicitacao de acesso encontrada para este email.",
+      "no_request",
+    );
+  }
+
+  if (request.status === "used") {
+    await createRegistrationAttempt({
+      email: normalizedEmail,
+      status: "failed",
+      approvalCodeProvided: approvalCode,
+      requestId: request.id,
+      message: "Solicitacao ja utilizada; conta ja existe.",
+    });
+    throw new AuthLoginError(
+      "A solicitacao deste email ja foi usada para criar conta.",
+      "request_already_used",
+    );
   }
 
   if (request.approvalCode.toUpperCase() !== approvalCode.trim().toUpperCase()) {
     await createRegistrationAttempt({
-      email,
+      email: normalizedEmail,
       status: "invalid_code",
       approvalCodeProvided: approvalCode,
       requestId: request.id,
       message: "Codigo informado nao confere com a solicitacao.",
     });
-    throw new Error("Codigo de acesso incorreto.");
+    throw new AuthLoginError("Codigo de acesso incorreto.", "invalid_code");
   }
 
   try {
-    const credential = await createUserWithEmailAndPassword(auth, normalizeEmail(email), password);
+    const credential = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
     const profile = await ensureUserProfile(credential.user);
-    await markRegistrationRequestUsed(email, credential.user.uid);
+    await markRegistrationRequestUsed(normalizedEmail, credential.user.uid);
     await createRegistrationAttempt({
-      email,
+      email: normalizedEmail,
       status: "account_created",
       approvalCodeProvided: approvalCode,
       requestId: request.id,
@@ -122,13 +142,24 @@ async function registerWithApprovalCode(email: string, password: string, approva
     });
     return { credential, profile };
   } catch (error) {
+    const mappedCode = firebaseAuthErrorCode(error);
     await createRegistrationAttempt({
-      email,
+      email: normalizedEmail,
       status: "failed",
       approvalCodeProvided: approvalCode,
       requestId: request.id,
       message: error instanceof Error ? error.message : "Falha ao criar conta.",
     });
+    if (mappedCode) {
+      throw new AuthLoginError(
+        mappedCode === "email_already_registered"
+          ? "Este email ja possui conta."
+          : mappedCode === "weak_password"
+            ? "Senha muito fraca para criar a conta."
+            : "Email invalido para cadastro.",
+        mappedCode,
+      );
+    }
     throw error;
   }
 }
@@ -173,13 +204,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       login: async (email, password, approvalCode) => {
         if (!isFirebaseConfigured) {
-          throw new Error("Firebase ainda nao foi configurado no .env.");
+          throw new AuthLoginError("Firebase ainda nao foi configurado no .env.", "firebase_not_configured");
         }
+
+        const normalizedEmail = normalizeEmail(email);
         setLoading(true);
         try {
           if (approvalCode?.trim()) {
             const { credential, profile } = await registerWithApprovalCode(
-              email,
+              normalizedEmail,
               password,
               approvalCode,
             );
@@ -188,22 +221,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return { status: "signed_in" };
           }
 
-          const credential = await signInWithEmailAndPassword(auth, email, password);
+          const credential = await signInWithEmailAndPassword(auth, normalizedEmail, password);
           const profile = await ensureUserProfile(credential.user);
           setFirebaseUser(credential.user);
           setUser(profile);
           return { status: "signed_in" };
         } catch (error) {
           if (!approvalCode?.trim() && isMissingAccountError(error)) {
-            const request = await getOrCreateRegistrationRequest(email);
+            const request = await getOrCreateRegistrationRequest(normalizedEmail);
+            if (request.status === "used") {
+              throw new AuthLoginError(
+                "Este email ja foi cadastrado. Entre com email e senha.",
+                "request_already_used",
+              );
+            }
             await createRegistrationAttempt({
-              email,
+              email: normalizedEmail,
               status: "code_requested",
               requestId: request.id,
               message: "Usuario tentou entrar sem conta e solicitou codigo.",
             });
             return { status: "access_code_required", request };
           }
+
+          const mappedCode = firebaseAuthErrorCode(error);
+          if (mappedCode === "wrong_password") {
+            throw new AuthLoginError("Senha incorreta.", "wrong_password");
+          }
+
           await signOut(auth).catch(() => undefined);
           throw error;
         } finally {
