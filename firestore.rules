@@ -1,0 +1,51 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn();
+      allow create: if isOwner(userId)
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.role == "player";
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if false;
+    }
+
+    match /poop_logs/{logId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.points == 1;
+      allow update, delete: if isAdmin();
+    }
+
+    match /admin_audit_logs/{auditLogId} {
+      allow read, create: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    match /registration_requests/{requestId} {
+      allow get, create: if true;
+      allow list: if isAdmin();
+      allow update: if signedIn()
+        && resource.data.status == "pending"
+        && request.resource.data.status == "used"
+        && request.resource.data.claimedBy == request.auth.uid;
+      allow delete: if false;
+    }
+  }
+}
