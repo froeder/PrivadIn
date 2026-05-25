@@ -100,7 +100,7 @@ export async function registerPoop(user: AppUser, userLogs: PoopLog[]) {
     userId: user.uid,
     userName: user.name,
     createdAt: now,
-    points: 1,
+    points: 1
     isWeeklyActive: true,
   });
 
@@ -158,7 +158,7 @@ export async function removeLog(admin: AppUser, log: PoopLog) {
         targetUser: { uid: log.userId, name: log.userName },
         points: log.points,
         removedLogId: log.id,
-        description: `${admin.name} removeu um registro de ${log.userName} valendo ${log.points} ponto(s).`,
+        description: `${admin.name} removeu um registro de ${log.userName} valendo ${log.points} pontos.`,
       }),
     );
   });

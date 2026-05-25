@@ -188,14 +188,14 @@ export function AdminPage({
                 <button
                   disabled={busy}
                   className="rounded-xl bg-white/10 px-3 py-2 font-black text-white hover:bg-white/20 disabled:opacity-60"
-                  onClick={() => runAdminAction(() => adjustUserPoints(admin, user, -1), "Ponto removido. Auditoria respirando melhor.")}
+                  onClick={() => runAdminAction(() => adjustUserPoints(admin, user, -1), "1 pontos removidos. Auditoria respirando melhor.")}
                 >
                   -1
                 </button>
                 <button
                   disabled={busy}
                   className="rounded-xl bg-yellow-300 px-3 py-2 font-black text-slate-950 hover:bg-yellow-200 disabled:opacity-60"
-                  onClick={() => runAdminAction(() => adjustUserPoints(admin, user, 1), "Ponto adicionado. Que conste em ata.")}
+                  onClick={() => runAdminAction(() => adjustUserPoints(admin, user, 1), "1 pontos adicionados. Que conste em ata.")}
                 >
                   +1
                 </button>

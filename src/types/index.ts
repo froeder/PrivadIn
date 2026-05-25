@@ -1,6 +1,6 @@
 import type { Timestamp } from "firebase/firestore";
 
-export type AppView = "dashboard" | "history" | "stats" | "admin";
+export type AppView = "dashboard" | "history" | "stats" | "admin" | "profile";
 
 export type UserRole = "player" | "admin";
 

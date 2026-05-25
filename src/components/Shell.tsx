@@ -1,4 +1,4 @@
-import { BarChart3, History, LayoutDashboard, LogOut, Shield, Volume2, VolumeX } from "lucide-react";
+import { BarChart3, History, LayoutDashboard, LogOut, Shield, Volume2, VolumeX, User } from "lucide-react";
 import type { AppView } from "../types";
 import { useAuth } from "../contexts/AuthContext";
 import { clsx } from "clsx";
@@ -15,6 +15,7 @@ const items: Array<{ view: AppView; label: string; icon: React.ElementType }> = 
   { view: "dashboard", label: "Painel", icon: LayoutDashboard },
   { view: "history", label: "Historico", icon: History },
   { view: "stats", label: "Stats", icon: BarChart3 },
+  { view: "profile", label: "Perfil", icon: User },
 ];
 
 export function Shell({ view, onViewChange, muted, onToggleMuted, children }: ShellProps) {
