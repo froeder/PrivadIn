@@ -76,6 +76,7 @@ export async function registerPoop(
   user: AppUser,
   userLogs: PoopLog[],
   cooldownMinutes: number,
+  pointsPerLog: number,
 ) {
   const cooldown = getCooldownSeconds(userLogs, cooldownMinutes);
   if (cooldown > 0) {
@@ -93,7 +94,7 @@ export async function registerPoop(
       userId: user.uid,
       userName: user.name,
       createdAt: now,
-      points: 2000,
+      points: pointsPerLog,
       isWeeklyActive: true,
     },
     ...userLogs,
@@ -104,13 +105,13 @@ export async function registerPoop(
     userId: user.uid,
     userName: user.name,
     createdAt: now,
-    points: 2000,
+    points: pointsPerLog,
     isWeeklyActive: true,
   });
 
   await updateDoc(userDoc, {
-    totalPoints: increment(2000),
-    weeklyPoints: increment(2000),
+    totalPoints: increment(pointsPerLog),
+    weeklyPoints: increment(pointsPerLog),
     firstLogAt: user.firstLogAt ?? now,
     lastLogAt: now,
     currentDailyStreak: calculateDailyStreak(nextLogs),

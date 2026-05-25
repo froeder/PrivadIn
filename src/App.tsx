@@ -58,6 +58,7 @@ function AppContent() {
           rankedUsers={rankedUsers}
           userLogs={userLogs}
           cooldownMinutes={appSettings.cooldownMinutes}
+          pointsPerLog={appSettings.pointsPerLog}
           onPlaySound={playFlush}
         />
       ) : null}

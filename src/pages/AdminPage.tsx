@@ -10,13 +10,17 @@ import type {
   RegistrationRequest,
 } from "../types";
 import { adjustUserPoints, removeLog, resetWeeklyRanking } from "../services/poopService";
-import { updateCooldownMinutes } from "../services/settingsService";
+import {
+  updateCooldownMinutes,
+  updatePointsPerLog,
+} from "../services/settingsService";
 import { formatDateTime } from "../utils/date";
 
 function actionLabel(action: AdminAuditLog["action"]) {
   if (action === "adjust_points") return "Ajuste de pontos";
   if (action === "remove_log") return "Registro removido";
   if (action === "update_cooldown") return "Cooldown atualizado";
+  if (action === "update_points_per_log") return "Pontuacao atualizada";
   return "Reset semanal";
 }
 
@@ -52,14 +56,22 @@ export function AdminPage({
 }) {
   const [busy, setBusy] = useState(false);
   const [cooldownInput, setCooldownInput] = useState(String(appSettings.cooldownMinutes));
+  const [pointsInput, setPointsInput] = useState(String(appSettings.pointsPerLog));
 
   useEffect(() => {
     setCooldownInput(String(appSettings.cooldownMinutes));
   }, [appSettings.cooldownMinutes]);
 
+  useEffect(() => {
+    setPointsInput(String(appSettings.pointsPerLog));
+  }, [appSettings.pointsPerLog]);
+
   const parsedCooldown = Number(cooldownInput);
   const isCooldownValid =
     Number.isInteger(parsedCooldown) && parsedCooldown >= 1 && parsedCooldown <= 1440;
+  const parsedPoints = Number(pointsInput);
+  const isPointsValid =
+    Number.isInteger(parsedPoints) && parsedPoints >= 1 && parsedPoints <= 100000;
 
   async function runAdminAction(action: () => Promise<void>, success: string) {
     setBusy(true);
@@ -95,13 +107,13 @@ export function AdminPage({
       <Card>
         <div className="mb-4">
           <p className="text-sm font-bold text-yellow-100">Configuracoes do app</p>
-          <h2 className="text-2xl font-black text-white">Cooldown de registro</h2>
+          <h2 className="text-2xl font-black text-white">Cooldown e pontuacao</h2>
           <p className="mt-1 text-sm text-slate-400">
-            Defina em minutos quanto tempo cada usuario deve esperar entre um registro e outro.
+            Defina em minutos o cooldown e quantos pontos cada registro deve valer.
           </p>
         </div>
 
-        <div className="flex flex-col gap-4 md:flex-row md:items-end">
+        <div className="grid gap-4 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
           <label className="flex-1">
             <span className="mb-2 block text-sm font-bold text-slate-300">Tempo em minutos</span>
             <input
@@ -123,18 +135,54 @@ export function AdminPage({
             ) : null}
           </label>
 
-          <button
-            disabled={busy || !isCooldownValid || parsedCooldown === appSettings.cooldownMinutes}
-            onClick={() =>
-              runAdminAction(
-                () => updateCooldownMinutes(admin, parsedCooldown),
-                `Cooldown atualizado para ${parsedCooldown} minuto(s).`,
-              )
-            }
-            className="rounded-2xl bg-yellow-300 px-5 py-3 font-black text-slate-950 transition hover:bg-yellow-200 disabled:opacity-60"
-          >
-            Salvar cooldown
-          </button>
+          <label className="flex-1">
+            <span className="mb-2 block text-sm font-bold text-slate-300">Pontos por registro</span>
+            <input
+              className="w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none"
+              type="number"
+              min={1}
+              max={100000}
+              step={1}
+              value={pointsInput}
+              onChange={(event) => setPointsInput(event.target.value)}
+            />
+            <p className="mt-2 text-xs text-slate-500">
+              Valor atual no app: {appSettings.pointsPerLog} pontos por registro.
+            </p>
+            {!isPointsValid ? (
+              <p className="mt-1 text-xs font-semibold text-red-300">
+                Informe um numero inteiro entre 1 e 100000.
+              </p>
+            ) : null}
+          </label>
+
+          <div className="flex flex-col gap-3">
+            <button
+              disabled={busy || !isCooldownValid || parsedCooldown === appSettings.cooldownMinutes}
+              onClick={() =>
+                runAdminAction(
+                  () => updateCooldownMinutes(admin, parsedCooldown),
+                  `Cooldown atualizado para ${parsedCooldown} minuto(s).`,
+                )
+              }
+              className="rounded-2xl bg-yellow-300 px-5 py-3 font-black text-slate-950 transition hover:bg-yellow-200 disabled:opacity-60"
+            >
+              Salvar cooldown
+            </button>
+
+            <button
+              disabled={busy || !isPointsValid || parsedPoints === appSettings.pointsPerLog}
+              onClick={() =>
+                runAdminAction(
+                  () => updatePointsPerLog(admin, parsedPoints),
+                  `Pontuacao atualizada para ${parsedPoints} ponto(s) por registro.`,
+                )
+              }
+              className="rounded-2xl border border-white/10 bg-white/10 px-5 py-3 font-black text-white transition hover:bg-white/20 disabled:opacity-60"
+            >
+              Salvar pontuacao
+            </button>
+          </div>
         </div>
       </Card>
 
@@ -248,16 +296,26 @@ export function AdminPage({
                 <button
                   disabled={busy}
                   className="rounded-xl bg-white/10 px-3 py-2 font-black text-white hover:bg-white/20 disabled:opacity-60"
-                  onClick={() => runAdminAction(() => adjustUserPoints(admin, user, -1), "1 pontos removidos. Auditoria respirando melhor.")}
+                  onClick={() =>
+                    runAdminAction(
+                      () => adjustUserPoints(admin, user, -appSettings.pointsPerLog),
+                      `${appSettings.pointsPerLog} pontos removidos. Auditoria respirando melhor.`,
+                    )
+                  }
                 >
-                  -1
+                  -{appSettings.pointsPerLog}
                 </button>
                 <button
                   disabled={busy}
                   className="rounded-xl bg-yellow-300 px-3 py-2 font-black text-slate-950 hover:bg-yellow-200 disabled:opacity-60"
-                  onClick={() => runAdminAction(() => adjustUserPoints(admin, user, 1), "1 pontos adicionados. Que conste em ata.")}
+                  onClick={() =>
+                    runAdminAction(
+                      () => adjustUserPoints(admin, user, appSettings.pointsPerLog),
+                      `${appSettings.pointsPerLog} pontos adicionados. Que conste em ata.`,
+                    )
+                  }
                 >
-                  +1
+                  +{appSettings.pointsPerLog}
                 </button>
               </div>
             ))}

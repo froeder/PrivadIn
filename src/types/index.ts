@@ -32,6 +32,7 @@ export interface PoopLog {
 
 export interface AppSettings {
   cooldownMinutes: number;
+  pointsPerLog: number;
   updatedAt?: Timestamp;
   updatedBy?: string;
 }
@@ -40,7 +41,8 @@ export type AdminAuditAction =
   | "adjust_points"
   | "remove_log"
   | "reset_weekly"
-  | "update_cooldown";
+  | "update_cooldown"
+  | "update_points_per_log";
 
 export interface AdminAuditLog {
   id: string;

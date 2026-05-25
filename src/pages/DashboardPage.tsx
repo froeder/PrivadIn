@@ -12,22 +12,32 @@ export function DashboardPage({
   rankedUsers,
   userLogs,
   cooldownMinutes,
+  pointsPerLog,
   onPlaySound,
 }: {
   user: AppUser;
   rankedUsers: RankedUser[];
   userLogs: PoopLog[];
   cooldownMinutes: number;
+  pointsPerLog: number;
   onPlaySound: () => void;
 }) {
   const currentRank = rankedUsers.find((ranked) => ranked.uid === user.uid);
   const lastLog = getLastLog(userLogs);
   const cooldownSeconds = getCooldownSeconds(userLogs, cooldownMinutes);
+  const formattedPointsPerLog = pointsPerLog.toLocaleString("pt-BR");
+  const isOnCooldown = cooldownSeconds > 0;
+  const cooldownWarningMessage = "Está querendo roubar? Aposto que é o mário";
 
   async function handleRegister() {
+    if (isOnCooldown) {
+      toast.error(cooldownWarningMessage);
+      return;
+    }
+
     const previousRank = currentRank?.rank ?? rankedUsers.length;
     try {
-      await registerPoop(user, userLogs, cooldownMinutes);
+      await registerPoop(user, userLogs, cooldownMinutes, pointsPerLog);
       onPlaySound();
       toast.success("Registro feito. A firma jamais sabera a grandeza desse momento.");
       if ((currentRank?.rank ?? previousRank) <= previousRank) {
@@ -66,7 +76,7 @@ export function DashboardPage({
   return (
     <div className="flex flex-col gap-4 sm:gap-5">
       <section className="order-2 grid grid-cols-2 gap-3 sm:gap-4 md:order-1 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard icon="💩" label="Seu total" value={user.totalPoints} hint="Cada registro vale 1 ponto" />
+        <MetricCard icon="💩" label="Seu total" value={user.totalPoints} hint={`Cada registro vale ${formattedPointsPerLog} pontos`} />
         <MetricCard icon="🏆" label="Posicao geral" value={`#${currentRank?.rank ?? "-"}`} hint="Empate favorece quem registrou primeiro" />
         <MetricCard icon="🔥" label="Streak diaria" value={`${user.currentDailyStreak}d`} hint={`${user.currentWeeklyStreak} semana(s) ativa(s)`} />
         <MetricCard icon="🕘" label="Ultima cagada" value={formatHour(lastLog?.createdAt)} hint={formatDateTime(lastLog?.createdAt)} />
@@ -82,14 +92,21 @@ export function DashboardPage({
             </span>
             <h2 className="mt-4 text-2xl font-black leading-tight text-white sm:text-5xl">Momento de gloria remunerada?</h2>
             <p className="mt-3 text-sm text-slate-300 sm:text-base">
-              Registre automaticamente data e horario, some ponto e dispute o trono em tempo real.
+              Registre automaticamente data e horario, ganhe {formattedPointsPerLog} pontos e dispute o trono em tempo real.
             </p>
             <button
               onClick={handleRegister}
-              disabled={cooldownSeconds > 0}
-              className="mt-6 w-full rounded-2xl bg-yellow-300 px-5 py-4 text-base font-black text-slate-950 shadow-xl shadow-yellow-300/20 transition hover:-translate-y-1 hover:bg-yellow-200 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:rounded-3xl sm:px-6 sm:py-6 sm:text-xl"
+              aria-disabled={isOnCooldown}
+              title={isOnCooldown ? cooldownWarningMessage : "Registrar pontuacao"}
+              className={`mt-6 w-full rounded-2xl bg-yellow-300 px-5 py-4 text-base font-black text-slate-950 shadow-xl shadow-yellow-300/20 transition sm:w-auto sm:rounded-3xl sm:px-6 sm:py-6 sm:text-xl ${
+                isOnCooldown
+                  ? "cursor-not-allowed opacity-60"
+                  : "hover:-translate-y-1 hover:bg-yellow-200"
+              }`}
             >
-              {cooldownSeconds > 0 ? `AGUARDE ${Math.ceil(cooldownSeconds / 60)} MIN` : "REGISTRAR CAGADA"}
+              {isOnCooldown
+                ? `AGUARDE ${Math.ceil(cooldownSeconds / 60)} MIN`
+                : `REGISTRAR CAGADA (+${formattedPointsPerLog})`}
             </button>
           </div>
         </Card>
