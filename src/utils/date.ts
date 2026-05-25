@@ -14,7 +14,7 @@ import { ptBR } from "date-fns/locale";
 import type { Timestamp } from "firebase/firestore";
 import type { PoopLog } from "../types";
 
-export const COOLDOWN_MINUTES = 15;
+export const DEFAULT_COOLDOWN_MINUTES = 15;
 export const DAILY_LIMIT = Number(import.meta.env.VITE_DAILY_LOG_LIMIT ?? 8);
 
 export function toDate(value?: Timestamp) {
@@ -63,11 +63,14 @@ export function getLastLog(logs: PoopLog[]) {
   })[0];
 }
 
-export function getCooldownSeconds(logs: PoopLog[]) {
+export function getCooldownSeconds(
+  logs: PoopLog[],
+  cooldownMinutes = DEFAULT_COOLDOWN_MINUTES,
+) {
   const last = getLastLog(logs);
   if (!last) return 0;
   const elapsed = Date.now() - last.createdAt.toMillis();
-  const cooldown = COOLDOWN_MINUTES * 60 * 1000;
+  const cooldown = cooldownMinutes * 60 * 1000;
   return Math.max(0, Math.ceil((cooldown - elapsed) / 1000));
 }
 

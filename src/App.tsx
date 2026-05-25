@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import {
   useAdminAuditLogs,
   useAllLogs,
+  useAppSettings,
   useRegistrationAttempts,
   useRegistrationRequests,
   useUserLogs,
@@ -21,6 +22,7 @@ import type { AppView } from "./types";
 
 function AppContent() {
   const { user, loading } = useAuth();
+  const { appSettings } = useAppSettings();
   const { users, rankedUsers } = useUsers(Boolean(user));
   const { logs: userLogs } = useUserLogs(user?.uid);
   const allLogs = useAllLogs(Boolean(user));
@@ -46,12 +48,18 @@ function AppContent() {
     );
   }
 
-  if (!liveUser) return <LoginPage />;
+  if (!liveUser) return <LoginPage cooldownMinutes={appSettings.cooldownMinutes} />;
 
   return (
     <Shell currentUser={liveUser} view={view} onViewChange={setView} muted={muted} onToggleMuted={toggleMuted}>
       {view === "dashboard" ? (
-        <DashboardPage user={liveUser} rankedUsers={rankedUsers} userLogs={userLogs} onPlaySound={playFlush} />
+        <DashboardPage
+          user={liveUser}
+          rankedUsers={rankedUsers}
+          userLogs={userLogs}
+          cooldownMinutes={appSettings.cooldownMinutes}
+          onPlaySound={playFlush}
+        />
       ) : null}
       {view === "profile" ? <EditProfilePage /> : null}
       {view === "history" ? <HistoryPage logs={userLogs} /> : null}
@@ -61,6 +69,7 @@ function AppContent() {
           admin={liveUser}
           users={users}
           logs={allLogs}
+          appSettings={appSettings}
           auditLogs={adminAuditLogs}
           registrationRequests={registrationRequests}
           registrationAttempts={registrationAttempts}

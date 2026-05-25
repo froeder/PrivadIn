@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { onSnapshot } from "firebase/firestore";
 import type {
   AdminAuditLog,
+  AppSettings,
   AppUser,
   PoopLog,
   RankedUser,
@@ -20,6 +21,11 @@ import {
   registrationAttemptsQuery,
   registrationRequestsQuery,
 } from "../services/registrationService";
+import {
+  appSettingsDocRef,
+  defaultAppSettings,
+  parseAppSettings,
+} from "../services/settingsService";
 
 function sortLogs(logs: PoopLog[]) {
   return [...logs].sort((a, b) => {
@@ -182,4 +188,32 @@ export function useRegistrationAttempts(enabled = true) {
   }, [enabled]);
 
   return attempts;
+}
+
+export function useAppSettings(enabled = true) {
+  const [appSettings, setAppSettings] = useState<AppSettings>(defaultAppSettings);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!enabled || !isFirebaseConfigured) {
+      setAppSettings(defaultAppSettings);
+      setLoading(false);
+      return;
+    }
+
+    return onSnapshot(
+      appSettingsDocRef,
+      (snapshot) => {
+        setAppSettings(parseAppSettings(snapshot.data() as Partial<AppSettings> | undefined));
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Erro ao ler configuracoes do app:", error);
+        setAppSettings(defaultAppSettings);
+        setLoading(false);
+      },
+    );
+  }, [enabled]);
+
+  return { appSettings, loading };
 }

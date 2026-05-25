@@ -11,21 +11,23 @@ export function DashboardPage({
   user,
   rankedUsers,
   userLogs,
+  cooldownMinutes,
   onPlaySound,
 }: {
   user: AppUser;
   rankedUsers: RankedUser[];
   userLogs: PoopLog[];
+  cooldownMinutes: number;
   onPlaySound: () => void;
 }) {
   const currentRank = rankedUsers.find((ranked) => ranked.uid === user.uid);
   const lastLog = getLastLog(userLogs);
-  const cooldownSeconds = getCooldownSeconds(userLogs);
+  const cooldownSeconds = getCooldownSeconds(userLogs, cooldownMinutes);
 
   async function handleRegister() {
     const previousRank = currentRank?.rank ?? rankedUsers.length;
     try {
-      await registerPoop(user, userLogs);
+      await registerPoop(user, userLogs, cooldownMinutes);
       onPlaySound();
       toast.success("Registro feito. A firma jamais sabera a grandeza desse momento.");
       if ((currentRank?.rank ?? previousRank) <= previousRank) {
@@ -76,7 +78,7 @@ export function DashboardPage({
           <div className="relative max-w-2xl">
             <span className="inline-flex items-center gap-2 rounded-full bg-yellow-300/15 px-3 py-1 text-sm font-bold text-yellow-100">
               <TimerReset size={15} />
-              Cooldown anti-fraude: 15 minutos
+              Cooldown anti-fraude: {cooldownMinutes} minuto{cooldownMinutes === 1 ? "" : "s"}
             </span>
             <h2 className="mt-4 text-3xl font-black text-white sm:text-5xl">Momento de gloria remunerada?</h2>
             <p className="mt-3 text-slate-300">

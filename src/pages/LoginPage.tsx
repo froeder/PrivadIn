@@ -5,7 +5,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { isFirebaseConfigured } from "../services/firebase";
 import { AuthLoginError, loginErrorMessage } from "../utils/authErrors";
 
-export function LoginPage() {
+export function LoginPage({ cooldownMinutes }: { cooldownMinutes: number }) {
   const { login, loading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -71,7 +71,11 @@ export function LoginPage() {
               </p>
             </div>
             <div className="grid max-w-2xl gap-3 sm:grid-cols-3">
-              {["Ranking em tempo real", "Streaks e conquistas", "Anti-fraude 15 min"].map((item) => (
+              {[
+                "Ranking em tempo real",
+                "Streaks e conquistas",
+                `Anti-fraude ${cooldownMinutes} min`,
+              ].map((item) => (
                 <div key={item} className="rounded-2xl border border-white/10 bg-white/8 p-4 text-sm font-bold text-slate-200 backdrop-blur-xl">
                   {item}
                 </div>

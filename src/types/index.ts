@@ -30,7 +30,17 @@ export interface PoopLog {
   isWeeklyActive: boolean;
 }
 
-export type AdminAuditAction = "adjust_points" | "remove_log" | "reset_weekly";
+export interface AppSettings {
+  cooldownMinutes: number;
+  updatedAt?: Timestamp;
+  updatedBy?: string;
+}
+
+export type AdminAuditAction =
+  | "adjust_points"
+  | "remove_log"
+  | "reset_weekly"
+  | "update_cooldown";
 
 export interface AdminAuditLog {
   id: string;

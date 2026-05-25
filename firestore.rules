@@ -41,6 +41,12 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    match /app_settings/{settingId} {
+      allow read: if true;
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
+
     match /registration_requests/{requestId} {
       allow get, create: if true;
       allow list: if isAdmin();

@@ -1,19 +1,22 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Card } from "../components/Card";
 import type {
   AdminAuditLog,
+  AppSettings,
   AppUser,
   PoopLog,
   RegistrationAttempt,
   RegistrationRequest,
 } from "../types";
 import { adjustUserPoints, removeLog, resetWeeklyRanking } from "../services/poopService";
+import { updateCooldownMinutes } from "../services/settingsService";
 import { formatDateTime } from "../utils/date";
 
 function actionLabel(action: AdminAuditLog["action"]) {
   if (action === "adjust_points") return "Ajuste de pontos";
   if (action === "remove_log") return "Registro removido";
+  if (action === "update_cooldown") return "Cooldown atualizado";
   return "Reset semanal";
 }
 
@@ -34,6 +37,7 @@ export function AdminPage({
   admin,
   users,
   logs,
+  appSettings,
   auditLogs,
   registrationRequests,
   registrationAttempts,
@@ -41,11 +45,21 @@ export function AdminPage({
   admin: AppUser;
   users: AppUser[];
   logs: PoopLog[];
+  appSettings: AppSettings;
   auditLogs: AdminAuditLog[];
   registrationRequests: RegistrationRequest[];
   registrationAttempts: RegistrationAttempt[];
 }) {
   const [busy, setBusy] = useState(false);
+  const [cooldownInput, setCooldownInput] = useState(String(appSettings.cooldownMinutes));
+
+  useEffect(() => {
+    setCooldownInput(String(appSettings.cooldownMinutes));
+  }, [appSettings.cooldownMinutes]);
+
+  const parsedCooldown = Number(cooldownInput);
+  const isCooldownValid =
+    Number.isInteger(parsedCooldown) && parsedCooldown >= 1 && parsedCooldown <= 1440;
 
   async function runAdminAction(action: () => Promise<void>, success: string) {
     setBusy(true);
@@ -74,6 +88,52 @@ export function AdminPage({
             className="rounded-2xl bg-yellow-300 px-5 py-3 font-black text-slate-950 transition hover:bg-yellow-200 disabled:opacity-60"
           >
             Resetar ranking semanal
+          </button>
+        </div>
+      </Card>
+
+      <Card>
+        <div className="mb-4">
+          <p className="text-sm font-bold text-yellow-100">Configuracoes do app</p>
+          <h2 className="text-2xl font-black text-white">Cooldown de registro</h2>
+          <p className="mt-1 text-sm text-slate-400">
+            Defina em minutos quanto tempo cada usuario deve esperar entre um registro e outro.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-4 md:flex-row md:items-end">
+          <label className="flex-1">
+            <span className="mb-2 block text-sm font-bold text-slate-300">Tempo em minutos</span>
+            <input
+              className="w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none"
+              type="number"
+              min={1}
+              max={1440}
+              step={1}
+              value={cooldownInput}
+              onChange={(event) => setCooldownInput(event.target.value)}
+            />
+            <p className="mt-2 text-xs text-slate-500">
+              Valor atual no app: {appSettings.cooldownMinutes} minuto{appSettings.cooldownMinutes === 1 ? "" : "s"}.
+            </p>
+            {!isCooldownValid ? (
+              <p className="mt-1 text-xs font-semibold text-red-300">
+                Informe um numero inteiro entre 1 e 1440.
+              </p>
+            ) : null}
+          </label>
+
+          <button
+            disabled={busy || !isCooldownValid || parsedCooldown === appSettings.cooldownMinutes}
+            onClick={() =>
+              runAdminAction(
+                () => updateCooldownMinutes(admin, parsedCooldown),
+                `Cooldown atualizado para ${parsedCooldown} minuto(s).`,
+              )
+            }
+            className="rounded-2xl bg-yellow-300 px-5 py-3 font-black text-slate-950 transition hover:bg-yellow-200 disabled:opacity-60"
+          >
+            Salvar cooldown
           </button>
         </div>
       </Card>
