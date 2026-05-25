@@ -29,7 +29,10 @@ service cloud.firestore {
       allow read: if signedIn();
       allow create: if signedIn()
         && request.resource.data.userId == request.auth.uid
-        && request.resource.data.points == 1;
+        && (
+          request.resource.data.points == 1
+          || request.resource.data.points == 1
+        );
       allow update, delete: if isAdmin();
     }
 

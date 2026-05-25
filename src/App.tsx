@@ -16,6 +16,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { HistoryPage } from "./pages/HistoryPage";
 import { StatsPage } from "./pages/StatsPage";
 import { AdminPage } from "./pages/AdminPage";
+import { EditProfilePage } from "./pages/EditProfilePage";
 import type { AppView } from "./types";
 
 function AppContent() {
@@ -52,6 +53,7 @@ function AppContent() {
       {view === "dashboard" ? (
         <DashboardPage user={liveUser} rankedUsers={rankedUsers} userLogs={userLogs} onPlaySound={playFlush} />
       ) : null}
+      {view === "profile" ? <EditProfilePage /> : null}
       {view === "history" ? <HistoryPage logs={userLogs} /> : null}
       {view === "stats" ? <StatsPage user={liveUser} logs={userLogs} allLogs={allLogs} rankedUsers={rankedUsers} /> : null}
       {view === "admin" && liveUser.role === "admin" ? (

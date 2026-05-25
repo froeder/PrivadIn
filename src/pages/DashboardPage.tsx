@@ -39,7 +39,7 @@ export function DashboardPage({
   async function handleShareRanking() {
     const rankingText = rankedUsers
       .sort((a, b) => a.rank - b.rank)
-      .map((ranked) => `${ranked.rank}. ${ranked.name} - ${ranked.totalPoints} ponto(s)`)
+      .map((ranked) => `${ranked.rank}. ${ranked.name} - ${ranked.totalPoints} pontos`)
       .join("\n");
     const text = `Ranking atual do PrivadIn:\n\n${rankingText || "Sem jogadores no ranking ainda."}`;
 
