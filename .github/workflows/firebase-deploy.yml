@@ -9,9 +9,13 @@ concurrency:
   group: firebase-deploy-main
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,6 +28,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools@15.18.0
 
       - name: Build app
         run: npm run build
@@ -42,4 +49,4 @@ jobs:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
       - name: Deploy hosting and Firestore rules
-        run: npx firebase-tools@15.18.0 deploy --only hosting,firestore:rules --non-interactive
+        run: firebase deploy --only hosting,firestore:rules --non-interactive

@@ -44,6 +44,21 @@ firebase deploy --only firestore:rules
 
 6. Para transformar alguem em admin, edite o documento em `users/{uid}` e mude `role` para `admin`.
 
+## GitHub Actions
+
+Para o deploy automático funcionar no GitHub Actions, crie os seguintes secrets no repositório:
+
+- `FIREBASE_SERVICE_ACCOUNT`: JSON da conta de serviço com permissão para Firebase Hosting e Firestore.
+- `VITE_FIREBASE_API_KEY`
+- `VITE_FIREBASE_AUTH_DOMAIN`
+- `VITE_FIREBASE_PROJECT_ID`
+- `VITE_FIREBASE_STORAGE_BUCKET`
+- `VITE_FIREBASE_MESSAGING_SENDER_ID`
+- `VITE_FIREBASE_APP_ID`
+- `VITE_DAILY_LOG_LIMIT` (opcional, pode ser `8`)
+
+O workflow já está configurado para rodar em push para a branch `main`, instalar dependências, compilar o app e fazer o deploy para Hosting e Firestore rules.
+
 O app cria automaticamente o documento do usuario em `users` no primeiro login.
 
 ## Collections
