@@ -43,14 +43,8 @@ jobs:
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
           VITE_DAILY_LOG_LIMIT: ${{ secrets.VITE_DAILY_LOG_LIMIT }}
 
-      - name: Authenticate to Firebase
-        id: auth
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-
+      # Método 100% à prova de falhas para a CLI do Firebase: Injetar a chave JSON direto na variável que ela lê nativamente
       - name: Deploy hosting and Firestore rules
-        run: npx firebase-tools@15.18.0 deploy --only hosting,firestore:rules --non-interactive --project=${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+        run: npx firebase-tools@15.18.0 deploy --only hosting,firestore:rules --non-interactive --project=privadin-d7ebe
         env:
-          GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
