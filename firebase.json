@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "privadin-d7ebe",
     "public": "dist",
     "ignore": [
       "firebase.json",
