@@ -11,7 +11,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: npm ci && npm run build && npx firebase-tools@15.18.0 deploy --only hosting,firestore:rules
+
+      - name: Install and Build
+        run: npm ci && npm run build
+
+      # Passo 1: Deploy das regras do Firestore usando a Service Account correta
+      - name: Deploy Firestore Rules
+        run: npx firebase-tools@15.18.0 deploy --only firestore:rules --non-interactive --project=privadin-d7ebe
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
+        # Se o comando acima chiar por falta de auth, podemos usar a variável que a CLI do Firebase lê nativamente:
+        # env:
+        #   FIREBASE_TOKEN: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PRIVADIN_D7EBE }}
+
+      # Passo 2: A Action oficial faz o deploy do Hosting isolado
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
