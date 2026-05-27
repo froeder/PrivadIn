@@ -49,8 +49,12 @@ jobs:
       #   env:
       #     FIREBASE_TOKEN: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
-      # Injeção direta da Service Account para o deploy do Hosting
+      # Use a service account JSON and GOOGLE_APPLICATION_CREDENTIALS for authentication
+      - name: Write Service Account to file
+        run: |
+          echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" > $GITHUB_WORKSPACE/firebase-service-account.json
+
       - name: Deploy Hosting
         run: npx firebase-tools@15.18.0 deploy --only hosting --non-interactive --project=privadin-d7ebe
         env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/firebase-service-account.json
