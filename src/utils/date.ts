@@ -2,6 +2,7 @@ import {
   differenceInCalendarDays,
   endOfDay,
   format,
+  formatDistanceToNow,
   getHours,
   isAfter,
   isSameDay,
@@ -29,6 +30,12 @@ export function formatDateTime(value?: Timestamp) {
 export function formatHour(value?: Timestamp) {
   const date = toDate(value);
   return date ? format(date, "HH:mm", { locale: ptBR }) : "--:--";
+}
+
+export function formatTimeAgo(value?: Timestamp) {
+  const date = toDate(value);
+  if (!date) return "agora";
+  return `${formatDistanceToNow(date, { locale: ptBR, addSuffix: true })}`;
 }
 
 export function getWeekStart(date = new Date()) {

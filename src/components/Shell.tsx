@@ -1,4 +1,4 @@
-import { BarChart3, History, LayoutDashboard, LogOut, Shield, Volume2, VolumeX, User } from "lucide-react";
+import { BarChart3, History, LayoutDashboard, LogOut, MessageCircle, Shield, User, Volume2, VolumeX } from "lucide-react";
 import type { AppUser, AppView } from "../types";
 import { useAuth } from "../contexts/AuthContext";
 import { clsx } from "clsx";
@@ -16,6 +16,7 @@ const items: Array<{ view: AppView; label: string; icon: React.ElementType }> = 
   { view: "dashboard", label: "Painel", icon: LayoutDashboard },
   { view: "history", label: "Historico", icon: History },
   { view: "stats", label: "Stats", icon: BarChart3 },
+  { view: "cuiter", label: "Cuiter", icon: MessageCircle },
   { view: "profile", label: "Perfil", icon: User },
 ];
 
@@ -71,7 +72,11 @@ export function Shell({ currentUser, view, onViewChange, muted, onToggleMuted, c
           <nav
             className={clsx(
               "mobile-nav-safe fixed inset-x-3 bottom-0 z-30 grid gap-1 rounded-t-3xl border border-white/10 border-b-0 bg-slate-950/90 px-2 pt-2 shadow-2xl shadow-black/40 backdrop-blur-xl sm:inset-x-6 md:static md:inset-x-auto md:bottom-auto md:order-2 md:gap-2 md:rounded-2xl md:border-b md:bg-white/8 md:p-2 md:shadow-none lg:order-1 lg:h-fit lg:grid-cols-1 lg:gap-1.5 lg:p-1.5",
-              navItems.length === 5 ? "grid-cols-5 md:grid-cols-5" : "grid-cols-4 md:grid-cols-4",
+              navItems.length === 6
+                ? "grid-cols-6 md:grid-cols-6"
+                : navItems.length === 5
+                  ? "grid-cols-5 md:grid-cols-5"
+                  : "grid-cols-4 md:grid-cols-4",
             )}
           >
             {navItems.map((item) => {

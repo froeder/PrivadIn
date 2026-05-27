@@ -1,6 +1,6 @@
 import type { Timestamp } from "firebase/firestore";
 
-export type AppView = "dashboard" | "history" | "stats" | "admin" | "profile";
+export type AppView = "dashboard" | "history" | "stats" | "cuiter" | "admin" | "profile";
 
 export type UserRole = "player" | "admin";
 
@@ -28,6 +28,14 @@ export interface PoopLog {
   createdAt: Timestamp;
   points: number;
   isWeeklyActive: boolean;
+}
+
+export interface CuiterPost {
+  id: string;
+  userId: string;
+  userName: string;
+  message: string;
+  createdAt: Timestamp;
 }
 
 export interface AppSettings {

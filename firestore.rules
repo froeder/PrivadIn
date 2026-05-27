@@ -16,6 +16,12 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
     }
 
+    function hasCuiterAccess() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lastLogAt is timestamp;
+    }
+
     match /users/{userId} {
       allow read: if signedIn();
       allow create: if isOwner(userId)
@@ -60,6 +66,20 @@ service cloud.firestore {
     match /registration_attempts/{attemptId} {
       allow create: if true;
       allow read: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    match /cuiter_posts/{postId} {
+      allow read: if signedIn();
+      allow create: if hasCuiterAccess()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.userName is string
+        && request.resource.data.userName.size() > 0
+        && request.resource.data.userName.size() <= 80
+        && request.resource.data.message is string
+        && request.resource.data.message.size() > 0
+        && request.resource.data.message.size() <= 148;
       allow update, delete: if false;
     }
   }
