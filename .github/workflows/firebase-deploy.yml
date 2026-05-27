@@ -50,18 +50,16 @@ jobs:
       #     FIREBASE_TOKEN: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
       # Write service account JSON (accepts raw JSON or base64 secret), validate, deploy, and clean up
-      - name: Write Service Account to file
+      - name: Write and validate Service Account
         run: |
+          CRED_FILE="$GITHUB_WORKSPACE/firebase-service-account.json"
           if [ -n "${{ secrets.FIREBASE_SERVICE_ACCOUNT_B64 }}" ]; then
             echo "Decoding FIREBASE_SERVICE_ACCOUNT_B64..."
-            echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT_B64 }}" | base64 --decode > $GITHUB_WORKSPACE/firebase-service-account.json
+            echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT_B64 }}" | base64 --decode | jq . > "$CRED_FILE"
           else
-            printf '%s' "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" > $GITHUB_WORKSPACE/firebase-service-account.json
+            echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" | jq . > "$CRED_FILE"
           fi
-
-      - name: Validate service account JSON
-        run: |
-          python -c "import json,sys; json.load(open('$GITHUB_WORKSPACE/firebase-service-account.json')); print('SERVICE_ACCOUNT_JSON_VALID')"
+          echo "Service account JSON validated and written."
 
       - name: Deploy Hosting
         run: npx firebase-tools@15.18.0 deploy --only hosting --non-interactive --project=privadin-d7ebe
