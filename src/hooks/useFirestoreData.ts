@@ -4,7 +4,6 @@ import type {
   AdminAuditLog,
   AppSettings,
   AppUser,
-  CuiterPost,
   PoopLog,
   RankedUser,
   RegistrationAttempt,
@@ -22,7 +21,6 @@ import {
   registrationAttemptsQuery,
   registrationRequestsQuery,
 } from "../services/registrationService";
-import { cuiterPostsQuery } from "../services/cuiterService";
 import {
   appSettingsDocRef,
   defaultAppSettings,
@@ -115,29 +113,6 @@ export function useAllLogs(enabled = true) {
   }, [enabled]);
 
   return logs;
-}
-
-export function useCuiterPosts(enabled = true) {
-  const [posts, setPosts] = useState<CuiterPost[]>([]);
-
-  useEffect(() => {
-    if (!enabled || !isFirebaseConfigured) {
-      setPosts([]);
-      return;
-    }
-
-    return onSnapshot(
-      cuiterPostsQuery(),
-      (snapshot) => {
-        setPosts(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as CuiterPost));
-      },
-      (error) => {
-        console.error("Erro ao ler posts do cuiter:", error);
-      },
-    );
-  }, [enabled]);
-
-  return posts;
 }
 
 export function useAdminAuditLogs(enabled = true) {

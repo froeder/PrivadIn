@@ -1,17 +1,37 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { DocumentData, QueryDocumentSnapshot } from "firebase/firestore";
 import toast from "react-hot-toast";
 import { MessageCircle, Send } from "lucide-react";
 import { Card } from "../components/Card";
-import { CUITER_MAX_CHARS, canPostOnCuiter, createCuiterPost } from "../services/cuiterService";
-import type { AppUser, CuiterPost } from "../types";
-import { formatTimeAgo } from "../utils/date";
+import {
+  CUITER_MAX_CHARS,
+  canPostOnCuiter,
+  countUserCuiterPosts,
+  createCuiterPost,
+  fetchCuiterPostsPage,
+  getCuiterAvailableCredits,
+} from "../services/cuiterService";
+import type { AppUser, CuiterPost, PoopLog } from "../types";
+import { formatTimeAgo, toDate } from "../utils/date";
 
-export function CuiterPage({ user, posts }: { user: AppUser; posts: CuiterPost[] }) {
+export function CuiterPage({ user, userLogs }: { user: AppUser; userLogs: PoopLog[] }) {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
-  const unlocked = canPostOnCuiter(user);
+  const [posts, setPosts] = useState<CuiterPost[]>([]);
+  const [loadingFeed, setLoadingFeed] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [cursor, setCursor] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const [userPostsCount, setUserPostsCount] = useState(0);
   const charsCount = [...message].length;
   const charsRemaining = CUITER_MAX_CHARS - charsCount;
+  const creditsStartDate = new Date(2026, 4, 27); // 27/05/2026 (mes 0-based)
+  const eligibleLogsCount = userLogs.filter((log) => {
+    const date = toDate(log.createdAt);
+    return date ? date >= creditsStartDate : false;
+  }).length;
+  const availableCredits = getCuiterAvailableCredits(eligibleLogsCount, userPostsCount);
+  const unlocked = canPostOnCuiter(user, eligibleLogsCount, userPostsCount);
   const canPublish = unlocked && !sending && charsCount > 0 && charsCount <= CUITER_MAX_CHARS;
 
   const orderedPosts = useMemo(
@@ -24,11 +44,50 @@ export function CuiterPage({ user, posts }: { user: AppUser; posts: CuiterPost[]
     [posts],
   );
 
+  async function loadInitial() {
+    setLoadingFeed(true);
+    try {
+      const [page, myPostsCount] = await Promise.all([
+        fetchCuiterPostsPage(null),
+        countUserCuiterPosts(user.uid),
+      ]);
+      setPosts(page.posts);
+      setCursor(page.nextCursor);
+      setHasMore(page.hasMore);
+      setUserPostsCount(myPostsCount);
+    } catch {
+      toast.error("Nao foi possivel carregar o feed do Cuiter.");
+    } finally {
+      setLoadingFeed(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadInitial();
+  }, [user.uid]);
+
+  async function handleLoadMore() {
+    if (!hasMore || loadingMore || !cursor) return;
+    setLoadingMore(true);
+    try {
+      const page = await fetchCuiterPostsPage(cursor);
+      setPosts((current) => [...current, ...page.posts]);
+      setCursor(page.nextCursor);
+      setHasMore(page.hasMore);
+    } catch {
+      toast.error("Falha ao carregar mais posts.");
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
   async function handlePublish() {
     if (!canPublish) return;
     setSending(true);
     try {
-      await createCuiterPost(user, message);
+      const post = await createCuiterPost(user, message, eligibleLogsCount, userPostsCount);
+      setPosts((current) => [post, ...current]);
+      setUserPostsCount((current) => current + 1);
       setMessage("");
       toast.success("Postado no Cuiter.");
     } catch (error) {
@@ -52,7 +111,7 @@ export function CuiterPage({ user, posts }: { user: AppUser; posts: CuiterPost[]
         <div className="space-y-3">
           {!unlocked ? (
             <div className="rounded-2xl border border-yellow-200/25 bg-yellow-300/10 p-3 text-sm text-yellow-100">
-              Para publicar no Cuiter, clique antes em <strong>Registrar cagada</strong> pelo menos uma vez.
+              Para publicar no Cuiter, clique em <strong>Registrar cagada</strong>. Cada registro libera 1 novo post.
             </div>
           ) : null}
 
@@ -66,7 +125,7 @@ export function CuiterPage({ user, posts }: { user: AppUser; posts: CuiterPost[]
 
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className={`text-xs font-bold ${charsRemaining < 20 ? "text-amber-300" : "text-slate-400"}`}>
-              {charsRemaining} caracteres restantes
+              {charsRemaining} caracteres restantes · {availableCredits} post(s) disponivel(is)
             </span>
             <button
               onClick={handlePublish}
@@ -82,11 +141,15 @@ export function CuiterPage({ user, posts }: { user: AppUser; posts: CuiterPost[]
 
       <Card>
         <div className="mb-4">
-          <p className="text-sm font-bold text-yellow-100">Feed ao vivo</p>
+          <p className="text-sm font-bold text-yellow-100">Feed paginado</p>
           <h2 className="text-2xl font-black text-white">Frases da firma</h2>
         </div>
         <div className="space-y-3">
-          {orderedPosts.length === 0 ? (
+          {loadingFeed ? (
+            <div className="rounded-2xl border border-dashed border-white/15 p-8 text-center text-slate-400">
+              Carregando feed...
+            </div>
+          ) : orderedPosts.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-white/15 p-8 text-center text-slate-400">
               Ainda nao ha posts no Cuiter.
             </div>
@@ -102,6 +165,17 @@ export function CuiterPage({ user, posts }: { user: AppUser; posts: CuiterPost[]
             ))
           )}
         </div>
+        {hasMore && !loadingFeed ? (
+          <div className="mt-4">
+            <button
+              onClick={handleLoadMore}
+              disabled={loadingMore}
+              className="w-full rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-black text-white transition hover:bg-white/20 disabled:opacity-60"
+            >
+              {loadingMore ? "Carregando..." : "Carregar mais"}
+            </button>
+          </div>
+        ) : null}
       </Card>
     </div>
   );

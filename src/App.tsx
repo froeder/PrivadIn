@@ -5,7 +5,6 @@ import {
   useAdminAuditLogs,
   useAllLogs,
   useAppSettings,
-  useCuiterPosts,
   useRegistrationAttempts,
   useRegistrationRequests,
   useUserLogs,
@@ -28,7 +27,6 @@ function AppContent() {
   const { users, rankedUsers } = useUsers(Boolean(user));
   const { logs: userLogs } = useUserLogs(user?.uid);
   const allLogs = useAllLogs(Boolean(user));
-  const cuiterPosts = useCuiterPosts(Boolean(user));
   const { muted, toggleMuted, playFlush } = useSound();
   const [view, setView] = useState<AppView>("dashboard");
 
@@ -68,7 +66,7 @@ function AppContent() {
       {view === "profile" ? <EditProfilePage /> : null}
       {view === "history" ? <HistoryPage logs={userLogs} /> : null}
       {view === "stats" ? <StatsPage user={liveUser} logs={userLogs} allLogs={allLogs} rankedUsers={rankedUsers} /> : null}
-      {view === "cuiter" ? <CuiterPage user={liveUser} posts={cuiterPosts} /> : null}
+      {view === "cuiter" ? <CuiterPage user={liveUser} userLogs={userLogs} /> : null}
       {view === "admin" && liveUser.role === "admin" ? (
         <AdminPage
           admin={liveUser}
