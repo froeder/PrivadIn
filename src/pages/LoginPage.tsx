@@ -64,7 +64,7 @@ export function LoginPage({ cooldownMinutes }: { cooldownMinutes: number }) {
             </div>
             <div>
               <h1 className="max-w-3xl text-4xl font-black leading-none text-white sm:text-5xl lg:text-7xl">
-                PrivadIn
+                PrivadIn v1
               </h1>
               <p className="mt-4 max-w-2xl text-base text-slate-300 sm:text-lg lg:mt-5 lg:text-xl">
                 Registre seus momentos de produtividade paralela, dispute o ranking dos amigos e transforme o expediente em esporte de alto rendimento.
