@@ -37,7 +37,7 @@ export function Shell({ currentUser, view, onViewChange, muted, onToggleMuted, c
             </div>
             <div className="min-w-0">
               <p className="text-[10px] uppercase tracking-[0.24em] text-yellow-200 sm:text-xs sm:tracking-[0.28em]">PrivadIn</p>
-              <h1 className="truncate text-base font-black text-white sm:text-2xl">Liga do Expediente</h1>
+              <h1 className="truncate text-base font-black text-white sm:text-2xl">Liga do Expediente v1</h1>
             </div>
           </button>
 
