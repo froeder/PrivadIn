@@ -42,7 +42,7 @@ export function DashboardPage({
     try {
       await registerPoop(user, userLogs, cooldownMinutes, pointsPerLog);
       onPlaySound();
-      toast.success("Registro feito. A firma jamais sabera a grandeza desse momento.");
+      toast.success("Registro feito. A firma jamais saberá a grandeza desse momento.");
       if ((currentRank?.rank ?? previousRank) <= previousRank) {
         confetti({ particleCount: 140, spread: 75, origin: { y: 0.72 }, colors: ["#fde047", "#f59e0b", "#14b8a6"] });
       }
@@ -58,7 +58,7 @@ export function DashboardPage({
         `${ranked.rank}. ${ranked.name}${ranked.nickname?.trim() ? ` (${ranked.nickname.trim()})` : ""} - ${ranked.totalPoints} pontos`,
       )
       .join("\n");
-    const text = `${toRoman(edition)} cumpetiçao PrivadIn:\n\n${rankingText || "Sem jogadores no ranking ainda."}`;
+    const text = `${toRoman(edition)} competição PrivadIn:\n\n${rankingText || "Sem jogadores no ranking ainda."}`;
 
     try {
       if (navigator.share) {
@@ -70,7 +70,7 @@ export function DashboardPage({
       }
 
       await navigator.clipboard.writeText(text);
-      toast.success("Ranking copiado. Agora e so jogar no grupo sem piedade.");
+      toast.success("Ranking copiado. Agora é só jogar no grupo sem piedade.");
     } catch {
       toast.error("Não consegui compartilhar o ranking agora.");
     }
@@ -81,7 +81,7 @@ export function DashboardPage({
       <section className="order-2 grid grid-cols-2 gap-3 sm:gap-4 md:order-1 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard icon="💩" label="Seu total" value={user.totalPoints} hint={`Cada registro vale ${formattedPointsPerLog} pontos`} />
         <MetricCard icon="🏆" label="Posição geral" value={`#${currentRank?.rank ?? "-"}`} hint="Empate favorece quem registrou primeiro" />
-        <MetricCard icon="🔥" label="Streak diaria" value={`${user.currentDailyStreak}d`} hint={`${user.currentWeeklyStreak} semana(s) ativa(s)`} />
+        <MetricCard icon="🔥" label="Streak diária" value={`${user.currentDailyStreak}d`} hint={`${user.currentWeeklyStreak} semana(s) ativa(s)`} />
         <MetricCard icon="🕘" label="Última cagada" value={formatHour(lastLog?.createdAt)} hint={formatDateTime(lastLog?.createdAt)} />
       </section>
 
@@ -100,7 +100,7 @@ export function DashboardPage({
             <button
               onClick={handleRegister}
               aria-disabled={isOnCooldown}
-              title={isOnCooldown ? cooldownWarningMessage : "Registrar pontuacao"}
+              title={isOnCooldown ? cooldownWarningMessage : "Registrar pontuação"}
               className={`mt-6 w-full rounded-2xl bg-yellow-300 px-5 py-4 text-base font-black text-slate-950 shadow-xl shadow-yellow-300/20 transition sm:w-auto sm:rounded-3xl sm:px-6 sm:py-6 sm:text-xl ${
                 isOnCooldown
                   ? "cursor-not-allowed opacity-60"
@@ -118,7 +118,7 @@ export function DashboardPage({
           <div className="mb-4 flex items-center justify-between">
             <div>
               <p className="text-sm font-bold text-yellow-100">Top 3</p>
-              <h2 className="text-xl font-black text-white">Podio sanitario</h2>
+              <h2 className="text-xl font-black text-white">Pódio sanitário</h2>
             </div>
             <Crown className="text-yellow-200" />
           </div>

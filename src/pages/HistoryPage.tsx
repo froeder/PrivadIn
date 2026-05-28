@@ -9,7 +9,7 @@ export function HistoryPage({ logs }: { logs: PoopLog[] }) {
   return (
     <div className="space-y-4 sm:space-y-5">
       <section className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3">
-        <MetricCard icon="📅" label="Hoje" value={countToday(logs)} hint="Quantidade diaria" />
+        <MetricCard icon="📅" label="Hoje" value={countToday(logs)} hint="Quantidade diária" />
         <MetricCard icon="🗓️" label="Semana" value={countThisWeek(logs)} hint="Desde segunda-feira" />
         <div className="col-span-2 md:col-span-1">
           <MetricCard icon="🧾" label="Histórico total" value={logs.length} hint="Registros pessoais" />
@@ -32,7 +32,7 @@ export function HistoryPage({ logs }: { logs: PoopLog[] }) {
         <div className="space-y-3">
           {logs.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-white/15 p-8 text-center text-slate-400">
-              Nada registrado ainda. O expediente aguarda seu primeiro capitulo.
+              Nada registrado ainda. O expediente aguarda seu primeiro capítulo.
             </div>
           ) : (
             logs.map((log, index) => (

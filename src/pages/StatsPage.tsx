@@ -25,11 +25,11 @@ export function StatsPage({
     <div className="space-y-4 sm:space-y-5">
       <section className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-5">
         <MetricCard icon="👑" label="Rei da privada" value={king?.name ?? "-"} hint={`${king?.totalPoints ?? 0} pontos`} />
-        <MetricCard icon="🔥" label="Maior streak" value={streakLeader?.bestStreak ?? 0} hint={streakLeader?.name ?? "Sem lider ainda"} />
-        <MetricCard icon="🚽" label="Horario produtivo" value={getProductiveHour(allLogs)} hint="Pico geral" />
+        <MetricCard icon="🔥" label="Maior streak" value={streakLeader?.bestStreak ?? 0} hint={streakLeader?.name ?? "Sem líder ainda"} />
+        <MetricCard icon="🚽" label="Horário produtivo" value={getProductiveHour(allLogs)} hint="Pico geral" />
         <MetricCard icon="📈" label="Total da semana" value={weeklyTotal} hint="Todos os jogadores" />
         <div className="col-span-2 xl:col-span-1">
-          <MetricCard icon="⚖️" label="Media diaria" value={getDailyAverage(logs).toFixed(1)} hint="Seu ritmo pessoal" />
+          <MetricCard icon="⚖️" label="Média diária" value={getDailyAverage(logs).toFixed(1)} hint="Seu ritmo pessoal" />
         </div>
       </section>
 
@@ -43,7 +43,7 @@ export function StatsPage({
         </Card>
 
         <Card>
-          <p className="text-sm font-bold text-yellow-100">Horario comercial</p>
+          <p className="text-sm font-bold text-yellow-100">Horário comercial</p>
           <h2 className="text-2xl font-black text-white">{getBusinessHoursCount(logs)} registros CLT</h2>
           <p className="mt-3 text-sm text-slate-400">
             Conta somente registros entre 8h e 18h. Um placar elegante para quem sabe otimizar a agenda.

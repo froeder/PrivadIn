@@ -30,7 +30,7 @@ export function EditProfilePage() {
     if (!isValidDicebearUrl(candidate)) {
       setAvatarStatus("invalid");
       if (showToast) {
-        toast.error('Use uma URL valida da DiceBear iniciada com "https://api.dicebear.com/".');
+        toast.error('Use uma URL válida da DiceBear iniciada com "https://api.dicebear.com/".');
       }
       return false;
     }
@@ -145,7 +145,7 @@ export function EditProfilePage() {
             </p>
             {!hasValidAvatar ? (
               <p className="mt-1 text-xs font-semibold text-red-300">
-                Informe uma URL valida da DiceBear.
+                Informe uma URL válida da DiceBear.
               </p>
             ) : avatarStatus === "checking" ? (
               <p className="mt-1 text-xs font-semibold text-sky-200">
@@ -157,7 +157,7 @@ export function EditProfilePage() {
               </p>
             ) : avatarStatus === "invalid" ? (
               <p className="mt-1 text-xs font-semibold text-red-300">
-                Não consegui carregar uma imagem valida nessa URL.
+                Não consegui carregar uma imagem válida nessa URL.
               </p>
             ) : null}
           </label>

@@ -21,7 +21,7 @@ function actionLabel(action: AdminAuditLog["action"]) {
   if (action === "adjust_points") return "Ajuste de pontos";
   if (action === "remove_log") return "Registro removido";
   if (action === "update_cooldown") return "Cooldown atualizado";
-  if (action === "update_points_per_log") return "Pontuacao atualizada";
+  if (action === "update_points_per_log") return "Pontuação atualizada";
   return "Reset semanal";
 }
 
@@ -80,7 +80,7 @@ export function AdminPage({
       await action();
       toast.success(success);
     } catch {
-      toast.error("A fiscalizacao tropeçou. Confira permissões e regras.");
+      toast.error("A fiscalização tropeçou. Confira permissões e regras.");
     } finally {
       setBusy(false);
     }
@@ -92,7 +92,7 @@ export function AdminPage({
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-sm font-bold text-yellow-100">Modo admin</p>
-            <h2 className="text-2xl font-black text-white">Painel da fiscalizacao sanitaria</h2>
+            <h2 className="text-2xl font-black text-white">Painel da fiscalização sanitária</h2>
             <p className="mt-1 text-sm text-slate-400">Use com sabedoria. Grandes poderes, grandes planilhas.</p>
             <p className="mt-2 text-sm text-slate-300">Edição atual: {toRoman(appSettings.edition)}</p>
           </div>
@@ -109,7 +109,7 @@ export function AdminPage({
       <Card>
         <div className="mb-4">
           <p className="text-sm font-bold text-yellow-100">Configurações do app</p>
-          <h2 className="text-2xl font-black text-white">Cooldown e pontuacao</h2>
+          <h2 className="text-2xl font-black text-white">Cooldown e pontuação</h2>
           <p className="mt-1 text-sm text-slate-400">
             Defina em minutos o cooldown e quantos pontos cada registro deve valer.
           </p>
@@ -177,12 +177,12 @@ export function AdminPage({
               onClick={() =>
                 runAdminAction(
                   () => updatePointsPerLog(admin, parsedPoints),
-                  `Pontuacao atualizada para ${parsedPoints} ponto(s) por registro.`,
+                  `Pontuação atualizada para ${parsedPoints} ponto(s) por registro.`,
                 )
               }
               className="rounded-2xl border border-white/10 bg-white/10 px-5 py-3 font-black text-white transition hover:bg-white/20 disabled:opacity-60"
             >
-              Salvar pontuacao
+              Salvar pontuação
             </button>
           </div>
         </div>
@@ -190,8 +190,8 @@ export function AdminPage({
 
       <Card>
         <div className="mb-4">
-          <p className="text-sm font-bold text-yellow-100">Solicitacoes de acesso</p>
-          <h2 className="text-2xl font-black text-white">Codigos para novos usuarios</h2>
+          <p className="text-sm font-bold text-yellow-100">Solicitações de acesso</p>
+          <h2 className="text-2xl font-black text-white">Códigos para novos usuários</h2>
           <p className="mt-1 text-sm text-slate-400">
             Passe o código somente para quem você quer liberar. Cada email tem um código próprio.
           </p>
@@ -285,7 +285,7 @@ export function AdminPage({
         <Card>
           <div className="mb-4">
             <p className="text-sm font-bold text-yellow-100">Ajuste manual</p>
-            <h2 className="text-2xl font-black text-white">Pontuacao dos usuarios</h2>
+            <h2 className="text-2xl font-black text-white">Pontuação dos usuários</h2>
           </div>
           <div className="space-y-3">
             {users.map((user) => (
@@ -362,7 +362,7 @@ export function AdminPage({
         <div className="max-h-[520px] space-y-3 overflow-auto pr-1">
           {auditLogs.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-white/15 p-8 text-center text-slate-400">
-              Nenhuma alteracao administrativa registrada ainda.
+              Nenhuma alteração administrativa registrada ainda.
             </div>
           ) : (
             auditLogs.slice(0, 50).map((auditLog) => (

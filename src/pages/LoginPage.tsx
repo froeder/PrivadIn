@@ -45,7 +45,7 @@ export function LoginPage({ cooldownMinutes }: { cooldownMinutes: number }) {
       toast.error(
         isFirebaseConfigured
           ? needsCode
-            ? "Não foi possivel validar o código. Confira email, senha e código com o admin."
+            ? "Não foi possível validar o código. Confira email, senha e código com o admin."
             : "Não achei acesso ativo. Vou preparar uma solicitação de código."
           : "Configure o .env com as credenciais Firebase antes de entrar.",
       );
@@ -60,7 +60,7 @@ export function LoginPage({ cooldownMinutes }: { cooldownMinutes: number }) {
           <section className="order-2 space-y-5 pt-2 lg:order-1 lg:space-y-6 lg:pt-0">
             <div className="inline-flex items-center gap-2 rounded-full border border-yellow-200/20 bg-yellow-300/10 px-4 py-2 text-sm font-bold text-yellow-100">
               <Sparkles size={16} />
-              Competicao sanitaria corporativa
+              Competição sanitária corporativa
             </div>
             <div>
               <h1 className="max-w-3xl text-4xl font-black leading-none text-white sm:text-5xl lg:text-7xl">
@@ -119,7 +119,7 @@ export function LoginPage({ cooldownMinutes }: { cooldownMinutes: number }) {
                   type="password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  placeholder={needsCode ? "crie uma senha (não e o código)" : "senha secreta do trono"}
+                  placeholder={needsCode ? "crie uma senha (não é o código)" : "senha secreta do trono"}
                   required
                 />
               </span>
@@ -164,7 +164,7 @@ export function LoginPage({ cooldownMinutes }: { cooldownMinutes: number }) {
               className="w-full rounded-2xl bg-yellow-300 px-5 py-4 text-base font-black text-slate-950 shadow-lg shadow-yellow-300/20 transition hover:-translate-y-0.5 hover:bg-yellow-200 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading
-                ? "Consultando a descarga..."
+                ? "Consultando o cadastro..."
                 : needsCode
                   ? "VALIDAR CÓDIGO E ENTRAR"
                   : "ENTRAR OU SOLICITAR ACESSO"}

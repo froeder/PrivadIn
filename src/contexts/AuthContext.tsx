@@ -78,7 +78,7 @@ async function ensureUserProfile(firebaseUser: User) {
   const fresh = await getDoc(userDoc);
   const data = fresh.data() as AppUser;
   if (!data) {
-    throw new Error("Não foi possivel carregar o perfil do usuário no Firestore.");
+    throw new Error("Não foi possível carregar o perfil do usuário no Firestore.");
   }
 
   return {

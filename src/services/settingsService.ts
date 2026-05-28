@@ -110,7 +110,7 @@ export async function updatePointsPerLog(
     createAuditLog({
       action: "update_points_per_log",
       admin,
-      description: `${admin.name} alterou a pontuacao por registro para ${normalizedPoints} ponto(s).`,
+      description: `${admin.name} alterou a pontuação por registro para ${normalizedPoints} ponto(s).`,
     }),
   );
 
