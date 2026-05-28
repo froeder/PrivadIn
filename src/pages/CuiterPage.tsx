@@ -20,11 +20,9 @@ import { formatDateTime, formatTimeAgo, toDate } from "../utils/date";
 export function CuiterPage({
   user,
   userLogs,
-  users,
 }: {
   user: AppUser;
   userLogs: PoopLog[];
-  users: AppUser[];
 }) {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
@@ -61,14 +59,18 @@ export function CuiterPage({
   async function loadInitial() {
     setLoadingFeed(true);
     try {
-      const [page, myPostsCount] = await Promise.all([
-        fetchCuiterPostsPage(null),
-        countUserCuiterPosts(user.uid),
-      ]);
+      const page = await fetchCuiterPostsPage(null);
       setPosts(page.posts);
       setCursor(page.nextCursor);
       setHasMore(page.hasMore);
-      setUserPostsCount(myPostsCount);
+
+      try {
+        const myPostsCount = await countUserCuiterPosts(user.uid);
+        setUserPostsCount(myPostsCount);
+      } catch {
+        setUserPostsCount(0);
+        toast.error("Nao foi possivel contar seus posts do Cuiter.");
+      }
     } catch {
       toast.error("Nao foi possivel carregar o feed do Cuiter.");
     } finally {
@@ -174,20 +176,17 @@ export function CuiterPage({
               Ainda nao ha posts no Cuiter.
             </div>
           ) : (
-            orderedPosts.map((post) => {
-              const author = users.find((candidate) => candidate.uid === post.userId);
-              return (
-                <article key={post.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <p className="truncate text-sm font-black text-white">
-                      {author?.name ?? post.userName}
-                    </p>
-                    <p className="shrink-0 text-xs text-slate-400">{formatTimeAgo(post.createdAt)}</p>
-                  </div>
-                  <p className="text-sm text-slate-200">{post.message}</p>
-                </article>
-              );
-            })
+            orderedPosts.map((post) => (
+              <article key={post.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <p className="truncate text-sm font-black text-white">
+                    {post.userName}
+                  </p>
+                  <p className="shrink-0 text-xs text-slate-400">{formatTimeAgo(post.createdAt)}</p>
+                </div>
+                <p className="text-sm text-slate-200">{post.message}</p>
+              </article>
+            ))
           )}
         </div>
         {hasMore && !loadingFeed ? (
