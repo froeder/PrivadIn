@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { Card } from "../components/Card";
@@ -30,6 +30,18 @@ export function EditProfilePage() {
     ? avatar.trim()
     : currentUser.avatar || avatarFor(currentUser.name, currentUser.email);
   const currentVersion = getCurrentVersion();
+
+  // Auto-trigger PWA update after a short delay when update is available
+  // Cleanup timeout if component unmounts before it fires
+  useEffect(() => {
+    if (updateCheckStatus === "available") {
+      const timeout = setTimeout(() => {
+        triggerPWAUpdate();
+      }, 1500);
+
+      return () => clearTimeout(timeout);
+    }
+  }, [updateCheckStatus]);
 
   async function validateAvatar(showToast = false) {
     const candidate = avatar.trim();
@@ -97,11 +109,6 @@ export function EditProfilePage() {
         setLatestVersion(result.latestVersion);
         setUpdateCheckStatus("available");
         toast.success(t("updateAvailable", { newVersion: result.latestVersion }));
-        
-        // Automatically trigger update after a short delay to let user see the message
-        setTimeout(() => {
-          triggerPWAUpdate();
-        }, 1500);
       } else {
         setUpdateCheckStatus("unavailable");
         toast.success(t("updateNotAvailable"));

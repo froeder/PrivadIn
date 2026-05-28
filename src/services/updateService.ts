@@ -9,15 +9,16 @@ export interface UpdateCheckResult {
 
 /**
  * Checks for PWA updates by comparing current version with latest available
+ * Fetches from /version.json which is served from the public/ folder
  * @returns Update check result with version info
  */
 export async function checkForUpdates(): Promise<UpdateCheckResult> {
   try {
     const currentVersion = appVersion;
 
-    // Try to fetch the latest version from package.json in the app root
-    // This requires the app to be served and accessible
-    const response = await fetch("/package.json", {
+    // Fetch the latest version from version.json served from public/ folder
+    // This file is copied to the dist/ output during build
+    const response = await fetch("/version.json", {
       cache: "no-store",
       headers: {
         "Cache-Control": "no-cache, no-store, must-revalidate",
@@ -33,10 +34,25 @@ export async function checkForUpdates(): Promise<UpdateCheckResult> {
       };
     }
 
-    const packageData = await response.json();
-    const latestVersion = packageData.version;
+    const versionData = await response.json();
 
-    // Simple semver comparison (works for versions like 1.0.4)
+    // Validate version.json structure
+    if (
+      !versionData ||
+      typeof versionData.version !== "string" ||
+      !versionData.version.trim()
+    ) {
+      return {
+        hasUpdate: false,
+        currentVersion,
+        latestVersion: null,
+        error: "Invalid version.json format: missing or invalid version field",
+      };
+    }
+
+    const latestVersion = versionData.version.trim();
+
+    // Simple semver comparison (works for versions like 1.0.5)
     const hasUpdate = compareVersions(latestVersion, currentVersion) > 0;
 
     return {
@@ -79,28 +95,42 @@ function compareVersions(v1: string, v2: string): number {
 }
 
 /**
- * Triggers PWA update by reloading the service worker and page
+ * Triggers PWA update using targeted service worker update flow
+ * 1. Checks for a waiting service worker (new version)
+ * 2. Tells it to skip waiting (take control)
+ * 3. Reloads once the new controller is active
  */
 export async function triggerPWAUpdate(): Promise<void> {
   try {
-    // Check if service worker is available
     if ("serviceWorker" in navigator) {
       const registrations = await navigator.serviceWorker.getRegistrations();
 
       for (const registration of registrations) {
-        // Unregister the old service worker
-        await registration.unregister();
-      }
+        // Check if there's a waiting worker (new version ready)
+        if (registration.waiting) {
+          // Tell the waiting worker to skip waiting and take control
+          registration.waiting.postMessage({ type: "SKIP_WAITING" });
 
-      // Reload the page to get the latest version
-      window.location.reload();
+          // Reload once the new worker takes control
+          let isReloading = false;
+          navigator.serviceWorker.oncontrollerchange = () => {
+            if (!isReloading) {
+              isReloading = true;
+              window.location.reload();
+            }
+          };
+        } else {
+          // No waiting worker yet, check for updates
+          await registration.update();
+        }
+      }
     } else {
-      // Fallback: just reload the page if no service worker
+      // Fallback: just reload if no service worker support
       window.location.reload();
     }
   } catch (error) {
-    // If unregistering fails, just reload the page
-    console.error("Error updating PWA:", error);
+    console.error("Error updating PWA service worker:", error);
+    // Fallback to page reload on error
     window.location.reload();
   }
 }
