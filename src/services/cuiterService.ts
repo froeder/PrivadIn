@@ -15,8 +15,9 @@ import {
 import { db } from "./firebase";
 import type { AppUser, CuiterPost } from "../types";
 
-export const CUITER_MAX_CHARS = 80;
+export const CUITER_MAX_CHARS = 50;
 export const CUITER_PAGE_SIZE = 10;
+export const CUITER_CREDIT_START_DATE = new Date(2026, 4, 27, 0, 0, 0, 0);
 export const cuiterPostsRef = collection(db, "cuiter_posts");
 
 type CuiterPageCursor = QueryDocumentSnapshot<DocumentData> | null;
@@ -38,8 +39,18 @@ export async function fetchCuiterPostsPage(cursor: CuiterPageCursor, pageSize = 
 }
 
 export async function countUserCuiterPosts(uid: string) {
-  const snapshot = await getCountFromServer(query(cuiterPostsRef, where("userId", "==", uid)));
+  const snapshot = await getCountFromServer(
+    query(
+      cuiterPostsRef,
+      where("userId", "==", uid),
+      where("createdAt", ">=", Timestamp.fromDate(CUITER_CREDIT_START_DATE)),
+    ),
+  );
   return snapshot.data().count;
+}
+
+export function isCuiterCreditEligibleLog(createdAtMs: number) {
+  return createdAtMs >= CUITER_CREDIT_START_DATE.getTime();
 }
 
 export function getCuiterAvailableCredits(userLogsCount: number, userPostsCount: number) {
@@ -47,7 +58,7 @@ export function getCuiterAvailableCredits(userLogsCount: number, userPostsCount:
 }
 
 export function canPostOnCuiter(user: AppUser, userLogsCount: number, userPostsCount: number) {
-  if (!user.lastLogAt && !user.firstLogAt) return false;
+  if (!user.lastLogAt) return false;
   return getCuiterAvailableCredits(userLogsCount, userPostsCount) > 0;
 }
 
@@ -57,7 +68,7 @@ export async function createCuiterPost(
   userLogsCount: number,
   userPostsCount: number,
 ) {
-  if (!user.lastLogAt && !user.firstLogAt) {
+  if (!user.lastLogAt) {
     throw new Error("Para publicar no Cuiter, registre uma cagada primeiro.");
   }
 

@@ -1,19 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
-import type { DocumentData, QueryDocumentSnapshot } from "firebase/firestore";
+import { Timestamp, type DocumentData, type QueryDocumentSnapshot } from "firebase/firestore";
 import { FirebaseError } from "firebase/app";
 import toast from "react-hot-toast";
 import { MessageCircle, Send } from "lucide-react";
 import { Card } from "../components/Card";
 import {
   CUITER_MAX_CHARS,
+  CUITER_CREDIT_START_DATE,
   canPostOnCuiter,
   countUserCuiterPosts,
   createCuiterPost,
   fetchCuiterPostsPage,
   getCuiterAvailableCredits,
+  isCuiterCreditEligibleLog,
 } from "../services/cuiterService";
 import type { AppUser, CuiterPost, PoopLog } from "../types";
-import { formatTimeAgo, toDate } from "../utils/date";
+import { formatDateTime, formatTimeAgo, toDate } from "../utils/date";
 
 export function CuiterPage({
   user,
@@ -34,10 +36,9 @@ export function CuiterPage({
   const [userPostsCount, setUserPostsCount] = useState(0);
   const charsCount = [...message].length;
   const charsRemaining = CUITER_MAX_CHARS - charsCount;
-  const creditsStartDate = new Date(2026, 4, 27); // 27/05/2026 (mes 0-based)
   const eligibleLogsCount = userLogs.filter((log) => {
-    const date = toDate(log.createdAt);
-    return date ? date >= creditsStartDate : false;
+    const createdAtMs = toDate(log.createdAt)?.getTime();
+    return typeof createdAtMs === "number" ? isCuiterCreditEligibleLog(createdAtMs) : false;
   }).length;
   const availableCredits = getCuiterAvailableCredits(eligibleLogsCount, userPostsCount);
   const unlocked = canPostOnCuiter(user, eligibleLogsCount, userPostsCount);
@@ -130,7 +131,7 @@ export function CuiterPage({
         <div className="space-y-3">
           {!unlocked ? (
             <div className="rounded-2xl border border-yellow-200/25 bg-yellow-300/10 p-3 text-sm text-yellow-100">
-              Para publicar no Cuiter, clique em <strong>Registrar cagada</strong>. Cada registro libera 1 novo post.
+              Para publicar no Cuiter, clique em <strong>Registrar cagada</strong>. Cada registro libera 1 novo post a partir de {formatDateTime(Timestamp.fromDate(CUITER_CREDIT_START_DATE))}.
             </div>
           ) : null}
 
@@ -179,7 +180,7 @@ export function CuiterPage({
                 <article key={post.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <p className="truncate text-sm font-black text-white">
-                      {author?.name}
+                      {author?.name ?? post.userName}
                     </p>
                     <p className="shrink-0 text-xs text-slate-400">{formatTimeAgo(post.createdAt)}</p>
                   </div>

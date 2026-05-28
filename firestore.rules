@@ -19,10 +19,11 @@ service cloud.firestore {
     function hasCuiterAccess() {
       return signedIn()
         && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && (
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lastLogAt is timestamp
-          || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.firstLogAt is timestamp
-        );
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lastLogAt is timestamp;
+    }
+
+    function cuiterStartDate() {
+      return timestamp.date(2026, 5, 27);
     }
 
     match /users/{userId} {
@@ -38,6 +39,14 @@ service cloud.firestore {
       allow read: if signedIn();
       allow create: if signedIn()
         && request.resource.data.userId == request.auth.uid
+        && request.resource.data.userName is string
+        && request.resource.data.userName.size() > 0
+        && request.resource.data.userName.size() <= 80
+        && request.resource.data.points is int
+        && request.resource.data.points >= 1
+        && request.resource.data.points <= 100000
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.isWeeklyActive is bool;
       allow update, delete: if isAdmin();
     }
 
@@ -70,8 +79,8 @@ service cloud.firestore {
 
     match /cuiter_posts/{postId} {
       allow read: if signedIn();
-      allow create: if signedIn()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+      allow create: if hasCuiterAccess()
+        && request.time >= cuiterStartDate()
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.createdAt is timestamp
         && request.resource.data.userName is string
@@ -79,7 +88,7 @@ service cloud.firestore {
         && request.resource.data.userName.size() <= 80
         && request.resource.data.message is string
         && request.resource.data.message.size() > 0
-        && request.resource.data.message.size() <= 80;
+        && request.resource.data.message.size() <= 50;
       allow update, delete: if false;
     }
   }
