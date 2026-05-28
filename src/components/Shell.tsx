@@ -14,7 +14,7 @@ interface ShellProps {
 
 const items: Array<{ view: AppView; label: string; icon: React.ElementType }> = [
   { view: "dashboard", label: "Painel", icon: LayoutDashboard },
-  { view: "history", label: "Historico", icon: History },
+  { view: "history", label: "Histórico", icon: History },
   { view: "stats", label: "Stats", icon: BarChart3 },
   { view: "cuiter", label: "Cuiter", icon: MessageCircle },
   { view: "profile", label: "Perfil", icon: User },

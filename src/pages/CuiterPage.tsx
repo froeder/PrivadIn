@@ -69,10 +69,10 @@ export function CuiterPage({
         setUserPostsCount(myPostsCount);
       } catch {
         setUserPostsCount(0);
-        toast.error("Nao foi possivel contar seus posts do Cuiter.");
+        toast.error("Não foi possivel contar seus posts do Cuiter.");
       }
     } catch {
-      toast.error("Nao foi possivel carregar o feed do Cuiter.");
+      toast.error("Não foi possivel carregar o feed do Cuiter.");
     } finally {
       setLoadingFeed(false);
     }
@@ -109,10 +109,10 @@ export function CuiterPage({
     } catch (error) {
       if (isFirestorePermissionDenied(error)) {
         toast.error(
-          "Permissao negada. Para publicar no Cuiter, registre uma cagada antes de postar.",
+          "Permissão negada. Para publicar no Cuiter, registre uma cagada antes de postar.",
         );
       } else {
-        toast.error(error instanceof Error ? error.message : "Nao foi possivel publicar agora.");
+        toast.error(error instanceof Error ? error.message : "Não foi possivel publicar agora.");
       }
     } finally {
       setSending(false);
@@ -173,7 +173,7 @@ export function CuiterPage({
             </div>
           ) : orderedPosts.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-white/15 p-8 text-center text-slate-400">
-              Ainda nao ha posts no Cuiter.
+              Ainda não ha posts no Cuiter.
             </div>
           ) : (
             orderedPosts.map((post) => (

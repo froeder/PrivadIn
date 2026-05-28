@@ -12,14 +12,14 @@ export function HistoryPage({ logs }: { logs: PoopLog[] }) {
         <MetricCard icon="📅" label="Hoje" value={countToday(logs)} hint="Quantidade diaria" />
         <MetricCard icon="🗓️" label="Semana" value={countThisWeek(logs)} hint="Desde segunda-feira" />
         <div className="col-span-2 md:col-span-1">
-          <MetricCard icon="🧾" label="Historico total" value={logs.length} hint="Registros pessoais" />
+          <MetricCard icon="🧾" label="Histórico total" value={logs.length} hint="Registros pessoais" />
         </div>
       </section>
 
       <Card>
         <div className="mb-4">
-          <p className="text-sm font-bold text-yellow-100">Ultimos 7 dias</p>
-          <h2 className="text-2xl font-black text-white">Grafico semanal</h2>
+          <p className="text-sm font-bold text-yellow-100">Últimos 7 dias</p>
+          <h2 className="text-2xl font-black text-white">Gráfico semanal</h2>
         </div>
         <WeeklyChart buckets={buckets} />
       </Card>

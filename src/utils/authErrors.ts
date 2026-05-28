@@ -22,27 +22,27 @@ export class AuthLoginError extends Error {
 export function loginErrorMessage(code: AuthLoginErrorCode, needsCode: boolean) {
   switch (code) {
     case "invalid_code":
-      return "Codigo incorreto. Confira com o admin e tente de novo.";
+      return "Código incorreto. Confira com o admin e tente de novo.";
     case "no_request":
       return needsCode
-        ? "Nao achei pedido para este email. Clique em ENTRAR primeiro para gerar a solicitacao."
-        : "Nao achei acesso ativo. Vou preparar uma solicitacao de codigo.";
+        ? "Não achei pedido para este email. Clique em ENTRAR primeiro para gerar a solicitação."
+        : "Não achei acesso ativo. Vou preparar uma solicitação de código.";
     case "request_already_used":
-      return "Este email ja foi cadastrado. Entre com email e senha, sem codigo.";
+      return "Este email já foi cadastrado. Entre com email e senha, sem código.";
     case "email_already_registered":
-      return "Este email ja tem conta no Firebase. Entre com email e senha.";
+      return "Este email já tem conta no Firebase. Entre com email e senha.";
     case "weak_password":
-      return "Senha fraca demais. Use pelo menos 6 caracteres (nao use o codigo como senha).";
+      return "Senha fraca demais. Use pelo menos 6 caracteres (não use o código como senha).";
     case "invalid_email":
-      return "Email invalido. Use o mesmo email que o admin vinculou ao codigo.";
+      return "Email inválido. Use o mesmo email que o admin vinculou ao código.";
     case "wrong_password":
       return "Senha incorreta para este email.";
     case "firebase_not_configured":
       return "Configure o .env com as credenciais Firebase antes de entrar.";
     default:
       return needsCode
-        ? "Nao foi possivel validar o codigo. Confira email, senha e codigo com o admin."
-        : "Nao achei acesso ativo. Vou preparar uma solicitacao de codigo.";
+        ? "Não foi possível validar o código. Confira email, senha e código com o admin."
+        : "Não achei acesso ativo. Vou preparar uma solicitação de código.";
   }
 }
 

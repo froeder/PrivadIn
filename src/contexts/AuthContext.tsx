@@ -78,7 +78,7 @@ async function ensureUserProfile(firebaseUser: User) {
   const fresh = await getDoc(userDoc);
   const data = fresh.data() as AppUser;
   if (!data) {
-    throw new Error("Nao foi possivel carregar o perfil do usuario no Firestore.");
+    throw new Error("Não foi possivel carregar o perfil do usuário no Firestore.");
   }
 
   return {
@@ -96,10 +96,10 @@ async function registerWithApprovalCode(email: string, password: string, approva
       email: normalizedEmail,
       status: "failed",
       approvalCodeProvided: approvalCode,
-      message: "Nenhuma solicitacao encontrada para este email.",
+      message: "Nenhuma solicitação encontrada para este email.",
     });
     throw new AuthLoginError(
-      "Nenhuma solicitacao de acesso encontrada para este email.",
+      "Nenhuma solicitação de acesso encontrada para este email.",
       "no_request",
     );
   }
@@ -110,10 +110,10 @@ async function registerWithApprovalCode(email: string, password: string, approva
       status: "failed",
       approvalCodeProvided: approvalCode,
       requestId: request.id,
-      message: "Solicitacao ja utilizada; conta ja existe.",
+      message: "Solicitação já utilizada; conta já existe.",
     });
     throw new AuthLoginError(
-      "A solicitacao deste email ja foi usada para criar conta.",
+      "A solicitação deste email já foi usada para criar conta.",
       "request_already_used",
     );
   }
@@ -124,9 +124,9 @@ async function registerWithApprovalCode(email: string, password: string, approva
       status: "invalid_code",
       approvalCodeProvided: approvalCode,
       requestId: request.id,
-      message: "Codigo informado nao confere com a solicitacao.",
+      message: "Código informado não confere com a solicitação.",
     });
-    throw new AuthLoginError("Codigo de acesso incorreto.", "invalid_code");
+    throw new AuthLoginError("Código de acesso incorreto.", "invalid_code");
   }
 
   try {
@@ -138,7 +138,7 @@ async function registerWithApprovalCode(email: string, password: string, approva
       status: "account_created",
       approvalCodeProvided: approvalCode,
       requestId: request.id,
-      message: "Conta criada com codigo aprovado.",
+      message: "Conta criada com código aprovado.",
     });
     return { credential, profile };
   } catch (error) {
@@ -153,10 +153,10 @@ async function registerWithApprovalCode(email: string, password: string, approva
     if (mappedCode) {
       throw new AuthLoginError(
         mappedCode === "email_already_registered"
-          ? "Este email ja possui conta."
+          ? "Este email já possui conta."
           : mappedCode === "weak_password"
             ? "Senha muito fraca para criar a conta."
-            : "Email invalido para cadastro.",
+            : "Email inválido para cadastro.",
         mappedCode,
       );
     }
@@ -204,7 +204,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       login: async (email, password, approvalCode) => {
         if (!isFirebaseConfigured) {
-          throw new AuthLoginError("Firebase ainda nao foi configurado no .env.", "firebase_not_configured");
+          throw new AuthLoginError("Firebase ainda não foi configurado no .env.", "firebase_not_configured");
         }
 
         const normalizedEmail = normalizeEmail(email);
@@ -231,7 +231,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const request = await getOrCreateRegistrationRequest(normalizedEmail);
             if (request.status === "used") {
               throw new AuthLoginError(
-                "Este email ja foi cadastrado. Entre com email e senha.",
+                "Este email já foi cadastrado. Entre com email e senha.",
                 "request_already_used",
               );
             }
@@ -239,7 +239,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               email: normalizedEmail,
               status: "code_requested",
               requestId: request.id,
-              message: "Usuario tentou entrar sem conta e solicitou codigo.",
+              message: "Usuário tentou entrar sem conta e solicitou código.",
             });
             return { status: "access_code_required", request };
           }

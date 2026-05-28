@@ -82,7 +82,7 @@ export function useUserLogs(uid?: string) {
         setLoading(false);
       },
       (error) => {
-        console.error("Erro ao ler historico do usuario:", error);
+        console.error("Erro ao ler histórico do usuário:", error);
         setLoading(false);
       },
     );
@@ -208,7 +208,7 @@ export function useAppSettings(enabled = true) {
         setLoading(false);
       },
       (error) => {
-        console.error("Erro ao ler configuracoes do app:", error);
+        console.error("Erro ao ler configurações do app:", error);
         setAppSettings(defaultAppSettings);
         setLoading(false);
       },

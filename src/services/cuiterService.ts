@@ -82,7 +82,7 @@ export async function createCuiterPost(
   }
 
   if ([...normalizedMessage].length > CUITER_MAX_CHARS) {
-    throw new Error(`A mensagem pode ter no maximo ${CUITER_MAX_CHARS} caracteres.`);
+    throw new Error(`A mensagem pode ter no máximo ${CUITER_MAX_CHARS} caracteres.`);
   }
 
   const createdAt = Timestamp.now();

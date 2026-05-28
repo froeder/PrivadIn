@@ -26,8 +26,8 @@ function actionLabel(action: AdminAuditLog["action"]) {
 }
 
 function attemptLabel(status: RegistrationAttempt["status"]) {
-  if (status === "code_requested") return "Codigo solicitado";
-  if (status === "invalid_code") return "Codigo invalido";
+  if (status === "code_requested") return "Código solicitado";
+  if (status === "invalid_code") return "Código inválido";
   if (status === "account_created") return "Conta criada";
   return "Falha";
 }
@@ -80,7 +80,7 @@ export function AdminPage({
       await action();
       toast.success(success);
     } catch {
-      toast.error("A fiscalizacao tropeçou. Confira permissoes e regras.");
+      toast.error("A fiscalizacao tropeçou. Confira permissões e regras.");
     } finally {
       setBusy(false);
     }
@@ -108,7 +108,7 @@ export function AdminPage({
 
       <Card>
         <div className="mb-4">
-          <p className="text-sm font-bold text-yellow-100">Configuracoes do app</p>
+          <p className="text-sm font-bold text-yellow-100">Configurações do app</p>
           <h2 className="text-2xl font-black text-white">Cooldown e pontuacao</h2>
           <p className="mt-1 text-sm text-slate-400">
             Defina em minutos o cooldown e quantos pontos cada registro deve valer.
@@ -132,7 +132,7 @@ export function AdminPage({
             </p>
             {!isCooldownValid ? (
               <p className="mt-1 text-xs font-semibold text-red-300">
-                Informe um numero inteiro entre 1 e 1440.
+                Informe um número inteiro entre 1 e 1440.
               </p>
             ) : null}
           </label>
@@ -153,7 +153,7 @@ export function AdminPage({
             </p>
             {!isPointsValid ? (
               <p className="mt-1 text-xs font-semibold text-red-300">
-                Informe um numero inteiro entre 1 e 100000.
+                Informe um número inteiro entre 1 e 100000.
               </p>
             ) : null}
           </label>
@@ -193,14 +193,14 @@ export function AdminPage({
           <p className="text-sm font-bold text-yellow-100">Solicitacoes de acesso</p>
           <h2 className="text-2xl font-black text-white">Codigos para novos usuarios</h2>
           <p className="mt-1 text-sm text-slate-400">
-            Passe o codigo somente para quem voce quer liberar. Cada email tem um codigo proprio.
+            Passe o código somente para quem você quer liberar. Cada email tem um código próprio.
           </p>
         </div>
 
         <div className="grid gap-3 lg:grid-cols-2">
           {registrationRequests.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-white/15 p-8 text-center text-slate-400 lg:col-span-2">
-              Nenhuma solicitacao pendente. Quando alguem tentar entrar sem conta, aparece aqui.
+              Nenhuma solicitação pendente. Quando alguém tentar entrar sem conta, aparece aqui.
             </div>
           ) : (
             registrationRequests.slice(0, 12).map((request) => (
@@ -218,7 +218,7 @@ export function AdminPage({
                   </span>
                 </div>
                 <div className="mt-4 rounded-2xl bg-slate-950/60 p-4 text-center">
-                  <p className="text-xs font-bold uppercase tracking-[0.24em] text-slate-500">Codigo</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.24em] text-slate-500">Código</p>
                   <p className="mt-1 font-mono text-3xl font-black tracking-[0.18em] text-yellow-200">
                     {request.approvalCode}
                   </p>
@@ -232,9 +232,9 @@ export function AdminPage({
       <Card>
         <div className="mb-4">
           <p className="text-sm font-bold text-yellow-100">Tentativas de cadastro</p>
-          <h2 className="text-2xl font-black text-white">Historico de criacao de conta</h2>
+          <h2 className="text-2xl font-black text-white">Histórico de criação de conta</h2>
           <p className="mt-1 text-sm text-slate-400">
-            Cada tentativa gera um documento proprio no Firestore, inclusive codigo invalido.
+            Cada tentativa gera um documento próprio no Firestore, inclusive código inválido.
           </p>
         </div>
 
@@ -265,14 +265,14 @@ export function AdminPage({
                   {attempt.approvalCodeProvided ? (
                     <>
                       <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">
-                        Codigo usado
+                        Código usado
                       </p>
                       <p className="font-mono text-lg font-black tracking-[0.16em] text-yellow-200">
                         {attempt.approvalCodeProvided}
                       </p>
                     </>
                   ) : (
-                    <p className="text-sm text-slate-500">Sem codigo</p>
+                    <p className="text-sm text-slate-500">Sem código</p>
                   )}
                 </div>
               </div>
@@ -353,9 +353,9 @@ export function AdminPage({
       <Card>
         <div className="mb-4">
           <p className="text-sm font-bold text-yellow-100">Auditoria</p>
-          <h2 className="text-2xl font-black text-white">Historico de alteracoes admin</h2>
+          <h2 className="text-2xl font-black text-white">Histórico de alterações admin</h2>
           <p className="mt-1 text-sm text-slate-400">
-            Toda acao manual registra o nome do admin responsavel e o usuario afetado.
+            Toda ação manual registra o nome do admin responsável e o usuário afetado.
           </p>
         </div>
 
@@ -383,7 +383,7 @@ export function AdminPage({
                     {auditLog.targetUserName ? (
                       <>
                         {" "}
-                        • Usuario afetado:{" "}
+                        • Usuário afetado:{" "}
                         <span className="text-slate-200">{auditLog.targetUserName}</span>
                       </>
                     ) : null}

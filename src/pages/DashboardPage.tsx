@@ -72,7 +72,7 @@ export function DashboardPage({
       await navigator.clipboard.writeText(text);
       toast.success("Ranking copiado. Agora e so jogar no grupo sem piedade.");
     } catch {
-      toast.error("Nao consegui compartilhar o ranking agora.");
+      toast.error("Não consegui compartilhar o ranking agora.");
     }
   }
 
@@ -80,9 +80,9 @@ export function DashboardPage({
     <div className="flex flex-col gap-4 sm:gap-5">
       <section className="order-2 grid grid-cols-2 gap-3 sm:gap-4 md:order-1 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard icon="💩" label="Seu total" value={user.totalPoints} hint={`Cada registro vale ${formattedPointsPerLog} pontos`} />
-        <MetricCard icon="🏆" label="Posicao geral" value={`#${currentRank?.rank ?? "-"}`} hint="Empate favorece quem registrou primeiro" />
+        <MetricCard icon="🏆" label="Posição geral" value={`#${currentRank?.rank ?? "-"}`} hint="Empate favorece quem registrou primeiro" />
         <MetricCard icon="🔥" label="Streak diaria" value={`${user.currentDailyStreak}d`} hint={`${user.currentWeeklyStreak} semana(s) ativa(s)`} />
-        <MetricCard icon="🕘" label="Ultima cagada" value={formatHour(lastLog?.createdAt)} hint={formatDateTime(lastLog?.createdAt)} />
+        <MetricCard icon="🕘" label="Última cagada" value={formatHour(lastLog?.createdAt)} hint={formatDateTime(lastLog?.createdAt)} />
       </section>
 
       <section className="order-1 grid gap-4 sm:gap-5 md:order-2 xl:grid-cols-[1fr_380px]">
@@ -95,7 +95,7 @@ export function DashboardPage({
             </span>
             <h2 className="mt-4 text-2xl font-black leading-tight text-white sm:text-5xl">Momento de gloria remunerada?</h2>
             <p className="mt-3 text-sm text-slate-300 sm:text-base">
-              Registre automaticamente data e horario, ganhe {formattedPointsPerLog} pontos e dispute o trono em tempo real.
+              Registre automaticamente data e horário, ganhe {formattedPointsPerLog} pontos e dispute o trono em tempo real.
             </p>
             <button
               onClick={handleRegister}

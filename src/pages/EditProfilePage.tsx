@@ -45,7 +45,7 @@ export function EditProfilePage() {
     setAvatarStatus(canLoad ? "valid" : "invalid");
 
     if (!canLoad && showToast) {
-      toast.error("Nao consegui carregar esse avatar da DiceBear. Confira o link escolhido.");
+      toast.error("Não consegui carregar esse avatar da DiceBear. Confira o link escolhido.");
     }
 
     return canLoad;
@@ -67,7 +67,7 @@ export function EditProfilePage() {
       toast.success("Perfil atualizado.");
     } catch (e) {
       console.error(e);
-      toast.error("Falha ao atualizar perfil. Verifique permissoes e conexao.");
+      toast.error("Falha ao atualizar perfil. Verifique permissões e conexão.");
     } finally {
       setBusy(false);
     }
@@ -157,7 +157,7 @@ export function EditProfilePage() {
               </p>
             ) : avatarStatus === "invalid" ? (
               <p className="mt-1 text-xs font-semibold text-red-300">
-                Nao consegui carregar uma imagem valida nessa URL.
+                Não consegui carregar uma imagem valida nessa URL.
               </p>
             ) : null}
           </label>

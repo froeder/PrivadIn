@@ -27,7 +27,7 @@ export function LoginPage({ cooldownMinutes }: { cooldownMinutes: number }) {
         setNeedsCode(true);
         setRequestedEmail(result.request.email);
         setEmail(result.request.email);
-        toast.success("Pedido criado. Peça o codigo para um admin do PrivadIn.");
+        toast.success("Pedido criado. Peça o código para um admin do PrivadIn.");
         return;
       }
 
@@ -45,8 +45,8 @@ export function LoginPage({ cooldownMinutes }: { cooldownMinutes: number }) {
       toast.error(
         isFirebaseConfigured
           ? needsCode
-            ? "Nao foi possivel validar o codigo. Confira email, senha e codigo com o admin."
-            : "Nao achei acesso ativo. Vou preparar uma solicitacao de codigo."
+            ? "Não foi possivel validar o código. Confira email, senha e código com o admin."
+            : "Não achei acesso ativo. Vou preparar uma solicitação de código."
           : "Configure o .env com as credenciais Firebase antes de entrar.",
       );
     }
@@ -90,7 +90,7 @@ export function LoginPage({ cooldownMinutes }: { cooldownMinutes: number }) {
               </div>
               <h2 className="mt-4 text-2xl font-black text-white">Bater ponto no banheiro</h2>
               <p className="mt-1 text-sm text-slate-400">
-                Entre normalmente ou solicite um codigo individual ao admin.
+                Entre normalmente ou solicite um código individual ao admin.
               </p>
             </div>
 
@@ -103,7 +103,7 @@ export function LoginPage({ cooldownMinutes }: { cooldownMinutes: number }) {
                   type="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  placeholder="voce@empresa.com"
+                  placeholder="você@empresa.com"
                   readOnly={needsCode && Boolean(requestedEmail)}
                   required
                 />
@@ -119,7 +119,7 @@ export function LoginPage({ cooldownMinutes }: { cooldownMinutes: number }) {
                   type="password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  placeholder={needsCode ? "crie uma senha (nao e o codigo)" : "senha secreta do trono"}
+                  placeholder={needsCode ? "crie uma senha (não e o código)" : "senha secreta do trono"}
                   required
                 />
               </span>
@@ -132,16 +132,16 @@ export function LoginPage({ cooldownMinutes }: { cooldownMinutes: number }) {
                     <KeyRound size={18} />
                   </div>
                   <div>
-                    <p className="font-black text-yellow-100">Acesso aguardando codigo</p>
+                    <p className="font-black text-yellow-100">Acesso aguardando código</p>
                     <p className="mt-1 text-sm text-slate-300">
-                      Peça ao admin o codigo exibido para{" "}
+                      Peça ao admin o código exibido para{" "}
                       <span className="font-bold text-white">{requestedEmail || email}</span>.
                     </p>
                   </div>
                 </div>
 
                 <label className="block">
-                  <span className="mb-2 block text-sm font-bold text-slate-300">Codigo do admin</span>
+                  <span className="mb-2 block text-sm font-bold text-slate-300">Código do admin</span>
                   <span className="flex items-center gap-3 rounded-2xl border border-yellow-200/20 bg-slate-950/70 px-4 py-3">
                     <KeyRound className="text-yellow-200" size={18} />
                     <input
@@ -166,7 +166,7 @@ export function LoginPage({ cooldownMinutes }: { cooldownMinutes: number }) {
               {loading
                 ? "Consultando a descarga..."
                 : needsCode
-                  ? "VALIDAR CODIGO E ENTRAR"
+                  ? "VALIDAR CÓDIGO E ENTRAR"
                   : "ENTRAR OU SOLICITAR ACESSO"}
             </button>
             {needsCode ? (
@@ -190,17 +190,17 @@ export function LoginPage({ cooldownMinutes }: { cooldownMinutes: number }) {
                   setRequestedEmail(email.trim());
                   setApprovalCode("");
                   toast(
-                    "Use o codigo do admin no campo abaixo. A senha e a que voce escolher — nao o codigo.",
+                    "Use o código do admin no campo abaixo. A senha e a que você escolher — não o código.",
                     { icon: "🔑" },
                   );
                 }}
               >
-                Ja tenho codigo
+                Já tenho código
               </button>
             )}
             <p className="mt-4 text-center text-xs text-slate-500">
               {isFirebaseConfigured
-                ? "Sem codigo de admin, sem campeonato. Democracia, mas com portaria."
+                ? "Sem código de admin, sem campeonato. Democracia, mas com portaria."
                 : "Copie .env.example para .env e preencha as chaves do Firebase."}
             </p>
           </form>
