@@ -15,6 +15,7 @@ import {
   updatePointsPerLog,
 } from "../services/settingsService";
 import { formatDateTime } from "../utils/date";
+import { toRoman } from "../utils/roman";
 
 function actionLabel(action: AdminAuditLog["action"]) {
   if (action === "adjust_points") return "Ajuste de pontos";
@@ -93,6 +94,7 @@ export function AdminPage({
             <p className="text-sm font-bold text-yellow-100">Modo admin</p>
             <h2 className="text-2xl font-black text-white">Painel da fiscalizacao sanitaria</h2>
             <p className="mt-1 text-sm text-slate-400">Use com sabedoria. Grandes poderes, grandes planilhas.</p>
+            <p className="mt-2 text-sm text-slate-300">Edição atual: {toRoman(appSettings.edition)}</p>
           </div>
           <button
             disabled={busy}

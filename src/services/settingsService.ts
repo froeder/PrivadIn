@@ -12,10 +12,12 @@ const MAX_COOLDOWN_MINUTES = 1440;
 const DEFAULT_POINTS_PER_LOG = 2000;
 const MIN_POINTS_PER_LOG = 1;
 const MAX_POINTS_PER_LOG = 100000;
+const DEFAULT_EDITION = 17;
 
 export const defaultAppSettings: AppSettings = {
   cooldownMinutes: DEFAULT_COOLDOWN_MINUTES,
   pointsPerLog: DEFAULT_POINTS_PER_LOG,
+  edition: DEFAULT_EDITION,
 };
 
 export function normalizeCooldownMinutes(value: number) {
@@ -36,6 +38,11 @@ export function normalizePointsPerLog(value: number) {
   );
 }
 
+function normalizeEdition(value: number) {
+  if (!Number.isFinite(value)) return DEFAULT_EDITION;
+  return Math.max(1, Math.trunc(value));
+}
+
 export function parseAppSettings(
   data?: Partial<AppSettings> | null,
 ): AppSettings {
@@ -48,6 +55,7 @@ export function parseAppSettings(
     pointsPerLog: normalizePointsPerLog(
       Number(data?.pointsPerLog ?? DEFAULT_POINTS_PER_LOG),
     ),
+    edition: normalizeEdition(Number(data?.edition ?? DEFAULT_EDITION)),
   };
 }
 

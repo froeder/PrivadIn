@@ -60,6 +60,7 @@ function AppContent() {
           userLogs={userLogs}
           cooldownMinutes={appSettings.cooldownMinutes}
           pointsPerLog={appSettings.pointsPerLog}
+          edition={appSettings.edition}
           onPlaySound={playFlush}
         />
       ) : null}

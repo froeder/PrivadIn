@@ -3,6 +3,7 @@ import {
   addDoc,
   collection,
   doc,
+  getDoc,
   increment,
   orderBy,
   query,
@@ -20,6 +21,7 @@ import {
   calculateDailyStreak,
   calculateWeeklyStreak,
 } from "../utils/date";
+import { toRoman } from "../utils/roman";
 
 export const usersRef = collection(db, "users");
 export const logsRef = collection(db, "poop_logs");
@@ -169,7 +171,14 @@ export async function removeLog(admin: AppUser, log: PoopLog) {
   });
 }
 
+const APP_SETTINGS_DOC_ID = "global";
+const appSettingsDocRef = doc(db, "app_settings", APP_SETTINGS_DOC_ID);
+
 export async function resetWeeklyRanking(admin: AppUser, logs: PoopLog[], users: AppUser[]) {
+  const settingsSnapshot = await getDoc(appSettingsDocRef);
+  const currentEdition = Number(settingsSnapshot.data()?.edition ?? 17);
+  const nextEdition = Math.max(1, Math.trunc(currentEdition)) + 1;
+
   const batch = writeBatch(db);
   users.forEach((user) => {
     batch.update(doc(db, "users", user.uid), { weeklyPoints: 0 });
@@ -180,11 +189,20 @@ export async function resetWeeklyRanking(admin: AppUser, logs: PoopLog[], users:
     }
   });
   batch.set(
+    appSettingsDocRef,
+    {
+      edition: nextEdition,
+      updatedAt: Timestamp.now(),
+      updatedBy: admin.uid,
+    },
+    { merge: true },
+  );
+  batch.set(
     doc(adminLogsRef),
     createAuditLog({
       action: "reset_weekly",
       admin,
-      description: `${admin.name} resetou o ranking semanal.`,
+      description: `${admin.name} resetou o ranking semanal para a edição ${toRoman(nextEdition)}.`,
     }),
   );
   await batch.commit();

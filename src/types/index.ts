@@ -41,6 +41,7 @@ export interface CuiterPost {
 export interface AppSettings {
   cooldownMinutes: number;
   pointsPerLog: number;
+  edition: number;
   updatedAt?: Timestamp;
   updatedBy?: string;
 }

@@ -6,6 +6,7 @@ import { RankingList } from "../components/RankingList";
 import type { AppUser, PoopLog, RankedUser } from "../types";
 import { registerPoop } from "../services/poopService";
 import { countThisWeek, formatDateTime, formatHour, getCooldownSeconds, getLastLog } from "../utils/date";
+import { toRoman } from "../utils/roman";
 
 export function DashboardPage({
   user,
@@ -13,6 +14,7 @@ export function DashboardPage({
   userLogs,
   cooldownMinutes,
   pointsPerLog,
+  edition,
   onPlaySound,
 }: {
   user: AppUser;
@@ -20,6 +22,7 @@ export function DashboardPage({
   userLogs: PoopLog[];
   cooldownMinutes: number;
   pointsPerLog: number;
+  edition: number;
   onPlaySound: () => void;
 }) {
   const currentRank = rankedUsers.find((ranked) => ranked.uid === user.uid);
@@ -55,7 +58,7 @@ export function DashboardPage({
         `${ranked.rank}. ${ranked.name}${ranked.nickname?.trim() ? ` (${ranked.nickname.trim()})` : ""} - ${ranked.totalPoints} pontos`,
       )
       .join("\n");
-    const text = `Ranking atual do PrivadIn:\n\n${rankingText || "Sem jogadores no ranking ainda."}`;
+    const text = `${toRoman(edition)} cumpetiçao PrivadIn:\n\n${rankingText || "Sem jogadores no ranking ainda."}`;
 
     try {
       if (navigator.share) {
