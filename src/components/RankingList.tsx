@@ -1,6 +1,8 @@
 import { clsx } from "clsx";
+import { useTranslation } from "react-i18next";
 import type { RankedUser } from "../types";
 import { medalFor, titleFor } from "../utils/ranking";
+import { formatNumber } from "../utils/format";
 
 export function RankingList({
   users,
@@ -11,6 +13,7 @@ export function RankingList({
   mode?: "overall" | "weekly";
   currentUid?: string;
 }) {
+  const { t } = useTranslation("common");
   const sorted = [...users].sort((a, b) => (mode === "weekly" ? a.weeklyRank - b.weeklyRank : a.rank - b.rank));
 
   return (
@@ -46,8 +49,8 @@ export function RankingList({
               <p className="text-[11px] text-slate-400 sm:text-xs">{titleFor(rank)}</p>
             </div>
             <div className="text-right">
-              <p className="text-xl font-black text-yellow-200 sm:text-2xl">{points}</p>
-              <p className="text-[10px] text-slate-400 sm:text-xs">pts</p>
+              <p className="text-xl font-black text-yellow-200 sm:text-2xl">{formatNumber(points)}</p>
+              <p className="text-[10px] text-slate-400 sm:text-xs">{t("labels.pointsShort")}</p>
             </div>
           </div>
         );

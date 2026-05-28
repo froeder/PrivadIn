@@ -3,6 +3,7 @@ import { Timestamp, type DocumentData, type QueryDocumentSnapshot } from "fireba
 import { FirebaseError } from "firebase/app";
 import toast from "react-hot-toast";
 import { MessageCircle, Send } from "lucide-react";
+import { Trans, useTranslation } from "react-i18next";
 import { Card } from "../components/Card";
 import {
   CUITER_MAX_CHARS,
@@ -24,6 +25,7 @@ export function CuiterPage({
   user: AppUser;
   userLogs: PoopLog[];
 }) {
+  const { t } = useTranslation("cuiter");
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [posts, setPosts] = useState<CuiterPost[]>([]);
@@ -69,10 +71,10 @@ export function CuiterPage({
         setUserPostsCount(myPostsCount);
       } catch {
         setUserPostsCount(0);
-        toast.error("Não foi possível contar seus posts do Cuiter.");
+        toast.error(t("loadUserPostsError"));
       }
     } catch {
-      toast.error("Não foi possível carregar o feed do Cuiter.");
+      toast.error(t("loadFeedError"));
     } finally {
       setLoadingFeed(false);
     }
@@ -91,7 +93,7 @@ export function CuiterPage({
       setCursor(page.nextCursor);
       setHasMore(page.hasMore);
     } catch {
-      toast.error("Falha ao carregar mais posts.");
+      toast.error(t("loadMoreError"));
     } finally {
       setLoadingMore(false);
     }
@@ -105,14 +107,12 @@ export function CuiterPage({
       setPosts((current) => [post, ...current]);
       setUserPostsCount((current) => current + 1);
       setMessage("");
-      toast.success("Postado no Cuiter.");
+      toast.success(t("publishSuccess"));
     } catch (error) {
       if (isFirestorePermissionDenied(error)) {
-        toast.error(
-          "Permissão negada. Para publicar no Cuiter, registre uma cagada antes de postar.",
-        );
+        toast.error(t("permissionDenied"));
       } else {
-        toast.error(error instanceof Error ? error.message : "Não foi possível publicar agora.");
+        toast.error(error instanceof Error ? error.message : t("publishError"));
       }
     } finally {
       setSending(false);
@@ -124,8 +124,8 @@ export function CuiterPage({
       <Card>
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-bold text-yellow-100">Mini rede social</p>
-            <h2 className="text-2xl font-black text-white">Cuiter</h2>
+            <p className="text-sm font-bold text-yellow-100">{t("eyebrow")}</p>
+            <h2 className="text-2xl font-black text-white">{t("title")}</h2>
           </div>
           <MessageCircle className="text-yellow-200" />
         </div>
@@ -133,7 +133,11 @@ export function CuiterPage({
         <div className="space-y-3">
           {!unlocked ? (
             <div className="rounded-2xl border border-yellow-200/25 bg-yellow-300/10 p-3 text-sm text-yellow-100">
-              Para publicar no Cuiter, clique em <strong>Registrar cagada</strong>. Cada registro libera 1 novo post a partir de {formatDateTime(Timestamp.fromDate(CUITER_CREDIT_START_DATE))}.
+              <Trans
+                i18nKey="cuiter:unlockInfo"
+                values={{ date: formatDateTime(Timestamp.fromDate(CUITER_CREDIT_START_DATE)) }}
+                components={{ strong: <strong /> }}
+              />
             </div>
           ) : null}
 
@@ -141,13 +145,13 @@ export function CuiterPage({
             value={message}
             onChange={(event) => setMessage(event.target.value)}
             maxLength={CUITER_MAX_CHARS}
-            placeholder="Compartilhe sua frase curta..."
+            placeholder={t("placeholder")}
             className="min-h-24 w-full resize-none rounded-2xl border border-white/15 bg-slate-900/60 p-3 text-sm text-white outline-none ring-yellow-300/40 transition focus:ring"
           />
 
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className={`text-xs font-bold ${charsRemaining < 20 ? "text-amber-300" : "text-slate-400"}`}>
-              {charsRemaining} caracteres restantes · {availableCredits} post(s) disponível(is)
+              {t("credits", { chars: charsRemaining, count: availableCredits })}
             </span>
             <button
               onClick={handlePublish}
@@ -155,7 +159,7 @@ export function CuiterPage({
               className="inline-flex items-center gap-2 rounded-xl bg-yellow-300 px-4 py-2 text-sm font-black text-slate-950 transition hover:bg-yellow-200 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Send size={15} />
-              {sending ? "Publicando..." : "Publicar"}
+              {sending ? t("publishLoading") : t("publishAction")}
             </button>
           </div>
         </div>
@@ -163,17 +167,17 @@ export function CuiterPage({
 
       <Card>
         <div className="mb-4">
-          <p className="text-sm font-bold text-yellow-100">Feed paginado</p>
-          <h2 className="text-2xl font-black text-white">Frases da firma</h2>
+          <p className="text-sm font-bold text-yellow-100">{t("feedEyebrow")}</p>
+          <h2 className="text-2xl font-black text-white">{t("feedTitle")}</h2>
         </div>
         <div className="space-y-3">
           {loadingFeed ? (
             <div className="rounded-2xl border border-dashed border-white/15 p-8 text-center text-slate-400">
-              Carregando feed...
+              {t("feedLoading")}
             </div>
           ) : orderedPosts.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-white/15 p-8 text-center text-slate-400">
-              Ainda não há posts no Cuiter.
+              {t("feedEmpty")}
             </div>
           ) : (
             orderedPosts.map((post) => (
@@ -196,7 +200,7 @@ export function CuiterPage({
               disabled={loadingMore}
               className="w-full rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-black text-white transition hover:bg-white/20 disabled:opacity-60"
             >
-              {loadingMore ? "Carregando..." : "Carregar mais"}
+              {loadingMore ? t("loadMoreLoading") : t("loadMoreAction")}
             </button>
           </div>
         ) : null}

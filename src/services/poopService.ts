@@ -21,6 +21,7 @@ import {
   calculateDailyStreak,
   calculateWeeklyStreak,
 } from "../utils/date";
+import i18n from "../i18n";
 import { toRoman } from "../utils/roman";
 
 export const usersRef = collection(db, "users");
@@ -82,11 +83,11 @@ export async function registerPoop(
 ) {
   const cooldown = getCooldownSeconds(userLogs, cooldownMinutes);
   if (cooldown > 0) {
-    throw new Error(`Calma, campeão. O trono libera em ${Math.ceil(cooldown / 60)} minuto(s).`);
+    throw new Error(i18n.t("services:poop.cooldown", { count: Math.ceil(cooldown / 60) }));
   }
 
   if (countToday(userLogs) >= DAILY_LIMIT) {
-    throw new Error(`Limite diário de ${DAILY_LIMIT} registros atingido. Até o banheiro precisa de governança.`);
+    throw new Error(i18n.t("services:poop.dailyLimit", { count: DAILY_LIMIT }));
   }
 
   const now = Timestamp.now();

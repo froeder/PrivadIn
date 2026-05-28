@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 import { Card } from "../components/Card";
 import type {
   AdminAuditLog,
@@ -15,21 +16,15 @@ import {
   updatePointsPerLog,
 } from "../services/settingsService";
 import { formatDateTime } from "../utils/date";
+import { formatNumber } from "../utils/format";
 import { toRoman } from "../utils/roman";
 
-function actionLabel(action: AdminAuditLog["action"]) {
-  if (action === "adjust_points") return "Ajuste de pontos";
-  if (action === "remove_log") return "Registro removido";
-  if (action === "update_cooldown") return "Cooldown atualizado";
-  if (action === "update_points_per_log") return "Pontuação atualizada";
-  return "Reset semanal";
+function actionLabel(action: AdminAuditLog["action"], t: (key: string) => string) {
+  return t(`actionLabels.${action}`);
 }
 
-function attemptLabel(status: RegistrationAttempt["status"]) {
-  if (status === "code_requested") return "Código solicitado";
-  if (status === "invalid_code") return "Código inválido";
-  if (status === "account_created") return "Conta criada";
-  return "Falha";
+function attemptLabel(status: RegistrationAttempt["status"], t: (key: string) => string) {
+  return t(`attemptLabels.${status}`);
 }
 
 function attemptClass(status: RegistrationAttempt["status"]) {
@@ -55,6 +50,7 @@ export function AdminPage({
   registrationRequests: RegistrationRequest[];
   registrationAttempts: RegistrationAttempt[];
 }) {
+  const { t } = useTranslation("admin");
   const [busy, setBusy] = useState(false);
   const [cooldownInput, setCooldownInput] = useState(String(appSettings.cooldownMinutes));
   const [pointsInput, setPointsInput] = useState(String(appSettings.pointsPerLog));
@@ -80,7 +76,7 @@ export function AdminPage({
       await action();
       toast.success(success);
     } catch {
-      toast.error("A fiscalização tropeçou. Confira permissões e regras.");
+      toast.error(t("toast.genericError"));
     } finally {
       setBusy(false);
     }
@@ -91,33 +87,33 @@ export function AdminPage({
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-sm font-bold text-yellow-100">Modo admin</p>
-            <h2 className="text-2xl font-black text-white">Painel da fiscalização sanitária</h2>
-            <p className="mt-1 text-sm text-slate-400">Use com sabedoria. Grandes poderes, grandes planilhas.</p>
-            <p className="mt-2 text-sm text-slate-300">Edição atual: {toRoman(appSettings.edition)}</p>
+            <p className="text-sm font-bold text-yellow-100">{t("heroEyebrow")}</p>
+            <h2 className="text-2xl font-black text-white">{t("heroTitle")}</h2>
+            <p className="mt-1 text-sm text-slate-400">{t("heroDescription")}</p>
+            <p className="mt-2 text-sm text-slate-300">{t("common:labels.currentEdition", { edition: toRoman(appSettings.edition) })}</p>
           </div>
           <button
             disabled={busy}
-            onClick={() => runAdminAction(() => resetWeeklyRanking(admin, logs, users), "Ranking semanal zerado. Segunda-feira moral restaurada.")}
+            onClick={() => runAdminAction(() => resetWeeklyRanking(admin, logs, users), t("toast.weeklyResetSuccess"))}
             className="rounded-2xl bg-yellow-300 px-5 py-3 font-black text-slate-950 transition hover:bg-yellow-200 disabled:opacity-60"
           >
-            Resetar ranking semanal
+            {t("actions.weeklyReset")}
           </button>
         </div>
       </Card>
 
       <Card>
         <div className="mb-4">
-          <p className="text-sm font-bold text-yellow-100">Configurações do app</p>
-          <h2 className="text-2xl font-black text-white">Cooldown e pontuação</h2>
+          <p className="text-sm font-bold text-yellow-100">{t("settingsEyebrow")}</p>
+          <h2 className="text-2xl font-black text-white">{t("settingsTitle")}</h2>
           <p className="mt-1 text-sm text-slate-400">
-            Defina em minutos o cooldown e quantos pontos cada registro deve valer.
+            {t("settingsDescription")}
           </p>
         </div>
 
         <div className="grid gap-4 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
           <label className="flex-1">
-            <span className="mb-2 block text-sm font-bold text-slate-300">Tempo em minutos</span>
+            <span className="mb-2 block text-sm font-bold text-slate-300">{t("cooldownLabel")}</span>
             <input
               className="w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none"
               type="number"
@@ -128,17 +124,17 @@ export function AdminPage({
               onChange={(event) => setCooldownInput(event.target.value)}
             />
             <p className="mt-2 text-xs text-slate-500">
-              Valor atual no app: {appSettings.cooldownMinutes} minuto{appSettings.cooldownMinutes === 1 ? "" : "s"}.
+              {t("cooldownCurrent", { count: appSettings.cooldownMinutes })}
             </p>
             {!isCooldownValid ? (
               <p className="mt-1 text-xs font-semibold text-red-300">
-                Informe um número inteiro entre 1 e 1440.
+                {t("cooldownInvalid")}
               </p>
             ) : null}
           </label>
 
           <label className="flex-1">
-            <span className="mb-2 block text-sm font-bold text-slate-300">Pontos por registro</span>
+            <span className="mb-2 block text-sm font-bold text-slate-300">{t("pointsLabel")}</span>
             <input
               className="w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none"
               type="number"
@@ -149,11 +145,11 @@ export function AdminPage({
               onChange={(event) => setPointsInput(event.target.value)}
             />
             <p className="mt-2 text-xs text-slate-500">
-              Valor atual no app: {appSettings.pointsPerLog} pontos por registro.
+              {t("pointsCurrent", { points: formatNumber(appSettings.pointsPerLog) })}
             </p>
             {!isPointsValid ? (
               <p className="mt-1 text-xs font-semibold text-red-300">
-                Informe um número inteiro entre 1 e 100000.
+                {t("pointsInvalid")}
               </p>
             ) : null}
           </label>
@@ -164,12 +160,12 @@ export function AdminPage({
               onClick={() =>
                 runAdminAction(
                   () => updateCooldownMinutes(admin, parsedCooldown),
-                  `Cooldown atualizado para ${parsedCooldown} minuto(s).`,
+                  t("toast.cooldownSuccess", { count: parsedCooldown }),
                 )
               }
               className="rounded-2xl bg-yellow-300 px-5 py-3 font-black text-slate-950 transition hover:bg-yellow-200 disabled:opacity-60"
             >
-              Salvar cooldown
+              {t("actions.saveCooldown")}
             </button>
 
             <button
@@ -177,12 +173,12 @@ export function AdminPage({
               onClick={() =>
                 runAdminAction(
                   () => updatePointsPerLog(admin, parsedPoints),
-                  `Pontuação atualizada para ${parsedPoints} ponto(s) por registro.`,
+                  t("toast.pointsSuccess", { points: formatNumber(parsedPoints) }),
                 )
               }
               className="rounded-2xl border border-white/10 bg-white/10 px-5 py-3 font-black text-white transition hover:bg-white/20 disabled:opacity-60"
             >
-              Salvar pontuação
+              {t("actions.savePoints")}
             </button>
           </div>
         </div>
@@ -190,17 +186,17 @@ export function AdminPage({
 
       <Card>
         <div className="mb-4">
-          <p className="text-sm font-bold text-yellow-100">Solicitações de acesso</p>
-          <h2 className="text-2xl font-black text-white">Códigos para novos usuários</h2>
+          <p className="text-sm font-bold text-yellow-100">{t("requestsEyebrow")}</p>
+          <h2 className="text-2xl font-black text-white">{t("requestsTitle")}</h2>
           <p className="mt-1 text-sm text-slate-400">
-            Passe o código somente para quem você quer liberar. Cada email tem um código próprio.
+            {t("requestsDescription")}
           </p>
         </div>
 
         <div className="grid gap-3 lg:grid-cols-2">
           {registrationRequests.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-white/15 p-8 text-center text-slate-400 lg:col-span-2">
-              Nenhuma solicitação pendente. Quando alguém tentar entrar sem conta, aparece aqui.
+              {t("requestsEmpty")}
             </div>
           ) : (
             registrationRequests.slice(0, 12).map((request) => (
@@ -214,11 +210,11 @@ export function AdminPage({
                     <p className="text-xs text-slate-400">{formatDateTime(request.createdAt)}</p>
                   </div>
                   <span className="rounded-full bg-white/10 px-2 py-1 text-xs font-black text-slate-300">
-                    {request.status === "pending" ? "Pendente" : "Usado"}
+                    {request.status === "pending" ? t("requestStatusPending") : t("requestStatusUsed")}
                   </span>
                 </div>
                 <div className="mt-4 rounded-2xl bg-slate-950/60 p-4 text-center">
-                  <p className="text-xs font-bold uppercase tracking-[0.24em] text-slate-500">Código</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.24em] text-slate-500">{t("requestCodeLabel")}</p>
                   <p className="mt-1 font-mono text-3xl font-black tracking-[0.18em] text-yellow-200">
                     {request.approvalCode}
                   </p>
@@ -231,17 +227,17 @@ export function AdminPage({
 
       <Card>
         <div className="mb-4">
-          <p className="text-sm font-bold text-yellow-100">Tentativas de cadastro</p>
-          <h2 className="text-2xl font-black text-white">Histórico de criação de conta</h2>
+          <p className="text-sm font-bold text-yellow-100">{t("attemptsEyebrow")}</p>
+          <h2 className="text-2xl font-black text-white">{t("attemptsTitle")}</h2>
           <p className="mt-1 text-sm text-slate-400">
-            Cada tentativa gera um documento próprio no Firestore, inclusive código inválido.
+            {t("attemptsDescription")}
           </p>
         </div>
 
         <div className="max-h-[420px] space-y-3 overflow-auto pr-1">
           {registrationAttempts.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-white/15 p-8 text-center text-slate-400">
-              Nenhuma tentativa registrada ainda.
+              {t("attemptsEmpty")}
             </div>
           ) : (
             registrationAttempts.slice(0, 50).map((attempt) => (
@@ -252,7 +248,7 @@ export function AdminPage({
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className={`rounded-full px-2 py-1 text-xs font-black ${attemptClass(attempt.status)}`}>
-                      {attemptLabel(attempt.status)}
+                      {attemptLabel(attempt.status, (key) => t(key))}
                     </span>
                     <span className="text-xs text-slate-500">{formatDateTime(attempt.createdAt)}</span>
                   </div>
@@ -265,14 +261,14 @@ export function AdminPage({
                   {attempt.approvalCodeProvided ? (
                     <>
                       <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">
-                        Código usado
+                        {t("attemptCodeUsed")}
                       </p>
                       <p className="font-mono text-lg font-black tracking-[0.16em] text-yellow-200">
                         {attempt.approvalCodeProvided}
                       </p>
                     </>
                   ) : (
-                    <p className="text-sm text-slate-500">Sem código</p>
+                    <p className="text-sm text-slate-500">{t("attemptWithoutCode")}</p>
                   )}
                 </div>
               </div>
@@ -284,8 +280,8 @@ export function AdminPage({
       <section className="grid gap-5 xl:grid-cols-2">
         <Card>
           <div className="mb-4">
-            <p className="text-sm font-bold text-yellow-100">Ajuste manual</p>
-            <h2 className="text-2xl font-black text-white">Pontuação dos usuários</h2>
+            <p className="text-sm font-bold text-yellow-100">{t("manualEyebrow")}</p>
+            <h2 className="text-2xl font-black text-white">{t("manualTitle")}</h2>
           </div>
           <div className="space-y-3">
             {users.map((user) => (
@@ -293,7 +289,7 @@ export function AdminPage({
                 <img src={user.avatar} alt="" className="h-10 w-10 rounded-full bg-yellow-100" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-black text-white">{user.name}</p>
-                  <p className="text-xs text-slate-400">{user.totalPoints} pontos gerais</p>
+                  <p className="text-xs text-slate-400">{t("userPoints", { points: formatNumber(user.totalPoints) })}</p>
                 </div>
                 <button
                   disabled={busy}
@@ -301,11 +297,11 @@ export function AdminPage({
                   onClick={() =>
                     runAdminAction(
                       () => adjustUserPoints(admin, user, -appSettings.pointsPerLog),
-                      `${appSettings.pointsPerLog} pontos removidos. Auditoria respirando melhor.`,
+                      t("toast.removePoints", { points: formatNumber(appSettings.pointsPerLog) }),
                     )
                   }
                 >
-                  -{appSettings.pointsPerLog}
+                  -{formatNumber(appSettings.pointsPerLog)}
                 </button>
                 <button
                   disabled={busy}
@@ -313,11 +309,11 @@ export function AdminPage({
                   onClick={() =>
                     runAdminAction(
                       () => adjustUserPoints(admin, user, appSettings.pointsPerLog),
-                      `${appSettings.pointsPerLog} pontos adicionados. Que conste em ata.`,
+                      t("toast.addPoints", { points: formatNumber(appSettings.pointsPerLog) }),
                     )
                   }
                 >
-                  +{appSettings.pointsPerLog}
+                  +{formatNumber(appSettings.pointsPerLog)}
                 </button>
               </div>
             ))}
@@ -326,8 +322,8 @@ export function AdminPage({
 
         <Card>
           <div className="mb-4">
-            <p className="text-sm font-bold text-yellow-100">Registros recentes</p>
-            <h2 className="text-2xl font-black text-white">Remover indevidos</h2>
+            <p className="text-sm font-bold text-yellow-100">{t("recentLogsEyebrow")}</p>
+            <h2 className="text-2xl font-black text-white">{t("recentLogsTitle")}</h2>
           </div>
           <div className="max-h-[620px] space-y-3 overflow-auto pr-1">
             {logs.slice(0, 30).map((log) => (
@@ -339,10 +335,10 @@ export function AdminPage({
                 </div>
                 <button
                   disabled={busy}
-                  onClick={() => runAdminAction(() => removeLog(admin, log), "Registro removido. O placar foi desentupido.")}
+                  onClick={() => runAdminAction(() => removeLog(admin, log), t("toast.removeLog"))}
                   className="rounded-xl bg-red-500/15 px-3 py-2 text-sm font-black text-red-100 hover:bg-red-500/25 disabled:opacity-60"
                 >
-                  Remover
+                  {t("common:actions.remove")}
                 </button>
               </div>
             ))}
@@ -352,17 +348,17 @@ export function AdminPage({
 
       <Card>
         <div className="mb-4">
-          <p className="text-sm font-bold text-yellow-100">Auditoria</p>
-          <h2 className="text-2xl font-black text-white">Histórico de alterações admin</h2>
+          <p className="text-sm font-bold text-yellow-100">{t("auditEyebrow")}</p>
+          <h2 className="text-2xl font-black text-white">{t("auditTitle")}</h2>
           <p className="mt-1 text-sm text-slate-400">
-            Toda ação manual registra o nome do admin responsável e o usuário afetado.
+            {t("auditDescription")}
           </p>
         </div>
 
         <div className="max-h-[520px] space-y-3 overflow-auto pr-1">
           {auditLogs.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-white/15 p-8 text-center text-slate-400">
-              Nenhuma alteração administrativa registrada ainda.
+              {t("auditEmpty")}
             </div>
           ) : (
             auditLogs.slice(0, 50).map((auditLog) => (
@@ -373,17 +369,17 @@ export function AdminPage({
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-full bg-yellow-300/15 px-2 py-1 text-xs font-black text-yellow-100">
-                      {actionLabel(auditLog.action)}
+                      {actionLabel(auditLog.action, (key) => t(key))}
                     </span>
                     <span className="text-xs text-slate-500">{formatDateTime(auditLog.createdAt)}</span>
                   </div>
                   <p className="mt-2 font-black text-white">{auditLog.description}</p>
                   <p className="mt-1 text-sm text-slate-400">
-                    Admin: <span className="text-slate-200">{auditLog.adminName}</span>
+                    {t("auditAdmin")}: <span className="text-slate-200">{auditLog.adminName}</span>
                     {auditLog.targetUserName ? (
                       <>
                         {" "}
-                        • Usuário afetado:{" "}
+                        • {t("auditTarget")}:{" "}
                         <span className="text-slate-200">{auditLog.targetUserName}</span>
                       </>
                     ) : null}
@@ -393,11 +389,11 @@ export function AdminPage({
                   {typeof auditLog.delta === "number" ? (
                     <p className={auditLog.delta > 0 ? "font-black text-emerald-200" : "font-black text-red-200"}>
                       {auditLog.delta > 0 ? "+" : ""}
-                      {auditLog.delta} ponto
+                      {t("auditDelta", { count: Math.abs(auditLog.delta) })}
                     </p>
                   ) : null}
                   {typeof auditLog.points === "number" ? (
-                    <p className="font-black text-red-200">-{auditLog.points} ponto</p>
+                    <p className="font-black text-red-200">-{t("auditDelta", { count: auditLog.points })}</p>
                   ) : null}
                 </div>
               </div>

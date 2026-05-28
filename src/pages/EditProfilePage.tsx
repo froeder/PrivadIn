@@ -1,5 +1,6 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 import { Card } from "../components/Card";
 import { useAuth } from "../contexts/AuthContext";
 import { avatarFor, canLoadDicebearUrl, isValidDicebearUrl } from "../utils/ranking";
@@ -8,6 +9,7 @@ import { updateUserProfile } from "../services/userService";
 type AvatarStatus = "idle" | "checking" | "valid" | "invalid";
 
 export function EditProfilePage() {
+  const { t } = useTranslation("profile");
   const { user } = useAuth();
   const [name, setName] = useState(user?.name ?? "");
   const [nickname, setNickname] = useState(user?.nickname ?? "");
@@ -30,7 +32,7 @@ export function EditProfilePage() {
     if (!isValidDicebearUrl(candidate)) {
       setAvatarStatus("invalid");
       if (showToast) {
-        toast.error('Use uma URL válida da DiceBear iniciada com "https://api.dicebear.com/".');
+        toast.error(t("avatarToastInvalid"));
       }
       return false;
     }
@@ -45,7 +47,7 @@ export function EditProfilePage() {
     setAvatarStatus(canLoad ? "valid" : "invalid");
 
     if (!canLoad && showToast) {
-      toast.error("Não consegui carregar esse avatar da DiceBear. Confira o link escolhido.");
+      toast.error(t("avatarToastLoadError"));
     }
 
     return canLoad;
@@ -64,10 +66,10 @@ export function EditProfilePage() {
         nickname: nickname.trim(),
         avatar: avatar.trim(),
       });
-      toast.success("Perfil atualizado.");
+      toast.success(t("updateSuccess"));
     } catch (e) {
       console.error(e);
-      toast.error("Falha ao atualizar perfil. Verifique permissões e conexão.");
+      toast.error(t("updateError"));
     } finally {
       setBusy(false);
     }
@@ -77,14 +79,14 @@ export function EditProfilePage() {
     <div className="space-y-4 sm:space-y-5">
       <Card>
         <div className="mb-4">
-          <p className="text-sm font-bold text-yellow-100">Editar perfil</p>
-          <h2 className="text-2xl font-black text-white">Seu nome e apelido</h2>
-          <p className="mt-1 text-sm text-slate-400">O apelido aparece abaixo do seu nome nos rankings geral e semanal.</p>
+          <p className="text-sm font-bold text-yellow-100">{t("eyebrow")}</p>
+          <h2 className="text-2xl font-black text-white">{t("title")}</h2>
+          <p className="mt-1 text-sm text-slate-400">{t("description")}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="grid gap-4">
           <label>
-            <span className="mb-2 block text-sm font-bold text-slate-300">Nome</span>
+            <span className="mb-2 block text-sm font-bold text-slate-300">{t("name")}</span>
             <input
               className="w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none"
               value={name}
@@ -94,19 +96,19 @@ export function EditProfilePage() {
           </label>
 
           <label>
-            <span className="mb-2 block text-sm font-bold text-slate-300">Apelido</span>
+            <span className="mb-2 block text-sm font-bold text-slate-300">{t("nickname")}</span>
             <input
               className="w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none"
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
-              placeholder="Opcional para os rankings"
+              placeholder={t("nicknamePlaceholder")}
               maxLength={35}
             />
-            <p className="mt-2 text-xs text-slate-500">{nickname.length}/35 caracteres</p>
+            <p className="mt-2 text-xs text-slate-500">{t("charsCount", { count: nickname.length })}</p>
           </label>
 
           <label>
-            <span className="mb-2 block text-sm font-bold text-slate-300">Avatar DiceBear</span>
+            <span className="mb-2 block text-sm font-bold text-slate-300">{t("avatarLabel")}</span>
             <input
               className="w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none"
               type="url"
@@ -131,7 +133,7 @@ export function EditProfilePage() {
               required
             />
             <p className="mt-2 text-xs text-slate-500">
-              Cole um link de avatar iniciado com "https://api.dicebear.com/". Para escolher o seu, acesse
+              {t("avatarHint")}
               {" "}
               <a
                 className="font-semibold text-yellow-100 underline underline-offset-2"
@@ -145,19 +147,19 @@ export function EditProfilePage() {
             </p>
             {!hasValidAvatar ? (
               <p className="mt-1 text-xs font-semibold text-red-300">
-                Informe uma URL válida da DiceBear.
+                {t("avatarInvalid")}
               </p>
             ) : avatarStatus === "checking" ? (
               <p className="mt-1 text-xs font-semibold text-sky-200">
-                Validando se a imagem da DiceBear responde...
+                {t("avatarChecking")}
               </p>
             ) : avatarStatus === "valid" ? (
               <p className="mt-1 text-xs font-semibold text-emerald-300">
-                Link validado com sucesso.
+                {t("avatarValid")}
               </p>
             ) : avatarStatus === "invalid" ? (
               <p className="mt-1 text-xs font-semibold text-red-300">
-                Não consegui carregar uma imagem válida nessa URL.
+                {t("avatarLoadError")}
               </p>
             ) : null}
           </label>
@@ -165,14 +167,14 @@ export function EditProfilePage() {
           <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
             <img src={previewAvatar} alt="avatar" className="h-16 w-16 rounded-full" />
             <div className="w-full flex-1">
-              <p className="font-black text-white">Avatar atual</p>
-              <p className="text-sm text-slate-400">Cole um link da DiceBear para trocar a imagem.</p>
+              <p className="font-black text-white">{t("avatarCurrent")}</p>
+              <p className="text-sm text-slate-400">{t("avatarCurrentHint")}</p>
             </div>
             <button
               disabled={busy || !hasValidAvatar}
               className="w-full rounded-2xl bg-yellow-300 px-5 py-3 font-black text-slate-950 hover:bg-yellow-200 disabled:opacity-60 sm:w-auto"
             >
-              Salvar
+              {t("save")}
             </button>
           </div>
         </form>

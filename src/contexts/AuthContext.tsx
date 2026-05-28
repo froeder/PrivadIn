@@ -15,6 +15,7 @@ import {
 } from "firebase/auth";
 import { FirebaseError } from "firebase/app";
 import { Timestamp, doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import i18n from "../i18n";
 import { auth, db, isFirebaseConfigured } from "../services/firebase";
 import type { AppUser, RegistrationRequest } from "../types";
 import { avatarFor } from "../utils/ranking";
@@ -42,7 +43,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 function buildName(firebaseUser: User) {
-  return firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "Operador do Trono";
+  return firebaseUser.displayName || firebaseUser.email?.split("@")[0] || i18n.t("common:defaultUserName");
 }
 
 function isMissingAccountError(error: unknown) {

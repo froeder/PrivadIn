@@ -1,7 +1,10 @@
 import { clsx } from "clsx";
+import { useTranslation } from "react-i18next";
 import type { Achievement } from "../types";
 
 export function AchievementGrid({ achievements }: { achievements: Achievement[] }) {
+  const { t } = useTranslation("stats");
+
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {achievements.map((achievement) => (
@@ -17,7 +20,7 @@ export function AchievementGrid({ achievements }: { achievements: Achievement[] 
           <div className="mb-3 flex items-center justify-between">
             <span className="text-3xl">{achievement.icon}</span>
             <span className="rounded-full bg-slate-950/50 px-2 py-1 text-xs font-bold text-slate-300">
-              {achievement.unlocked ? "Liberada" : "Bloqueada"}
+              {achievement.unlocked ? t("achievementUnlocked") : t("achievementLocked")}
             </span>
           </div>
           <h3 className="font-black text-white">{achievement.name}</h3>
