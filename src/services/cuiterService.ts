@@ -15,7 +15,7 @@ import {
 import { db } from "./firebase";
 import type { AppUser, CuiterPost } from "../types";
 
-export const CUITER_MAX_CHARS = 50;
+export const CUITER_MAX_CHARS = 80;
 export const CUITER_PAGE_SIZE = 10;
 export const CUITER_CREDIT_START_DATE = new Date(2026, 4, 27, 0, 0, 0, 0);
 export const cuiterPostsRef = collection(db, "cuiter_posts");
