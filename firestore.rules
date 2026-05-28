@@ -79,7 +79,7 @@ service cloud.firestore {
         && request.resource.data.userName.size() <= 80
         && request.resource.data.message is string
         && request.resource.data.message.size() > 0
-        && request.resource.data.message.size() <= 50;
+        && request.resource.data.message.size() <= 80;
       allow update, delete: if false;
     }
   }
