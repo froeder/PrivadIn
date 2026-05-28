@@ -5,8 +5,10 @@ import { Card } from "../components/Card";
 import { useAuth } from "../contexts/AuthContext";
 import { avatarFor, canLoadDicebearUrl, isValidDicebearUrl } from "../utils/ranking";
 import { updateUserProfile } from "../services/userService";
+import { checkForUpdates, getCurrentVersion, triggerPWAUpdate } from "../services/updateService";
 
 type AvatarStatus = "idle" | "checking" | "valid" | "invalid";
+type UpdateCheckStatus = "idle" | "checking" | "available" | "unavailable" | "error";
 
 export function EditProfilePage() {
   const { t } = useTranslation("profile");
@@ -18,6 +20,8 @@ export function EditProfilePage() {
     isValidDicebearUrl(user?.avatar ?? "") ? "valid" : "idle",
   );
   const [busy, setBusy] = useState(false);
+  const [updateCheckStatus, setUpdateCheckStatus] = useState<UpdateCheckStatus>("idle");
+  const [latestVersion, setLatestVersion] = useState<string | null>(null);
 
   if (!user) return null;
   const currentUser = user;
@@ -25,6 +29,7 @@ export function EditProfilePage() {
   const previewAvatar = avatarStatus === "valid" && hasValidAvatar
     ? avatar.trim()
     : currentUser.avatar || avatarFor(currentUser.name, currentUser.email);
+  const currentVersion = getCurrentVersion();
 
   async function validateAvatar(showToast = false) {
     const candidate = avatar.trim();
@@ -72,6 +77,39 @@ export function EditProfilePage() {
       toast.error(t("updateError"));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleCheckUpdates() {
+    setUpdateCheckStatus("checking");
+    setLatestVersion(null);
+
+    try {
+      const result = await checkForUpdates();
+
+      if (result.error) {
+        setUpdateCheckStatus("error");
+        toast.error(t("updateCheckError"));
+        return;
+      }
+
+      if (result.hasUpdate && result.latestVersion) {
+        setLatestVersion(result.latestVersion);
+        setUpdateCheckStatus("available");
+        toast.success(t("updateAvailable", { newVersion: result.latestVersion }));
+        
+        // Automatically trigger update after a short delay to let user see the message
+        setTimeout(() => {
+          triggerPWAUpdate();
+        }, 1500);
+      } else {
+        setUpdateCheckStatus("unavailable");
+        toast.success(t("updateNotAvailable"));
+      }
+    } catch (e) {
+      console.error(e);
+      setUpdateCheckStatus("error");
+      toast.error(t("updateCheckError"));
     }
   }
 
@@ -178,6 +216,56 @@ export function EditProfilePage() {
             </button>
           </div>
         </form>
+      </Card>
+
+      <Card>
+        <div className="space-y-3">
+          <div>
+            <p className="text-sm font-bold text-slate-400">{t("versionLabel")}</p>
+            <p className="text-lg font-black text-white">
+              {t("versionText", { version: currentVersion })}
+            </p>
+          </div>
+
+          <button
+            onClick={() => void handleCheckUpdates()}
+            disabled={updateCheckStatus === "checking" || busy}
+            className="w-full rounded-2xl bg-slate-700 px-5 py-3 font-black text-white hover:bg-slate-600 disabled:opacity-60 sm:w-auto"
+          >
+            {updateCheckStatus === "checking" ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                {t("checkUpdatesLoading")}
+              </span>
+            ) : (
+              t("checkUpdatesButton")
+            )}
+          </button>
+
+          {updateCheckStatus === "available" && latestVersion && (
+            <div className="rounded-lg bg-emerald-900/30 border border-emerald-600/50 p-3">
+              <p className="text-sm font-semibold text-emerald-300">
+                {t("updateAvailable", { newVersion: latestVersion })}
+              </p>
+            </div>
+          )}
+
+          {updateCheckStatus === "unavailable" && (
+            <div className="rounded-lg bg-blue-900/30 border border-blue-600/50 p-3">
+              <p className="text-sm font-semibold text-blue-300">
+                {t("updateNotAvailable")}
+              </p>
+            </div>
+          )}
+
+          {updateCheckStatus === "error" && (
+            <div className="rounded-lg bg-red-900/30 border border-red-600/50 p-3">
+              <p className="text-sm font-semibold text-red-300">
+                {t("updateCheckError")}
+              </p>
+            </div>
+          )}
+        </div>
       </Card>
     </div>
   );
