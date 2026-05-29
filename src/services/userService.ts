@@ -1,8 +1,29 @@
 import { updateProfile } from "firebase/auth";
-import { doc, updateDoc } from "firebase/firestore";
+import { collection, doc, getDocs, query, updateDoc, where, limit } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from "./firebase";
 import type { AppUser } from "../types";
+
+export const usersRef = collection(db, "users");
+
+export async function isUserNameTaken(name: string, excludeUid?: string) {
+  const normalizedName = name.trim();
+  if (!normalizedName) return false;
+
+  const snapshot = await getDocs(
+    query(usersRef, where("name", "==", normalizedName), limit(1)),
+  );
+
+  if (snapshot.empty) {
+    return false;
+  }
+
+  if (!excludeUid) {
+    return true;
+  }
+
+  return snapshot.docs.some((doc) => doc.id !== excludeUid);
+}
 
 export async function uploadAvatarFile(firebaseUid: string, file: File) {
   const path = `avatars/${firebaseUid}/${Date.now()}_${file.name}`;
@@ -18,7 +39,20 @@ export async function updateUserProfile(
 ) {
   const userDoc = doc(db, "users", firebaseUid);
   const payload: Partial<AppUser> = {};
-  if (typeof updates.name === "string") payload.name = updates.name;
+
+  if (typeof updates.name === "string") {
+    const trimmedName = updates.name.trim();
+    if (!trimmedName) {
+      throw new Error("O nome não pode ficar em branco.");
+    }
+
+    if (await isUserNameTaken(trimmedName, firebaseUid)) {
+      throw new Error("Já existe outro usuário com este nome. Escolha um nome diferente.");
+    }
+
+    payload.name = trimmedName;
+  }
+
   if (typeof updates.nickname === "string") payload.nickname = updates.nickname;
   if (typeof updates.avatar === "string") payload.avatar = updates.avatar;
 

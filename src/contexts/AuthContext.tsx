@@ -26,6 +26,7 @@ import {
   markRegistrationRequestUsed,
   normalizeEmail,
 } from "../services/registrationService";
+import { isUserNameTaken } from "../services/userService";
 import { AuthLoginError, firebaseAuthErrorCode } from "../utils/authErrors";
 
 type AuthResult =
@@ -46,6 +47,22 @@ function buildName(firebaseUser: User) {
   return firebaseUser.displayName || firebaseUser.email?.split("@")[0] || i18n.t("common:defaultUserName");
 }
 
+async function buildUniqueName(firebaseUser: User) {
+  const baseName = buildName(firebaseUser).trim();
+  if (!(await isUserNameTaken(baseName))) {
+    return baseName;
+  }
+
+  let index = 1;
+  while (true) {
+    const candidate = `${baseName} (${index})`;
+    if (!(await isUserNameTaken(candidate))) {
+      return candidate;
+    }
+    index += 1;
+  }
+}
+
 function isMissingAccountError(error: unknown) {
   return (
     error instanceof FirebaseError &&
@@ -60,7 +77,7 @@ async function ensureUserProfile(firebaseUser: User) {
   const snapshot = await getDoc(userDoc);
 
   if (!snapshot.exists()) {
-    const name = buildName(firebaseUser);
+    const name = await buildUniqueName(firebaseUser);
     await setDoc(userDoc, {
       uid: firebaseUser.uid,
       name,
