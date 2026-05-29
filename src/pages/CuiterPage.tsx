@@ -101,9 +101,16 @@ export function CuiterPage({
     if (!canPublish) return;
     setSending(true);
     try {
-      const post = await createCuiterPost(user, message, eligibleLogsCount, userPostsCount);
+      const post = await createCuiterPost(user, message, eligibleLogsCount);
       setPosts((current) => [post, ...current]);
-      setUserPostsCount((current) => current + 1);
+
+      try {
+        const myPostsCount = await countUserCuiterPosts(user.uid);
+        setUserPostsCount(myPostsCount);
+      } catch {
+        setUserPostsCount((current) => current + 1);
+      }
+
       setMessage("");
       toast.success("Postado no Cuiter.");
     } catch (error) {

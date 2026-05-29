@@ -66,14 +66,16 @@ export async function createCuiterPost(
   user: AppUser,
   message: string,
   userLogsCount: number,
-  userPostsCount: number,
 ) {
   if (!user.lastLogAt && !user.firstLogAt) {
     throw new Error("Para publicar no Cuiter, registre uma cagada primeiro.");
   }
 
-  if (!canPostOnCuiter(user, userLogsCount, userPostsCount)) {
-    throw new Error("Clique em Registrar cagada novamente para liberar um novo post.");
+  const currentPostsCount = await countUserCuiterPosts(user.uid);
+  const availableCredits = getCuiterAvailableCredits(userLogsCount, currentPostsCount);
+
+  if (availableCredits <= 0) {
+    throw new Error("Sem créditos suficientes. Registre uma nova cagada para liberar um novo post.");
   }
 
   const normalizedMessage = message.trim();
