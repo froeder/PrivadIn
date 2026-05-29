@@ -227,7 +227,7 @@ export const resources = {
       eyebrow: "Mini rede social",
       title: "Cuiter",
       unlockInfo:
-        "Para publicar no Cuiter, clique em <strong>Registrar cagada</strong>. Cada registro libera 1 novo post a partir de {{date}}.",
+        "Para publicar no Cuiter, clique em <strong>Registrar cagada</strong>.",
       placeholder: "Compartilhe sua frase curta...",
       credits_one: "{{chars}} caracteres restantes · {{count}} post disponível",
       credits_other: "{{chars}} caracteres restantes · {{count}} posts disponíveis",
