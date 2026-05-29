@@ -1,13 +1,15 @@
 import { updateProfile } from "firebase/auth";
 import { collection, doc, getDoc, getDocs, query, updateDoc, where, limit } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import i18n from "../i18n";
 import { auth, db, storage } from "./firebase";
 import type { AppUser } from "../types";
+import { NAME_MAX_LENGTH, NICKNAME_MAX_LENGTH, normalizeProfileIdentity, validateProfileIdentity } from "../utils/profileIdentity";
 
 export const usersRef = collection(db, "users");
 
 export async function isUserNameTaken(name: string, excludeUid?: string) {
-  const normalizedName = name.trim();
+  const normalizedName = normalizeProfileIdentity(name);
   if (!normalizedName) return false;
 
   const snapshot = await getDocs(
@@ -41,20 +43,41 @@ export async function updateUserProfile(
   const payload: Partial<AppUser> = {};
 
   if (typeof updates.name === "string") {
-    const trimmedName = updates.name.trim();
-    if (!trimmedName) {
-      throw new Error("O nome não pode ficar em branco.");
+    const normalizedName = normalizeProfileIdentity(updates.name);
+    const nameError = validateProfileIdentity(normalizedName, { required: true, maxLength: NAME_MAX_LENGTH });
+
+    if (nameError === "required") {
+      throw new Error(i18n.t("profile:nameRequired"));
     }
 
-    if (await isUserNameTaken(trimmedName, firebaseUid)) {
-      throw new Error("Já existe outro usuário com este nome. Escolha um nome diferente.");
+    if (nameError === "invalid_chars") {
+      throw new Error(i18n.t("profile:identityInvalid"));
     }
 
-    payload.name = trimmedName;
+    if (nameError === "too_long") {
+      throw new Error(i18n.t("profile:nameTooLong", { count: NAME_MAX_LENGTH }));
+    }
+
+    if (await isUserNameTaken(normalizedName, firebaseUid)) {
+      throw new Error(i18n.t("profile:nameTaken"));
+    }
+
+    payload.name = normalizedName;
   }
 
   if (typeof updates.nickname === "string") {
-    payload.nickname = updates.nickname.trim();
+    const normalizedNickname = normalizeProfileIdentity(updates.nickname);
+    const nicknameError = validateProfileIdentity(normalizedNickname, { maxLength: NICKNAME_MAX_LENGTH });
+
+    if (nicknameError === "invalid_chars") {
+      throw new Error(i18n.t("profile:identityInvalid"));
+    }
+
+    if (nicknameError === "too_long") {
+      throw new Error(i18n.t("profile:nicknameTooLong", { count: NICKNAME_MAX_LENGTH }));
+    }
+
+    payload.nickname = normalizedNickname;
   }
   if (typeof updates.avatar === "string") payload.avatar = updates.avatar.trim();
 
@@ -66,8 +89,8 @@ export async function updateUserProfile(
   const current = auth.currentUser;
   if (current && current.uid === firebaseUid) {
     const authUpdates: { displayName?: string; photoURL?: string } = {};
-    if (typeof updates.name === "string") authUpdates.displayName = updates.name;
-    if (typeof updates.avatar === "string") authUpdates.photoURL = updates.avatar;
+    if (typeof payload.name === "string") authUpdates.displayName = payload.name;
+    if (typeof payload.avatar === "string") authUpdates.photoURL = payload.avatar;
     if (Object.keys(authUpdates).length > 0) await updateProfile(current, authUpdates);
   }
 

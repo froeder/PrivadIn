@@ -5,6 +5,7 @@ import { Card } from "../components/Card";
 import { useAuth } from "../contexts/AuthContext";
 import type { AppUser } from "../types";
 import { avatarFor, canLoadDicebearUrl, isValidDicebearUrl } from "../utils/ranking";
+import { NAME_MAX_LENGTH, NICKNAME_MAX_LENGTH, normalizeProfileIdentity, validateProfileIdentity } from "../utils/profileIdentity";
 import { updateUserProfile } from "../services/userService";
 import { checkForUpdates, getCurrentVersion, triggerPWAUpdate } from "../services/updateService";
 
@@ -25,6 +26,8 @@ export function EditProfilePage({ user }: { user: AppUser }) {
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
 
   const hasValidAvatar = isValidDicebearUrl(avatar);
+  const nameError = validateProfileIdentity(name, { required: true, maxLength: NAME_MAX_LENGTH });
+  const nicknameError = validateProfileIdentity(nickname, { maxLength: NICKNAME_MAX_LENGTH });
   const previewAvatar = avatarStatus === "valid" && hasValidAvatar
     ? avatar.trim()
     : user.avatar || avatarFor(user.name, user.email);
@@ -78,6 +81,26 @@ export function EditProfilePage({ user }: { user: AppUser }) {
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
+    if (nameError) {
+      toast.error(
+        nameError === "required"
+          ? t("nameRequired")
+          : nameError === "too_long"
+            ? t("nameTooLong", { count: NAME_MAX_LENGTH })
+            : t("identityInvalid"),
+      );
+      return;
+    }
+
+    if (nicknameError) {
+      toast.error(
+        nicknameError === "too_long"
+          ? t("nicknameTooLong", { count: NICKNAME_MAX_LENGTH })
+          : t("identityInvalid"),
+      );
+      return;
+    }
+
     if (!(await validateAvatar(true))) {
       return;
     }
@@ -85,15 +108,15 @@ export function EditProfilePage({ user }: { user: AppUser }) {
     setBusy(true);
     try {
       await updateUserProfile(user.uid, {
-        name: name.trim(),
-        nickname: nickname.trim(),
+        name: normalizeProfileIdentity(name),
+        nickname: normalizeProfileIdentity(nickname),
         avatar: avatar.trim(),
       });
       await refreshProfile();
       toast.success(t("updateSuccess"));
     } catch (e) {
       console.error(e);
-      toast.error(t("updateError"));
+      toast.error(e instanceof Error ? e.message : t("updateError"));
     } finally {
       setBusy(false);
     }
@@ -143,8 +166,20 @@ export function EditProfilePage({ user }: { user: AppUser }) {
               className="w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              maxLength={NAME_MAX_LENGTH}
               required
             />
+            {nameError ? (
+              <p className="mt-2 text-xs font-semibold text-red-300">
+                {nameError === "required"
+                  ? t("nameRequired")
+                  : nameError === "too_long"
+                    ? t("nameTooLong", { count: NAME_MAX_LENGTH })
+                    : t("identityInvalid")}
+              </p>
+            ) : (
+              <p className="mt-2 text-xs text-slate-500">{t("charsCount", { count: name.length, max: NAME_MAX_LENGTH })}</p>
+            )}
           </label>
 
           <label>
@@ -154,9 +189,15 @@ export function EditProfilePage({ user }: { user: AppUser }) {
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
               placeholder={t("nicknamePlaceholder")}
-              maxLength={15}
+              maxLength={NICKNAME_MAX_LENGTH}
             />
-            <p className="mt-2 text-xs text-slate-500">{t("charsCount", { count: nickname.length })}</p>
+            <p className={nicknameError ? "mt-2 text-xs font-semibold text-red-300" : "mt-2 text-xs text-slate-500"}>
+              {nicknameError === "too_long"
+                ? t("nicknameTooLong", { count: NICKNAME_MAX_LENGTH })
+                : nicknameError === "invalid_chars"
+                  ? t("identityInvalid")
+                  : t("charsCount", { count: nickname.length, max: NICKNAME_MAX_LENGTH })}
+            </p>
           </label>
 
           <label>
@@ -223,7 +264,7 @@ export function EditProfilePage({ user }: { user: AppUser }) {
               <p className="text-sm text-slate-400">{t("avatarCurrentHint")}</p>
             </div>
             <button
-              disabled={busy || !hasValidAvatar}
+              disabled={busy || !hasValidAvatar || Boolean(nameError) || Boolean(nicknameError)}
               className="w-full rounded-2xl bg-yellow-300 px-5 py-3 font-black text-slate-950 hover:bg-yellow-200 disabled:opacity-60 sm:w-auto"
             >
               {t("save")}
