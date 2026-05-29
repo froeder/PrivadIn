@@ -3,6 +3,7 @@ import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { Card } from "../components/Card";
 import { useAuth } from "../contexts/AuthContext";
+import type { AppUser } from "../types";
 import { avatarFor, canLoadDicebearUrl, isValidDicebearUrl } from "../utils/ranking";
 import { updateUserProfile } from "../services/userService";
 import { checkForUpdates, getCurrentVersion, triggerPWAUpdate } from "../services/updateService";
@@ -10,26 +11,31 @@ import { checkForUpdates, getCurrentVersion, triggerPWAUpdate } from "../service
 type AvatarStatus = "idle" | "checking" | "valid" | "invalid";
 type UpdateCheckStatus = "idle" | "checking" | "available" | "unavailable" | "error";
 
-export function EditProfilePage() {
+export function EditProfilePage({ user }: { user: AppUser }) {
   const { t } = useTranslation("profile");
-  const { user } = useAuth();
-  const [name, setName] = useState(user?.name ?? "");
-  const [nickname, setNickname] = useState(user?.nickname ?? "");
-  const [avatar, setAvatar] = useState(user?.avatar ?? avatarFor(user?.name ?? "", user?.email ?? ""));
+  const { refreshProfile } = useAuth();
+  const [name, setName] = useState(user.name);
+  const [nickname, setNickname] = useState(user.nickname ?? "");
+  const [avatar, setAvatar] = useState(user.avatar ?? avatarFor(user.name, user.email));
   const [avatarStatus, setAvatarStatus] = useState<AvatarStatus>(
-    isValidDicebearUrl(user?.avatar ?? "") ? "valid" : "idle",
+    isValidDicebearUrl(user.avatar ?? "") ? "valid" : "idle",
   );
   const [busy, setBusy] = useState(false);
   const [updateCheckStatus, setUpdateCheckStatus] = useState<UpdateCheckStatus>("idle");
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
 
-  if (!user) return null;
-  const currentUser = user;
   const hasValidAvatar = isValidDicebearUrl(avatar);
   const previewAvatar = avatarStatus === "valid" && hasValidAvatar
     ? avatar.trim()
-    : currentUser.avatar || avatarFor(currentUser.name, currentUser.email);
+    : user.avatar || avatarFor(user.name, user.email);
   const currentVersion = getCurrentVersion();
+
+  useEffect(() => {
+    setName(user.name);
+    setNickname(user.nickname ?? "");
+    setAvatar(user.avatar ?? avatarFor(user.name, user.email));
+    setAvatarStatus(isValidDicebearUrl(user.avatar ?? "") ? "valid" : "idle");
+  }, [user.uid, user.name, user.nickname, user.avatar, user.email]);
 
   // Auto-trigger PWA update after a short delay when update is available
   // Cleanup timeout if component unmounts before it fires
@@ -78,11 +84,12 @@ export function EditProfilePage() {
 
     setBusy(true);
     try {
-      await updateUserProfile(currentUser.uid, {
+      await updateUserProfile(user.uid, {
         name: name.trim(),
         nickname: nickname.trim(),
         avatar: avatar.trim(),
       });
+      await refreshProfile();
       toast.success(t("updateSuccess"));
     } catch (e) {
       console.error(e);
@@ -163,7 +170,7 @@ export function EditProfilePage() {
                 setAvatar(nextValue);
                 setAvatarStatus(
                   isValidDicebearUrl(nextValue)
-                    ? nextValue.trim() === (currentUser.avatar ?? "").trim()
+                    ? nextValue.trim() === (user.avatar ?? "").trim()
                       ? "valid"
                       : "idle"
                     : "invalid",

@@ -39,6 +39,7 @@ interface AuthContextValue {
   loading: boolean;
   login: (email: string, password: string, approvalCode?: string) => Promise<AuthResult>;
   logout: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -274,6 +275,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       },
       logout: () => signOut(auth),
+      refreshProfile: async () => {
+        if (!firebaseUser) return;
+        setUser(await ensureUserProfile(firebaseUser));
+      },
     }),
     [firebaseUser, loading, user],
   );

@@ -300,12 +300,21 @@ export const resources = {
       auditEyebrow: "Auditoria",
       auditTitle: "Histórico de alterações admin",
       auditDescription:
-        "Toda ação manual registra o nome do admin responsável e o usuário afetado.",
+        "Toda ação manual registra o ID do responsável; os nomes exibidos são sempre os atuais.",
       auditEmpty: "Nenhuma alteração administrativa registrada ainda.",
       auditAdmin: "Admin",
       auditTarget: "Usuário afetado",
       auditDelta_one: "{{count}} ponto",
       auditDelta_other: "{{count}} pontos",
+      auditMessages: {
+        adjustAdd: "{{admin}} adicionou {{count}} pontos para {{target}}.",
+        adjustRemove: "{{admin}} removeu {{count}} pontos de {{target}}.",
+        removeLog: "{{admin}} removeu um registro de {{target}} valendo {{points}} pontos.",
+        resetWeekly: "{{admin}} resetou o ranking semanal para a edição {{edition}}.",
+        updateCooldown: "{{admin}} alterou o cooldown de registro para {{minutes}} minuto(s).",
+        updatePointsPerLog: "{{admin}} alterou a pontuação por registro para {{points}} ponto(s).",
+        unknown: "Alteração administrativa registrada.",
+      },
       actionLabels: {
         adjust_points: "Ajuste de pontos",
         remove_log: "Registro removido",
@@ -340,6 +349,7 @@ export const resources = {
         cooldown_one: "Calma, campeão. O trono libera em {{count}} minuto.",
         cooldown_other: "Calma, campeão. O trono libera em {{count}} minutos.",
         dailyLimit: "Limite diário de {{count}} registros atingido. Até o banheiro precisa de governança.",
+        noLogToRemove: "Este usuário não tem registro para remover.",
       },
       ranking: {
         first: "Rei da Privada",
@@ -647,12 +657,21 @@ export const resources = {
       auditEyebrow: "Audit",
       auditTitle: "Admin change history",
       auditDescription:
-        "Every manual action records the responsible admin and the affected user.",
+        "Every manual action stores the responsible admin ID; displayed names are always current.",
       auditEmpty: "No administrative changes recorded yet.",
       auditAdmin: "Admin",
       auditTarget: "Affected user",
       auditDelta_one: "{{count}} point",
       auditDelta_other: "{{count}} points",
+      auditMessages: {
+        adjustAdd: "{{admin}} added {{count}} points for {{target}}.",
+        adjustRemove: "{{admin}} removed {{count}} points from {{target}}.",
+        removeLog: "{{admin}} removed a record from {{target}} worth {{points}} points.",
+        resetWeekly: "{{admin}} reset the weekly ranking to edition {{edition}}.",
+        updateCooldown: "{{admin}} changed the registration cooldown to {{minutes}} minute(s).",
+        updatePointsPerLog: "{{admin}} changed points per record to {{points}}.",
+        unknown: "Administrative change recorded.",
+      },
       actionLabels: {
         adjust_points: "Point adjustment",
         remove_log: "Record removed",
@@ -687,6 +706,7 @@ export const resources = {
         cooldown_one: "Easy there, champion. The throne unlocks in {{count}} minute.",
         cooldown_other: "Easy there, champion. The throne unlocks in {{count}} minutes.",
         dailyLimit: "Daily limit of {{count}} records reached. Even the bathroom needs governance.",
+        noLogToRemove: "This user has no record to remove.",
       },
       ranking: {
         first: "Bathroom King",
@@ -2032,12 +2052,21 @@ export const resources = {
       auditEyebrow: "Audit",
       auditTitle: "Admin change history",
       auditDescription:
-        "Every manual action records the responsible admin and the affected user.",
+        "Every manual action stores the responsible admin ID; displayed names are always current.",
       auditEmpty: "No administrative changes recorded yet.",
       auditAdmin: "Admin",
       auditTarget: "Affected user",
       auditDelta_one: "{{count}} point",
       auditDelta_other: "{{count}} points",
+      auditMessages: {
+        adjustAdd: "{{admin}} added {{count}} points for {{target}}.",
+        adjustRemove: "{{admin}} removed {{count}} points from {{target}}.",
+        removeLog: "{{admin}} removed a record from {{target}} worth {{points}} points.",
+        resetWeekly: "{{admin}} reset the weekly ranking to edition {{edition}}.",
+        updateCooldown: "{{admin}} changed the registration cooldown to {{minutes}} minute(s).",
+        updatePointsPerLog: "{{admin}} changed points per record to {{points}}.",
+        unknown: "Administrative change recorded.",
+      },
       actionLabels: {
         adjust_points: "Point adjustment",
         remove_log: "Record removed",
@@ -2072,6 +2101,7 @@ export const resources = {
         cooldown_one: "Easy there, champion. The throne unlocks in {{count}} minute.",
         cooldown_other: "Easy there, champion. The throne unlocks in {{count}} minutes.",
         dailyLimit: "Daily limit of {{count}} records reached. Even the bathroom needs governance.",
+        noLogToRemove: "This user has no record to remove.",
       },
       ranking: {
         first: "Bathroom King",

@@ -1,5 +1,5 @@
 import { updateProfile } from "firebase/auth";
-import { collection, doc, getDocs, query, updateDoc, where, limit } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, updateDoc, where, limit } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from "./firebase";
 import type { AppUser } from "../types";
@@ -53,11 +53,13 @@ export async function updateUserProfile(
     payload.name = trimmedName;
   }
 
-  if (typeof updates.nickname === "string") payload.nickname = updates.nickname;
-  if (typeof updates.avatar === "string") payload.avatar = updates.avatar;
+  if (typeof updates.nickname === "string") {
+    payload.nickname = updates.nickname.trim();
+  }
+  if (typeof updates.avatar === "string") payload.avatar = updates.avatar.trim();
 
   if (Object.keys(payload).length > 0) {
-    await updateDoc(userDoc, payload as any);
+    await updateDoc(userDoc, payload);
   }
 
   // also update Firebase Auth profile if signed-in user matches
@@ -66,6 +68,9 @@ export async function updateUserProfile(
     const authUpdates: { displayName?: string; photoURL?: string } = {};
     if (typeof updates.name === "string") authUpdates.displayName = updates.name;
     if (typeof updates.avatar === "string") authUpdates.photoURL = updates.avatar;
-    if (Object.keys(authUpdates).length > 0) await updateProfile(current, authUpdates as any);
+    if (Object.keys(authUpdates).length > 0) await updateProfile(current, authUpdates);
   }
+
+  const snapshot = await getDoc(userDoc);
+  return snapshot.data() as AppUser;
 }

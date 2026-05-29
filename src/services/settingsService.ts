@@ -81,7 +81,7 @@ export async function updateCooldownMinutes(
     createAuditLog({
       action: "update_cooldown",
       admin,
-      description: `${admin.name} alterou o cooldown de registro para ${normalizedCooldown} minuto(s).`,
+      cooldownMinutes: normalizedCooldown,
     }),
   );
 
@@ -110,7 +110,7 @@ export async function updatePointsPerLog(
     createAuditLog({
       action: "update_points_per_log",
       admin,
-      description: `${admin.name} alterou a pontuação por registro para ${normalizedPoints} ponto(s).`,
+      pointsPerLog: normalizedPoints,
     }),
   );
 

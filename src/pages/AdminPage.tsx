@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { Card } from "../components/Card";
@@ -18,6 +18,11 @@ import {
 import { formatDateTime } from "../utils/date";
 import { formatNumber } from "../utils/format";
 import { toRoman } from "../utils/roman";
+import {
+  buildUsersById,
+  formatAuditLogMessage,
+  resolveUserDisplayName,
+} from "../utils/auditLog";
 
 function actionLabel(action: AdminAuditLog["action"], t: (key: string) => string) {
   return t(`actionLabels.${action}`);
@@ -69,6 +74,7 @@ export function AdminPage({
   const parsedPoints = Number(pointsInput);
   const isPointsValid =
     Number.isInteger(parsedPoints) && parsedPoints >= 1 && parsedPoints <= 100000;
+  const usersById = useMemo(() => buildUsersById(users), [users]);
 
   async function runAdminAction(action: () => Promise<void>, success: string) {
     setBusy(true);
@@ -330,7 +336,9 @@ export function AdminPage({
               <div key={log.id} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3">
                 <div className="grid h-10 w-10 place-items-center rounded-2xl bg-yellow-300/15 text-xl">🧻</div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-black text-white">{log.userName}</p>
+                  <p className="truncate font-black text-white">
+                    {resolveUserDisplayName(usersById, log.userId, log.userName)}
+                  </p>
                   <p className="text-xs text-slate-400">{formatDateTime(log.createdAt)}</p>
                 </div>
                 <button
@@ -373,14 +381,25 @@ export function AdminPage({
                     </span>
                     <span className="text-xs text-slate-500">{formatDateTime(auditLog.createdAt)}</span>
                   </div>
-                  <p className="mt-2 font-black text-white">{auditLog.description}</p>
+                  <p className="mt-2 font-black text-white">
+                    {formatAuditLogMessage(auditLog, usersById, t)}
+                  </p>
                   <p className="mt-1 text-sm text-slate-400">
-                    {t("auditAdmin")}: <span className="text-slate-200">{auditLog.adminName}</span>
-                    {auditLog.targetUserName ? (
+                    {t("auditAdmin")}:{" "}
+                    <span className="text-slate-200">
+                      {resolveUserDisplayName(usersById, auditLog.adminId, auditLog.adminName)}
+                    </span>
+                    {auditLog.targetUserId ? (
                       <>
                         {" "}
                         • {t("auditTarget")}:{" "}
-                        <span className="text-slate-200">{auditLog.targetUserName}</span>
+                        <span className="text-slate-200">
+                          {resolveUserDisplayName(
+                            usersById,
+                            auditLog.targetUserId,
+                            auditLog.targetUserName,
+                          )}
+                        </span>
                       </>
                     ) : null}
                   </p>

@@ -59,14 +59,20 @@ export interface AdminAuditLog {
   id: string;
   action: AdminAuditAction;
   adminId: string;
-  adminName: string;
-  targetUserId?: string;
-  targetUserName?: string;
-  delta?: number;
-  points?: number;
-  removedLogId?: string;
+  /** @deprecated Resolvido em tempo de exibição via adminId */
+  adminName?: string;
+  targetUserId?: string | null;
+  /** @deprecated Resolvido em tempo de exibição via targetUserId */
+  targetUserName?: string | null;
+  delta?: number | null;
+  points?: number | null;
+  removedLogId?: string | null;
+  cooldownMinutes?: number | null;
+  pointsPerLog?: number | null;
+  edition?: number | null;
   createdAt: Timestamp;
-  description: string;
+  /** @deprecated Mensagens antigas; novas entradas usam action + ids */
+  description?: string;
 }
 
 export type RegistrationRequestStatus = "pending" | "used";

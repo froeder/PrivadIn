@@ -4,7 +4,9 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
   increment,
+  limit,
   orderBy,
   query,
   runTransaction,
@@ -22,7 +24,6 @@ import {
   calculateWeeklyStreak,
 } from "../utils/date";
 import i18n from "../i18n";
-import { toRoman } from "../utils/roman";
 
 export const usersRef = collection(db, "users");
 export const logsRef = collection(db, "poop_logs");
@@ -35,27 +36,31 @@ export function createAuditLog({
   delta,
   points,
   removedLogId,
-  description,
+  cooldownMinutes,
+  pointsPerLog,
+  edition,
 }: {
   action: AdminAuditAction;
   admin: AppUser;
-  targetUser?: Pick<AppUser, "uid" | "name">;
+  targetUser?: Pick<AppUser, "uid">;
   delta?: number;
   points?: number;
   removedLogId?: string;
-  description: string;
+  cooldownMinutes?: number;
+  pointsPerLog?: number;
+  edition?: number;
 }) {
   return {
     action,
     adminId: admin.uid,
-    adminName: admin.name,
     targetUserId: targetUser?.uid ?? null,
-    targetUserName: targetUser?.name ?? null,
     delta: delta ?? null,
     points: points ?? null,
     removedLogId: removedLogId ?? null,
+    cooldownMinutes: cooldownMinutes ?? null,
+    pointsPerLog: pointsPerLog ?? null,
+    edition: edition ?? null,
     createdAt: Timestamp.now(),
-    description,
   };
 }
 
@@ -65,6 +70,10 @@ export function usersQuery() {
 
 export function userLogsQuery(uid: string) {
   return query(logsRef, where("userId", "==", uid));
+}
+
+export function latestUserLogQuery(uid: string) {
+  return query(logsRef, where("userId", "==", uid), orderBy("createdAt", "desc"), limit(1));
 }
 
 export function allLogsQuery() {
@@ -126,29 +135,65 @@ export async function registerPoop(
 }
 
 export async function adjustUserPoints(admin: AppUser, targetUser: AppUser, delta: number) {
-  const batch = writeBatch(db);
   const userDoc = doc(db, "users", targetUser.uid);
+  const targetSnapshot = await getDoc(userDoc);
+  const targetData = targetSnapshot.data() as AppUser | undefined;
+  const targetName = targetData?.name ?? targetUser.name;
+  const now = Timestamp.now();
 
-  batch.update(userDoc, {
-    totalPoints: increment(delta),
-    weeklyPoints: increment(delta),
-  });
+  if (delta > 0) {
+    const batch = writeBatch(db);
+    batch.set(doc(logsRef), {
+      userId: targetUser.uid,
+      userName: targetName,
+      createdAt: now,
+      points: delta,
+      isWeeklyActive: true,
+    });
+    batch.update(userDoc, {
+      totalPoints: increment(delta),
+      weeklyPoints: increment(delta),
+      firstLogAt: targetData?.firstLogAt ?? now,
+      lastLogAt: now,
+    });
+    batch.set(
+      doc(adminLogsRef),
+      createAuditLog({
+        action: "adjust_points",
+        admin,
+        targetUser,
+        delta,
+      }),
+    );
+    await batch.commit();
+    return;
+  }
 
-  batch.set(
-    doc(adminLogsRef),
-    createAuditLog({
-      action: "adjust_points",
-      admin,
-      targetUser,
-      delta,
-      description:
-        delta > 0
-          ? `${admin.name} adicionou ${delta} ponto para ${targetUser.name}.`
-          : `${admin.name} removeu ${Math.abs(delta)} ponto de ${targetUser.name}.`,
-    }),
-  );
+  if (delta < 0) {
+    const latestSnapshot = await getDocs(latestUserLogQuery(targetUser.uid));
+    const latestLog = latestSnapshot.docs[0];
+    if (!latestLog) {
+      throw new Error(i18n.t("services:poop.noLogToRemove"));
+    }
 
-  await batch.commit();
+    const logData = latestLog.data() as Omit<PoopLog, "id">;
+    const batch = writeBatch(db);
+    batch.delete(latestLog.ref);
+    batch.update(userDoc, {
+      totalPoints: increment(delta),
+      weeklyPoints: logData.isWeeklyActive ? increment(delta) : increment(0),
+    });
+    batch.set(
+      doc(adminLogsRef),
+      createAuditLog({
+        action: "adjust_points",
+        admin,
+        targetUser,
+        delta,
+      }),
+    );
+    await batch.commit();
+  }
 }
 
 export async function removeLog(admin: AppUser, log: PoopLog) {
@@ -163,10 +208,9 @@ export async function removeLog(admin: AppUser, log: PoopLog) {
       createAuditLog({
         action: "remove_log",
         admin,
-        targetUser: { uid: log.userId, name: log.userName },
+        targetUser: { uid: log.userId },
         points: log.points,
         removedLogId: log.id,
-        description: `${admin.name} removeu um registro de ${log.userName} valendo ${log.points} pontos.`,
       }),
     );
   });
@@ -203,7 +247,7 @@ export async function resetWeeklyRanking(admin: AppUser, logs: PoopLog[], users:
     createAuditLog({
       action: "reset_weekly",
       admin,
-      description: `${admin.name} resetou o ranking semanal para a edição ${toRoman(nextEdition)}.`,
+      edition: nextEdition,
     }),
   );
   await batch.commit();
