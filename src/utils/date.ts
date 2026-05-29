@@ -11,8 +11,9 @@ import {
   startOfWeek,
   subDays,
 } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import type { Timestamp } from "firebase/firestore";
+import i18n from "../i18n";
+import { getDateFnsLocale } from "../i18n/config";
 import type { PoopLog } from "../types";
 
 export const DEFAULT_COOLDOWN_MINUTES = 15;
@@ -22,20 +23,31 @@ export function toDate(value?: Timestamp) {
   return value?.toDate();
 }
 
-export function formatDateTime(value?: Timestamp) {
-  const date = toDate(value);
-  return date ? format(date, "dd/MM/yyyy 'as' HH:mm", { locale: ptBR }) : "Sem registros ainda";
+function getCurrentLanguage(language?: string | null) {
+  return language ?? i18n.resolvedLanguage;
 }
 
-export function formatHour(value?: Timestamp) {
+export function formatDateTime(value?: Timestamp, language?: string | null) {
   const date = toDate(value);
-  return date ? format(date, "HH:mm", { locale: ptBR }) : "--:--";
+  return date
+    ? format(date, "PPp", { locale: getDateFnsLocale(getCurrentLanguage(language)) })
+    : i18n.t("common:time.noRecordsYet");
 }
 
-export function formatTimeAgo(value?: Timestamp) {
+export function formatHour(value?: Timestamp, language?: string | null) {
   const date = toDate(value);
-  if (!date) return "agora";
-  return `${formatDistanceToNow(date, { locale: ptBR, addSuffix: true })}`;
+  return date
+    ? format(date, "HH:mm", { locale: getDateFnsLocale(getCurrentLanguage(language)) })
+    : i18n.t("common:time.emptyHour");
+}
+
+export function formatTimeAgo(value?: Timestamp, language?: string | null) {
+  const date = toDate(value);
+  if (!date) return i18n.t("common:time.justNow");
+  return formatDistanceToNow(date, {
+    locale: getDateFnsLocale(getCurrentLanguage(language)),
+    addSuffix: true,
+  });
 }
 
 export function getWeekStart(date = new Date()) {
@@ -130,7 +142,7 @@ export function buildDailyBuckets(logs: PoopLog[]) {
       return logDate && isWithinInterval(logDate, interval);
     }).length;
     return {
-      label: format(date, "EEE", { locale: ptBR }).replace(".", ""),
+      label: format(date, "EEE", { locale: getDateFnsLocale(i18n.resolvedLanguage) }).replace(".", ""),
       count,
     };
   });
@@ -146,7 +158,7 @@ export function getProductiveHour(logs: PoopLog[]) {
   }, {});
 
   const [hour] = Object.entries(hours).sort((a, b) => b[1] - a[1])[0] ?? [];
-  return hour ? `${hour.padStart(2, "0")}:00` : "Aguardando o trono";
+  return hour ? `${hour.padStart(2, "0")}:00` : i18n.t("stats:metric.productiveHourFallback");
 }
 
 export function getBusinessHoursCount(logs: PoopLog[]) {

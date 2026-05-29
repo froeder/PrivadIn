@@ -1,11 +1,14 @@
 import { useState, type FormEvent } from "react";
 import { KeyRound, Lock, Mail, Sparkles } from "lucide-react";
 import toast from "react-hot-toast";
+import { Trans, useTranslation } from "react-i18next";
+import { APP_VERSION } from "../constants/app";
 import { useAuth } from "../contexts/AuthContext";
 import { isFirebaseConfigured } from "../services/firebase";
 import { AuthLoginError, loginErrorMessage } from "../utils/authErrors";
 
 export function LoginPage({ cooldownMinutes }: { cooldownMinutes: number }) {
+  const { t } = useTranslation("login");
   const { login, loading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -27,14 +30,14 @@ export function LoginPage({ cooldownMinutes }: { cooldownMinutes: number }) {
         setNeedsCode(true);
         setRequestedEmail(result.request.email);
         setEmail(result.request.email);
-        toast.success("Pedido criado. Peça o codigo para um admin do PrivadIn.");
+        toast.success(t("toastRequestCreated"));
         return;
       }
 
       toast.success(
         needsCode
-          ? "Cadastro liberado. Bem-vindo ao campeonato."
-          : "Entrada autorizada. O trono reconheceu sua presença.",
+          ? t("toastWelcome")
+          : t("toastAuthorized"),
       );
     } catch (error) {
       console.error(error);
@@ -45,9 +48,9 @@ export function LoginPage({ cooldownMinutes }: { cooldownMinutes: number }) {
       toast.error(
         isFirebaseConfigured
           ? needsCode
-            ? "Nao foi possivel validar o codigo. Confira email, senha e codigo com o admin."
-            : "Nao achei acesso ativo. Vou preparar uma solicitacao de codigo."
-          : "Configure o .env com as credenciais Firebase antes de entrar.",
+            ? t("fallbackCodeValidation")
+            : t("fallbackAccessRequest")
+          : t("firebaseConfigMissing"),
       );
     }
   }
@@ -60,21 +63,21 @@ export function LoginPage({ cooldownMinutes }: { cooldownMinutes: number }) {
           <section className="order-2 space-y-5 pt-2 lg:order-1 lg:space-y-6 lg:pt-0">
             <div className="inline-flex items-center gap-2 rounded-full border border-yellow-200/20 bg-yellow-300/10 px-4 py-2 text-sm font-bold text-yellow-100">
               <Sparkles size={16} />
-              Competicao sanitaria corporativa
+              {t("badge")}
             </div>
             <div>
               <h1 className="max-w-3xl text-4xl font-black leading-none text-white sm:text-5xl lg:text-7xl">
-                PrivadIn v1
+                {t("heroTitle")}
               </h1>
               <p className="mt-4 max-w-2xl text-base text-slate-300 sm:text-lg lg:mt-5 lg:text-xl">
-                Registre seus momentos de produtividade paralela, dispute o ranking dos amigos e transforme o expediente em esporte de alto rendimento.
+                {t("heroDescription")}
               </p>
             </div>
             <div className="grid max-w-2xl gap-3 sm:grid-cols-3">
               {[
-                "Ranking em tempo real",
-                "Streaks e conquistas",
-                `Anti-fraude ${cooldownMinutes} min`,
+                t("featureRealtime"),
+                t("featureAchievements"),
+                t("featureAntiFraud", { count: cooldownMinutes }),
               ].map((item) => (
                 <div key={item} className="rounded-2xl border border-white/10 bg-white/8 p-4 text-sm font-bold text-slate-200 backdrop-blur-xl">
                   {item}
@@ -88,14 +91,14 @@ export function LoginPage({ cooldownMinutes }: { cooldownMinutes: number }) {
               <div className="mx-auto grid h-20 w-20 place-items-center rounded-3xl bg-yellow-300 text-5xl shadow-xl shadow-yellow-400/20">
                 🚽
               </div>
-              <h2 className="mt-4 text-2xl font-black text-white">Bater ponto no banheiro</h2>
+              <h2 className="mt-4 text-2xl font-black text-white">{t("cardTitle")}</h2>
               <p className="mt-1 text-sm text-slate-400">
-                Entre normalmente ou solicite um codigo individual ao admin.
+                {t("cardDescription")}
               </p>
             </div>
 
             <label className="mb-4 block">
-              <span className="mb-2 block text-sm font-bold text-slate-300">Email</span>
+              <span className="mb-2 block text-sm font-bold text-slate-300">{t("emailLabel")}</span>
               <span className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3">
                 <Mail className="text-yellow-200" size={18} />
                 <input
@@ -103,7 +106,7 @@ export function LoginPage({ cooldownMinutes }: { cooldownMinutes: number }) {
                   type="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  placeholder="voce@empresa.com"
+                  placeholder={t("emailPlaceholder")}
                   readOnly={needsCode && Boolean(requestedEmail)}
                   required
                 />
@@ -111,7 +114,7 @@ export function LoginPage({ cooldownMinutes }: { cooldownMinutes: number }) {
             </label>
 
             <label className="mb-4 block">
-              <span className="mb-2 block text-sm font-bold text-slate-300">Senha</span>
+              <span className="mb-2 block text-sm font-bold text-slate-300">{t("passwordLabel")}</span>
               <span className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3">
                 <Lock className="text-yellow-200" size={18} />
                 <input
@@ -119,7 +122,7 @@ export function LoginPage({ cooldownMinutes }: { cooldownMinutes: number }) {
                   type="password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  placeholder={needsCode ? "crie uma senha (nao e o codigo)" : "senha secreta do trono"}
+                  placeholder={needsCode ? t("passwordPlaceholderWithCode") : t("passwordPlaceholder")}
                   required
                 />
               </span>
@@ -132,16 +135,19 @@ export function LoginPage({ cooldownMinutes }: { cooldownMinutes: number }) {
                     <KeyRound size={18} />
                   </div>
                   <div>
-                    <p className="font-black text-yellow-100">Acesso aguardando codigo</p>
+                    <p className="font-black text-yellow-100">{t("approvalTitle")}</p>
                     <p className="mt-1 text-sm text-slate-300">
-                      Peça ao admin o codigo exibido para{" "}
-                      <span className="font-bold text-white">{requestedEmail || email}</span>.
+                      <Trans
+                        i18nKey="login:approvalDescription"
+                        values={{ email: requestedEmail || email }}
+                        components={{ strong: <span className="font-bold text-white" /> }}
+                      />
                     </p>
                   </div>
                 </div>
 
                 <label className="block">
-                  <span className="mb-2 block text-sm font-bold text-slate-300">Codigo do admin</span>
+                  <span className="mb-2 block text-sm font-bold text-slate-300">{t("approvalCodeLabel")}</span>
                   <span className="flex items-center gap-3 rounded-2xl border border-yellow-200/20 bg-slate-950/70 px-4 py-3">
                     <KeyRound className="text-yellow-200" size={18} />
                     <input
@@ -164,10 +170,10 @@ export function LoginPage({ cooldownMinutes }: { cooldownMinutes: number }) {
               className="w-full rounded-2xl bg-yellow-300 px-5 py-4 text-base font-black text-slate-950 shadow-lg shadow-yellow-300/20 transition hover:-translate-y-0.5 hover:bg-yellow-200 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading
-                ? "Consultando a descarga..."
+                ? t("submitLoading")
                 : needsCode
-                  ? "VALIDAR CODIGO E ENTRAR"
-                  : "ENTRAR OU SOLICITAR ACESSO"}
+                  ? t("submitWithCode")
+                  : t("submitDefault")}
             </button>
             {needsCode ? (
               <button
@@ -179,7 +185,7 @@ export function LoginPage({ cooldownMinutes }: { cooldownMinutes: number }) {
                   setRequestedEmail("");
                 }}
               >
-                Voltar para login normal
+                {t("backToNormal")}
               </button>
             ) : (
               <button
@@ -189,22 +195,22 @@ export function LoginPage({ cooldownMinutes }: { cooldownMinutes: number }) {
                   setNeedsCode(true);
                   setRequestedEmail(email.trim());
                   setApprovalCode("");
-                  toast(
-                    "Use o codigo do admin no campo abaixo. A senha e a que voce escolher — nao o codigo.",
-                    { icon: "🔑" },
-                  );
+                  toast(t("toastCodeHint"), { icon: "🔑" });
                 }}
               >
-                Ja tenho codigo
+                {t("alreadyHaveCode")}
               </button>
             )}
             <p className="mt-4 text-center text-xs text-slate-500">
               {isFirebaseConfigured
-                ? "Sem codigo de admin, sem campeonato. Democracia, mas com portaria."
-                : "Copie .env.example para .env e preencha as chaves do Firebase."}
+                ? t("footerConfigured")
+                : t("footerNotConfigured")}
             </p>
           </form>
         </div>
+        <footer className="order-3 pb-4 text-center text-xs text-slate-500 lg:col-span-2 lg:pb-0">
+          v{APP_VERSION}
+        </footer>
       </main>
     </div>
   );

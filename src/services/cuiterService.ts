@@ -13,6 +13,7 @@ import {
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
 import { db } from "./firebase";
+import i18n from "../i18n";
 import type { AppUser, CuiterPost } from "../types";
 
 export const CUITER_MAX_CHARS = 80;
@@ -68,7 +69,7 @@ export async function createCuiterPost(
   userLogsCount: number,
 ) {
   if (!user.lastLogAt && !user.firstLogAt) {
-    throw new Error("Para publicar no Cuiter, registre uma cagada primeiro.");
+    throw new Error(i18n.t("cuiter:service.missingLog"));
   }
 
   const currentPostsCount = await countUserCuiterPosts(user.uid);
@@ -80,11 +81,11 @@ export async function createCuiterPost(
 
   const normalizedMessage = message.trim();
   if (!normalizedMessage) {
-    throw new Error("Escreva uma frase curta antes de publicar.");
+    throw new Error(i18n.t("cuiter:service.emptyMessage"));
   }
 
   if ([...normalizedMessage].length > CUITER_MAX_CHARS) {
-    throw new Error(`A mensagem pode ter no maximo ${CUITER_MAX_CHARS} caracteres.`);
+    throw new Error(i18n.t("cuiter:service.tooLong", { count: CUITER_MAX_CHARS }));
   }
 
   const createdAt = Timestamp.now();

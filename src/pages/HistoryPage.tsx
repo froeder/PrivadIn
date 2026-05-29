@@ -1,38 +1,41 @@
+import { useTranslation } from "react-i18next";
 import { Card, MetricCard } from "../components/Card";
 import { WeeklyChart } from "../components/WeeklyChart";
 import type { PoopLog } from "../types";
 import { buildDailyBuckets, countThisWeek, countToday, formatDateTime } from "../utils/date";
+import { formatNumber } from "../utils/format";
 
 export function HistoryPage({ logs }: { logs: PoopLog[] }) {
+  const { t } = useTranslation(["history", "common"]);
   const buckets = buildDailyBuckets(logs);
 
   return (
     <div className="space-y-4 sm:space-y-5">
       <section className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3">
-        <MetricCard icon="📅" label="Hoje" value={countToday(logs)} hint="Quantidade diaria" />
-        <MetricCard icon="🗓️" label="Semana" value={countThisWeek(logs)} hint="Desde segunda-feira" />
+        <MetricCard icon="📅" label={t("common:labels.today")} value={formatNumber(countToday(logs))} hint={t("metricTodayHint")} />
+        <MetricCard icon="🗓️" label={t("common:labels.week")} value={formatNumber(countThisWeek(logs))} hint={t("metricWeekHint")} />
         <div className="col-span-2 md:col-span-1">
-          <MetricCard icon="🧾" label="Historico total" value={logs.length} hint="Registros pessoais" />
+          <MetricCard icon="🧾" label={t("common:labels.totalHistory")} value={formatNumber(logs.length)} hint={t("metricTotalHint")} />
         </div>
       </section>
 
       <Card>
         <div className="mb-4">
-          <p className="text-sm font-bold text-yellow-100">Ultimos 7 dias</p>
-          <h2 className="text-2xl font-black text-white">Grafico semanal</h2>
+          <p className="text-sm font-bold text-yellow-100">{t("chartEyebrow")}</p>
+          <h2 className="text-2xl font-black text-white">{t("chartTitle")}</h2>
         </div>
         <WeeklyChart buckets={buckets} />
       </Card>
 
       <Card>
         <div className="mb-4">
-          <p className="text-sm font-bold text-yellow-100">Somente seus registros</p>
-          <h2 className="text-2xl font-black text-white">Linha do tempo</h2>
+          <p className="text-sm font-bold text-yellow-100">{t("timelineEyebrow")}</p>
+          <h2 className="text-2xl font-black text-white">{t("timelineTitle")}</h2>
         </div>
         <div className="space-y-3">
           {logs.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-white/15 p-8 text-center text-slate-400">
-              Nada registrado ainda. O expediente aguarda seu primeiro capitulo.
+              {t("empty")}
             </div>
           ) : (
             logs.map((log, index) => (
@@ -41,11 +44,11 @@ export function HistoryPage({ logs }: { logs: PoopLog[] }) {
                   🚽
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-black text-white">Registro #{logs.length - index}</p>
+                  <p className="font-black text-white">{t("entryTitle", { index: logs.length - index })}</p>
                   <p className="text-xs text-slate-400 sm:text-sm">{formatDateTime(log.createdAt)}</p>
                 </div>
                 <span className="self-start rounded-full bg-yellow-300 px-2.5 py-1 text-xs font-black text-slate-950 sm:self-auto sm:px-3 sm:text-sm">
-                  +{log.points}
+                  +{formatNumber(log.points)}
                 </span>
               </div>
             ))

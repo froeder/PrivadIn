@@ -1,3 +1,5 @@
+import i18n from "../i18n";
+
 export type AuthLoginErrorCode =
   | "invalid_code"
   | "no_request"
@@ -22,27 +24,23 @@ export class AuthLoginError extends Error {
 export function loginErrorMessage(code: AuthLoginErrorCode, needsCode: boolean) {
   switch (code) {
     case "invalid_code":
-      return "Codigo incorreto. Confira com o admin e tente de novo.";
+      return i18n.t("auth:invalid_code");
     case "no_request":
-      return needsCode
-        ? "Nao achei pedido para este email. Clique em ENTRAR primeiro para gerar a solicitacao."
-        : "Nao achei acesso ativo. Vou preparar uma solicitacao de codigo.";
+      return i18n.t(needsCode ? "auth:no_request_with_code" : "auth:no_request_without_code");
     case "request_already_used":
-      return "Este email ja foi cadastrado. Entre com email e senha, sem codigo.";
+      return i18n.t("auth:request_already_used");
     case "email_already_registered":
-      return "Este email ja tem conta no Firebase. Entre com email e senha.";
+      return i18n.t("auth:email_already_registered");
     case "weak_password":
-      return "Senha fraca demais. Use pelo menos 6 caracteres (nao use o codigo como senha).";
+      return i18n.t("auth:weak_password");
     case "invalid_email":
-      return "Email invalido. Use o mesmo email que o admin vinculou ao codigo.";
+      return i18n.t("auth:invalid_email");
     case "wrong_password":
-      return "Senha incorreta para este email.";
+      return i18n.t("auth:wrong_password");
     case "firebase_not_configured":
-      return "Configure o .env com as credenciais Firebase antes de entrar.";
+      return i18n.t("auth:firebase_not_configured");
     default:
-      return needsCode
-        ? "Nao foi possivel validar o codigo. Confira email, senha e codigo com o admin."
-        : "Nao achei acesso ativo. Vou preparar uma solicitacao de codigo.";
+      return i18n.t(needsCode ? "auth:unknown_with_code" : "auth:unknown_without_code");
   }
 }
 

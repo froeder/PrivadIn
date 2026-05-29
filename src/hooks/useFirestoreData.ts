@@ -53,7 +53,7 @@ export function useUsers(enabled = true) {
         setLoading(false);
       },
       (error) => {
-        console.error("Erro ao ler ranking de usuarios:", error);
+        console.error("Erro ao ler ranking de usuários:", error);
         setLoading(false);
       },
     );
@@ -82,7 +82,7 @@ export function useUserLogs(uid?: string) {
         setLoading(false);
       },
       (error) => {
-        console.error("Erro ao ler historico do usuario:", error);
+        console.error("Erro ao ler histórico do usuário:", error);
         setLoading(false);
       },
     );
@@ -157,7 +157,7 @@ export function useRegistrationRequests(enabled = true) {
         );
       },
       (error) => {
-        console.error("Erro ao ler solicitacoes de cadastro:", error);
+        console.error("Erro ao ler solicitações de cadastro:", error);
       },
     );
   }, [enabled]);
@@ -208,7 +208,7 @@ export function useAppSettings(enabled = true) {
         setLoading(false);
       },
       (error) => {
-        console.error("Erro ao ler configuracoes do app:", error);
+        console.error("Erro ao ler configurações do app:", error);
         setAppSettings(defaultAppSettings);
         setLoading(false);
       },

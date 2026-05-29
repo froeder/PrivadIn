@@ -1,13 +1,17 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 import { Card } from "../components/Card";
 import { useAuth } from "../contexts/AuthContext";
 import { avatarFor, canLoadDicebearUrl, isValidDicebearUrl } from "../utils/ranking";
 import { updateUserProfile } from "../services/userService";
+import { checkForUpdates, getCurrentVersion, triggerPWAUpdate } from "../services/updateService";
 
 type AvatarStatus = "idle" | "checking" | "valid" | "invalid";
+type UpdateCheckStatus = "idle" | "checking" | "available" | "unavailable" | "error";
 
 export function EditProfilePage() {
+  const { t } = useTranslation("profile");
   const { user } = useAuth();
   const [name, setName] = useState(user?.name ?? "");
   const [nickname, setNickname] = useState(user?.nickname ?? "");
@@ -16,6 +20,8 @@ export function EditProfilePage() {
     isValidDicebearUrl(user?.avatar ?? "") ? "valid" : "idle",
   );
   const [busy, setBusy] = useState(false);
+  const [updateCheckStatus, setUpdateCheckStatus] = useState<UpdateCheckStatus>("idle");
+  const [latestVersion, setLatestVersion] = useState<string | null>(null);
 
   if (!user) return null;
   const currentUser = user;
@@ -23,6 +29,19 @@ export function EditProfilePage() {
   const previewAvatar = avatarStatus === "valid" && hasValidAvatar
     ? avatar.trim()
     : currentUser.avatar || avatarFor(currentUser.name, currentUser.email);
+  const currentVersion = getCurrentVersion();
+
+  // Auto-trigger PWA update after a short delay when update is available
+  // Cleanup timeout if component unmounts before it fires
+  useEffect(() => {
+    if (updateCheckStatus === "available") {
+      const timeout = setTimeout(() => {
+        triggerPWAUpdate();
+      }, 1500);
+
+      return () => clearTimeout(timeout);
+    }
+  }, [updateCheckStatus]);
 
   async function validateAvatar(showToast = false) {
     const candidate = avatar.trim();
@@ -30,7 +49,7 @@ export function EditProfilePage() {
     if (!isValidDicebearUrl(candidate)) {
       setAvatarStatus("invalid");
       if (showToast) {
-        toast.error('Use uma URL valida da DiceBear iniciada com "https://api.dicebear.com/".');
+        toast.error(t("avatarToastInvalid"));
       }
       return false;
     }
@@ -45,7 +64,7 @@ export function EditProfilePage() {
     setAvatarStatus(canLoad ? "valid" : "invalid");
 
     if (!canLoad && showToast) {
-      toast.error("Nao consegui carregar esse avatar da DiceBear. Confira o link escolhido.");
+      toast.error(t("avatarToastLoadError"));
     }
 
     return canLoad;
@@ -64,12 +83,40 @@ export function EditProfilePage() {
         nickname: nickname.trim(),
         avatar: avatar.trim(),
       });
-      toast.success("Perfil atualizado.");
+      toast.success(t("updateSuccess"));
     } catch (e) {
       console.error(e);
-      toast.error("Falha ao atualizar perfil. Verifique permissoes e conexao.");
+      toast.error(t("updateError"));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleCheckUpdates() {
+    setUpdateCheckStatus("checking");
+    setLatestVersion(null);
+
+    try {
+      const result = await checkForUpdates();
+
+      if (result.error) {
+        setUpdateCheckStatus("error");
+        toast.error(t("updateCheckError"));
+        return;
+      }
+
+      if (result.hasUpdate && result.latestVersion) {
+        setLatestVersion(result.latestVersion);
+        setUpdateCheckStatus("available");
+        toast.success(t("updateAvailable", { newVersion: result.latestVersion }));
+      } else {
+        setUpdateCheckStatus("unavailable");
+        toast.success(t("updateNotAvailable"));
+      }
+    } catch (e) {
+      console.error(e);
+      setUpdateCheckStatus("error");
+      toast.error(t("updateCheckError"));
     }
   }
 
@@ -77,14 +124,14 @@ export function EditProfilePage() {
     <div className="space-y-4 sm:space-y-5">
       <Card>
         <div className="mb-4">
-          <p className="text-sm font-bold text-yellow-100">Editar perfil</p>
-          <h2 className="text-2xl font-black text-white">Seu nome e apelido</h2>
-          <p className="mt-1 text-sm text-slate-400">O apelido aparece abaixo do seu nome nos rankings geral e semanal.</p>
+          <p className="text-sm font-bold text-yellow-100">{t("eyebrow")}</p>
+          <h2 className="text-2xl font-black text-white">{t("title")}</h2>
+          <p className="mt-1 text-sm text-slate-400">{t("description")}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="grid gap-4">
           <label>
-            <span className="mb-2 block text-sm font-bold text-slate-300">Nome</span>
+            <span className="mb-2 block text-sm font-bold text-slate-300">{t("name")}</span>
             <input
               className="w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none"
               value={name}
@@ -94,19 +141,19 @@ export function EditProfilePage() {
           </label>
 
           <label>
-            <span className="mb-2 block text-sm font-bold text-slate-300">Apelido</span>
+            <span className="mb-2 block text-sm font-bold text-slate-300">{t("nickname")}</span>
             <input
               className="w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none"
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
-              placeholder="Opcional para os rankings"
+              placeholder={t("nicknamePlaceholder")}
               maxLength={35}
             />
-            <p className="mt-2 text-xs text-slate-500">{nickname.length}/35 caracteres</p>
+            <p className="mt-2 text-xs text-slate-500">{t("charsCount", { count: nickname.length })}</p>
           </label>
 
           <label>
-            <span className="mb-2 block text-sm font-bold text-slate-300">Avatar DiceBear</span>
+            <span className="mb-2 block text-sm font-bold text-slate-300">{t("avatarLabel")}</span>
             <input
               className="w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none"
               type="url"
@@ -131,7 +178,7 @@ export function EditProfilePage() {
               required
             />
             <p className="mt-2 text-xs text-slate-500">
-              Cole um link de avatar iniciado com "https://api.dicebear.com/". Para escolher o seu, acesse
+              {t("avatarHint")}
               {" "}
               <a
                 className="font-semibold text-yellow-100 underline underline-offset-2"
@@ -145,19 +192,19 @@ export function EditProfilePage() {
             </p>
             {!hasValidAvatar ? (
               <p className="mt-1 text-xs font-semibold text-red-300">
-                Informe uma URL valida da DiceBear.
+                {t("avatarInvalid")}
               </p>
             ) : avatarStatus === "checking" ? (
               <p className="mt-1 text-xs font-semibold text-sky-200">
-                Validando se a imagem da DiceBear responde...
+                {t("avatarChecking")}
               </p>
             ) : avatarStatus === "valid" ? (
               <p className="mt-1 text-xs font-semibold text-emerald-300">
-                Link validado com sucesso.
+                {t("avatarValid")}
               </p>
             ) : avatarStatus === "invalid" ? (
               <p className="mt-1 text-xs font-semibold text-red-300">
-                Nao consegui carregar uma imagem valida nessa URL.
+                {t("avatarLoadError")}
               </p>
             ) : null}
           </label>
@@ -165,17 +212,67 @@ export function EditProfilePage() {
           <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
             <img src={previewAvatar} alt="avatar" className="h-16 w-16 rounded-full" />
             <div className="w-full flex-1">
-              <p className="font-black text-white">Avatar atual</p>
-              <p className="text-sm text-slate-400">Cole um link da DiceBear para trocar a imagem.</p>
+              <p className="font-black text-white">{t("avatarCurrent")}</p>
+              <p className="text-sm text-slate-400">{t("avatarCurrentHint")}</p>
             </div>
             <button
               disabled={busy || !hasValidAvatar}
               className="w-full rounded-2xl bg-yellow-300 px-5 py-3 font-black text-slate-950 hover:bg-yellow-200 disabled:opacity-60 sm:w-auto"
             >
-              Salvar
+              {t("save")}
             </button>
           </div>
         </form>
+      </Card>
+
+      <Card>
+        <div className="space-y-3">
+          <div>
+            <p className="text-sm font-bold text-slate-400">{t("versionLabel")}</p>
+            <p className="text-lg font-black text-white">
+              {t("versionText", { version: currentVersion })}
+            </p>
+          </div>
+
+          <button
+            onClick={() => void handleCheckUpdates()}
+            disabled={updateCheckStatus === "checking" || busy}
+            className="w-full rounded-2xl bg-slate-700 px-5 py-3 font-black text-white hover:bg-slate-600 disabled:opacity-60 sm:w-auto"
+          >
+            {updateCheckStatus === "checking" ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                {t("checkUpdatesLoading")}
+              </span>
+            ) : (
+              t("checkUpdatesButton")
+            )}
+          </button>
+
+          {updateCheckStatus === "available" && latestVersion && (
+            <div className="rounded-lg bg-emerald-900/30 border border-emerald-600/50 p-3">
+              <p className="text-sm font-semibold text-emerald-300">
+                {t("updateAvailable", { newVersion: latestVersion })}
+              </p>
+            </div>
+          )}
+
+          {updateCheckStatus === "unavailable" && (
+            <div className="rounded-lg bg-blue-900/30 border border-blue-600/50 p-3">
+              <p className="text-sm font-semibold text-blue-300">
+                {t("updateNotAvailable")}
+              </p>
+            </div>
+          )}
+
+          {updateCheckStatus === "error" && (
+            <div className="rounded-lg bg-red-900/30 border border-red-600/50 p-3">
+              <p className="text-sm font-semibold text-red-300">
+                {t("updateCheckError")}
+              </p>
+            </div>
+          )}
+        </div>
       </Card>
     </div>
   );

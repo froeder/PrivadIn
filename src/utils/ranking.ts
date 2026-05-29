@@ -1,4 +1,5 @@
 import type { AppUser, RankedUser } from "../types";
+import i18n from "../i18n";
 
 const DICEBEAR_URL_PREFIX = "https://api.dicebear.com/";
 
@@ -34,10 +35,10 @@ export function medalFor(rank: number) {
 }
 
 export function titleFor(rank: number) {
-  if (rank === 1) return "Rei da Privada";
-  if (rank === 2) return "Vice do Vaso";
-  if (rank === 3) return "Bronze Sanitário";
-  return "Competidor CLT";
+  if (rank === 1) return i18n.t("services:ranking.first");
+  if (rank === 2) return i18n.t("services:ranking.second");
+  if (rank === 3) return i18n.t("services:ranking.third");
+  return i18n.t("services:ranking.other");
 }
 
 export function avatarFor(name: string, email: string) {

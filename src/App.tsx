@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Toaster } from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import {
   useAdminAuditLogs,
@@ -22,6 +23,7 @@ import { CuiterPage } from "./pages/CuiterPage";
 import type { AppView } from "./types";
 
 function AppContent() {
+  const { t } = useTranslation("common");
   const { user, loading } = useAuth();
   const { appSettings } = useAppSettings();
   const { users, rankedUsers } = useUsers(Boolean(user));
@@ -43,7 +45,7 @@ function AppContent() {
       <div className="grid min-h-screen place-items-center bg-slate-950 text-center text-slate-100">
         <div>
           <div className="mx-auto mb-4 h-16 w-16 animate-bounce rounded-3xl bg-yellow-300 text-5xl">🚽</div>
-          <p className="font-black">Preparando o assento...</p>
+          <p className="font-black">{t("loading")}</p>
         </div>
       </div>
     );
