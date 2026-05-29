@@ -131,15 +131,15 @@ export function CuiterPage({
       <Card>
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-bold text-yellow-100">{t("eyebrow")}</p>
-            <h2 className="text-2xl font-black text-white">{t("title")}</h2>
+            <p className="text-sm font-bold text-accent-strong">{t("eyebrow")}</p>
+            <h2 className="text-2xl font-black text-fg">{t("title")}</h2>
           </div>
-          <MessageCircle className="text-yellow-200" />
+          <MessageCircle className="text-accent-strong" />
         </div>
 
         <div className="space-y-3">
           {!unlocked ? (
-            <div className="rounded-2xl border border-yellow-200/25 bg-yellow-300/10 p-3 text-sm text-yellow-100">
+            <div className="rounded-2xl border border-accent/25 bg-accent-soft/30 p-3 text-sm text-accent-strong">
               <Trans
                 i18nKey="cuiter:unlockInfo"
                 values={{ date: formatDateTime(Timestamp.fromDate(CUITER_CREDIT_START_DATE)) }}
@@ -153,17 +153,17 @@ export function CuiterPage({
             onChange={(event) => setMessage(event.target.value)}
             maxLength={CUITER_MAX_CHARS}
             placeholder={t("placeholder")}
-            className="min-h-24 w-full resize-none rounded-2xl border border-white/15 bg-slate-900/60 p-3 text-sm text-white outline-none ring-yellow-300/40 transition focus:ring"
+            className="min-h-24 w-full resize-none rounded-2xl border border-line/15 bg-field p-3 text-sm text-fg outline-none ring-accent/20 transition placeholder:text-fg-muted focus:border-accent/35 focus:ring"
           />
 
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className={`text-xs font-bold ${charsRemaining < 20 ? "text-amber-300" : "text-slate-400"}`}>
+            <span className={`text-xs font-bold ${charsRemaining < 20 ? "text-warning" : "text-fg-muted"}`}>
               {t("credits", { chars: charsRemaining, count: availableCredits })}
             </span>
             <button
               onClick={handlePublish}
               disabled={!canPublish}
-              className="inline-flex items-center gap-2 rounded-xl bg-yellow-300 px-4 py-2 text-sm font-black text-slate-950 transition hover:bg-yellow-200 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-black text-accent-fg transition hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Send size={15} />
               {sending ? t("publishLoading") : t("publishAction")}
@@ -174,28 +174,28 @@ export function CuiterPage({
 
       <Card>
         <div className="mb-4">
-          <p className="text-sm font-bold text-yellow-100">{t("feedEyebrow")}</p>
-          <h2 className="text-2xl font-black text-white">{t("feedTitle")}</h2>
+          <p className="text-sm font-bold text-accent-strong">{t("feedEyebrow")}</p>
+          <h2 className="text-2xl font-black text-fg">{t("feedTitle")}</h2>
         </div>
         <div className="space-y-3">
           {loadingFeed ? (
-            <div className="rounded-2xl border border-dashed border-white/15 p-8 text-center text-slate-400">
+            <div className="rounded-2xl border border-dashed border-line/15 p-8 text-center text-fg-muted">
               {t("feedLoading")}
             </div>
           ) : orderedPosts.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-white/15 p-8 text-center text-slate-400">
+            <div className="rounded-2xl border border-dashed border-line/15 p-8 text-center text-fg-muted">
               {t("feedEmpty")}
             </div>
           ) : (
             orderedPosts.map((post) => (
-              <article key={post.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <article key={post.id} className="rounded-2xl border border-line/10 bg-panel-strong/40 p-4">
                 <div className="mb-2 flex items-center justify-between gap-3">
-                  <p className="truncate text-sm font-black text-white">
+                  <p className="truncate text-sm font-black text-fg">
                     {post.userName}
                   </p>
-                  <p className="shrink-0 text-xs text-slate-400">{formatTimeAgo(post.createdAt)}</p>
+                  <p className="shrink-0 text-xs text-fg-muted">{formatTimeAgo(post.createdAt)}</p>
                 </div>
-                <p className="text-sm text-slate-200">{post.message}</p>
+                <p className="text-sm text-fg-soft">{post.message}</p>
               </article>
             ))
           )}
@@ -205,7 +205,7 @@ export function CuiterPage({
             <button
               onClick={handleLoadMore}
               disabled={loadingMore}
-              className="w-full rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-black text-white transition hover:bg-white/20 disabled:opacity-60"
+              className="w-full rounded-2xl border border-line/10 bg-panel px-4 py-3 text-sm font-black text-fg transition hover:bg-panel-strong disabled:opacity-60"
             >
               {loadingMore ? t("loadMoreLoading") : t("loadMoreAction")}
             </button>

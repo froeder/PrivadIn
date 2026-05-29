@@ -13,18 +13,18 @@ export function AchievementGrid({ achievements }: { achievements: Achievement[] 
           className={clsx(
             "rounded-2xl border p-4 transition",
             achievement.unlocked
-              ? "border-yellow-200/25 bg-yellow-300/12"
-              : "border-white/10 bg-white/5 opacity-60",
+              ? "border-accent/25 bg-accent-soft/25"
+              : "border-line/10 bg-panel-strong/50 opacity-70",
           )}
         >
           <div className="mb-3 flex items-center justify-between">
             <span className="text-3xl">{achievement.icon}</span>
-            <span className="rounded-full bg-slate-950/50 px-2 py-1 text-xs font-bold text-slate-300">
+            <span className="rounded-full bg-canvas-elevated/70 px-2 py-1 text-xs font-bold text-fg-muted">
               {achievement.unlocked ? t("achievementUnlocked") : t("achievementLocked")}
             </span>
           </div>
-          <h3 className="font-black text-white">{achievement.name}</h3>
-          <p className="mt-1 text-sm text-slate-400">{achievement.description}</p>
+          <h3 className="font-black text-fg">{achievement.name}</h3>
+          <p className="mt-1 text-sm text-fg-muted">{achievement.description}</p>
         </div>
       ))}
     </div>

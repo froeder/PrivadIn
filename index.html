@@ -10,6 +10,20 @@
       content="PrivadIn: ranking divertido para competicao entre amigos no horario de trabalho."
     />
     <title>PrivadIn</title>
+    <script>
+      (() => {
+        const storageKey = "privadin-theme";
+        const storedTheme = window.localStorage.getItem(storageKey);
+        const preferredTheme = storedTheme === "light" || storedTheme === "dark"
+          ? storedTheme
+          : window.matchMedia("(prefers-color-scheme: dark)").matches
+            ? "dark"
+            : "light";
+
+        document.documentElement.dataset.theme = preferredTheme;
+        document.documentElement.style.colorScheme = preferredTheme;
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

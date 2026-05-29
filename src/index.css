@@ -3,10 +3,80 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --mobile-bottom-nav-offset: calc(5.75rem + env(safe-area-inset-bottom, 0px));
+  --canvas: 244 246 248;
+  --canvas-elevated: 238 242 246;
+  --panel: 250 251 252;
+  --panel-strong: 243 246 249;
+  --panel-subtle: 222 229 237;
+  --field: 248 250 252;
+  --line: 15 23 42;
+  --fg: 15 23 42;
+  --fg-soft: 51 65 85;
+  --fg-muted: 100 116 139;
+  --accent: 234 179 8;
+  --accent-soft: 254 240 138;
+  --accent-strong: 202 138 4;
+  --accent-fg: 15 23 42;
+  --success: 5 150 105;
+  --success-soft: 209 250 229;
+  --warning: 217 119 6;
+  --warning-soft: 254 243 199;
+  --danger: 220 38 38;
+  --danger-soft: 254 226 226;
+  --info: 37 99 235;
+  --info-soft: 219 234 254;
+  --shadow-color: 15 23 42;
+  --accent-shadow: 202 138 4;
+  --scroll-track: 226 232 240;
+  --scroll-thumb: 202 138 4;
+  --shell-gradient:
+    radial-gradient(circle at 16% 10%, rgba(245, 158, 11, 0.22), transparent 26%),
+    radial-gradient(circle at 82% 0%, rgba(59, 130, 246, 0.12), transparent 24%),
+    linear-gradient(135deg, #f4f6f8 0%, #fdf2d3 44%, #e6f1f9 100%);
+  --login-gradient:
+    radial-gradient(circle at 20% 18%, rgba(245, 158, 11, 0.18), transparent 30%),
+    radial-gradient(circle at 85% 12%, rgba(14, 165, 233, 0.14), transparent 24%),
+    linear-gradient(135deg, #f4f6f8 0%, #fdf4e8 52%, #edf8fb 100%);
+}
+
+:root[data-theme="dark"] {
+  --canvas: 2 6 23;
+  --canvas-elevated: 15 23 42;
+  --panel: 17 24 39;
+  --panel-strong: 30 41 59;
+  --panel-subtle: 15 23 42;
+  --field: 15 23 42;
+  --line: 255 255 255;
+  --fg: 248 250 252;
+  --fg-soft: 203 213 225;
+  --fg-muted: 148 163 184;
+  --accent: 238 174 32;
+  --accent-soft: 113 63 18;
+  --accent-strong: 245 196 76;
+  --accent-fg: 15 23 42;
+  --success: 110 231 183;
+  --success-soft: 6 78 59;
+  --warning: 252 211 77;
+  --warning-soft: 120 53 15;
+  --danger: 252 165 165;
+  --danger-soft: 127 29 29;
+  --info: 125 211 252;
+  --info-soft: 30 64 175;
+  --shadow-color: 2 6 23;
+  --accent-shadow: 150 102 24;
+  --scroll-track: 15 23 42;
+  --scroll-thumb: 245 185 28;
+  --shell-gradient:
+    radial-gradient(circle at 20% 10%, rgba(238, 174, 32, 0.07), transparent 28%),
+    radial-gradient(circle at 80% 0%, rgba(20, 184, 166, 0.12), transparent 24%),
+    linear-gradient(135deg, #020617 0%, #111827 48%, #1f2937 100%);
+  --login-gradient:
+    radial-gradient(circle at 20% 20%, rgba(238, 174, 32, 0.08), transparent 32%),
+    radial-gradient(circle at 85% 15%, rgba(45, 212, 191, 0.14), transparent 26%),
+    linear-gradient(135deg, #020617, #111827 55%, #1f2937);
 }
 
 * {
@@ -14,13 +84,27 @@
 }
 
 html {
-  background: #020617;
+  background: rgb(var(--canvas));
 }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background: rgb(var(--canvas));
+  color: rgb(var(--fg));
+}
+
+::selection {
+  background: rgb(var(--accent) / 0.24);
+}
+
+.app-shell-gradient {
+  background: var(--shell-gradient);
+}
+
+.app-login-gradient {
+  background: var(--login-gradient);
 }
 
 .mobile-nav-offset {
@@ -55,10 +139,10 @@ button {
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.7);
+  background: rgb(var(--scroll-track) / 0.75);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(250, 204, 21, 0.45);
+  background: rgb(var(--scroll-thumb) / 0.45);
   border-radius: 999px;
 }

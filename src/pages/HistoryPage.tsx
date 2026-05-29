@@ -21,33 +21,33 @@ export function HistoryPage({ logs }: { logs: PoopLog[] }) {
 
       <Card>
         <div className="mb-4">
-          <p className="text-sm font-bold text-yellow-100">{t("chartEyebrow")}</p>
-          <h2 className="text-2xl font-black text-white">{t("chartTitle")}</h2>
+          <p className="text-sm font-bold text-accent-strong">{t("chartEyebrow")}</p>
+          <h2 className="text-2xl font-black text-fg">{t("chartTitle")}</h2>
         </div>
         <WeeklyChart buckets={buckets} />
       </Card>
 
       <Card>
         <div className="mb-4">
-          <p className="text-sm font-bold text-yellow-100">{t("timelineEyebrow")}</p>
-          <h2 className="text-2xl font-black text-white">{t("timelineTitle")}</h2>
+          <p className="text-sm font-bold text-accent-strong">{t("timelineEyebrow")}</p>
+          <h2 className="text-2xl font-black text-fg">{t("timelineTitle")}</h2>
         </div>
         <div className="space-y-3">
           {logs.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-white/15 p-8 text-center text-slate-400">
+            <div className="rounded-2xl border border-dashed border-line/15 p-8 text-center text-fg-muted">
               {t("empty")}
             </div>
           ) : (
             logs.map((log, index) => (
-              <div key={log.id} className="flex items-start gap-2.5 rounded-xl border border-white/10 bg-white/5 p-3 sm:items-center sm:gap-3 sm:rounded-2xl sm:p-4">
-                <div className="grid h-10 w-10 place-items-center rounded-xl bg-yellow-300/15 text-lg sm:h-11 sm:w-11 sm:rounded-2xl sm:text-xl">
+              <div key={log.id} className="flex items-start gap-2.5 rounded-xl border border-line/10 bg-panel-strong/40 p-3 sm:items-center sm:gap-3 sm:rounded-2xl sm:p-4">
+                <div className="grid h-10 w-10 place-items-center rounded-xl bg-accent-soft/35 text-lg text-accent-strong sm:h-11 sm:w-11 sm:rounded-2xl sm:text-xl">
                   🚽
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-black text-white">{t("entryTitle", { index: logs.length - index })}</p>
-                  <p className="text-xs text-slate-400 sm:text-sm">{formatDateTime(log.createdAt)}</p>
+                  <p className="font-black text-fg">{t("entryTitle", { index: logs.length - index })}</p>
+                  <p className="text-xs text-fg-muted sm:text-sm">{formatDateTime(log.createdAt)}</p>
                 </div>
-                <span className="self-start rounded-full bg-yellow-300 px-2.5 py-1 text-xs font-black text-slate-950 sm:self-auto sm:px-3 sm:text-sm">
+                <span className="self-start rounded-full bg-accent px-2.5 py-1 text-xs font-black text-accent-fg sm:self-auto sm:px-3 sm:text-sm">
                   +{formatNumber(log.points)}
                 </span>
               </div>

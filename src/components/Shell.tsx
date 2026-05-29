@@ -1,9 +1,10 @@
-import { BarChart3, History, Languages, LayoutDashboard, LogOut, MessageCircle, Shield, User, Volume2, VolumeX } from "lucide-react";
+import { BarChart3, History, Languages, LayoutDashboard, LogOut, MessageCircle, Moon, Shield, Sun, User, Volume2, VolumeX } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { APP_VERSION } from "../constants/app";
-import type { AppUser, AppView } from "../types";
+import type { AppTheme, AppUser, AppView } from "../types";
 import { useAuth } from "../contexts/AuthContext";
 import { useAppLanguage } from "../hooks/useAppLanguage";
+import { useTheme } from "../hooks/useTheme";
 import { clsx } from "clsx";
 
 interface ShellProps {
@@ -19,6 +20,7 @@ export function Shell({ currentUser, view, onViewChange, muted, onToggleMuted, c
   const { t } = useTranslation(["common", "shell"]);
   const { logout } = useAuth();
   const { language, options, changeLanguage } = useAppLanguage();
+  const { resolvedTheme, setTheme } = useTheme();
   const items: Array<{ view: AppView; label: string; icon: React.ElementType }> = [
     { view: "dashboard", label: t("shell:nav.dashboard"), icon: LayoutDashboard },
     { view: "history", label: t("shell:nav.history"), icon: History },
@@ -30,29 +32,33 @@ export function Shell({ currentUser, view, onViewChange, muted, onToggleMuted, c
     currentUser?.role === "admin"
       ? [...items, { view: "admin" as AppView, label: t("shell:nav.admin"), icon: Shield }]
       : items;
+  const themeOptions: Array<{ value: AppTheme; label: string; icon: React.ElementType }> = [
+    { value: "light", label: t("common:theme.light"), icon: Sun },
+    { value: "dark", label: t("common:theme.dark"), icon: Moon },
+  ];
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-slate-950 text-slate-100">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(250,204,21,0.16),transparent_28%),radial-gradient(circle_at_80%_0%,rgba(20,184,166,0.12),transparent_24%),linear-gradient(135deg,#020617_0%,#111827_48%,#1f2937_100%)]" />
+    <div className="min-h-screen overflow-x-hidden bg-canvas text-fg">
+      <div className="app-shell-gradient pointer-events-none fixed inset-0" />
       <div className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-3 py-3 sm:px-6 sm:py-4 lg:px-8">
-        <header className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/8 px-3 py-2.5 shadow-2xl shadow-black/30 backdrop-blur-xl sm:flex-nowrap sm:gap-3 sm:rounded-2xl sm:px-4 sm:py-3">
+        <header className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line/10 bg-panel/90 px-3 py-2.5 shadow-panel backdrop-blur-xl sm:flex-nowrap sm:gap-3 sm:rounded-2xl sm:px-4 sm:py-3">
           <button className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={() => onViewChange("dashboard")}>
-            <div className="grid h-9 w-9 place-items-center rounded-xl bg-yellow-300 text-xl shadow-lg shadow-yellow-400/20 sm:h-11 sm:w-11 sm:rounded-2xl sm:text-2xl">
+            <div className="grid h-9 w-9 place-items-center rounded-xl bg-accent text-xl text-accent-fg shadow-accent sm:h-11 sm:w-11 sm:rounded-2xl sm:text-2xl">
               🚽
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] uppercase tracking-[0.24em] text-yellow-200 sm:text-xs sm:tracking-[0.28em]">PrivadIn</p>
-              <h1 className="truncate text-base font-black text-white sm:text-2xl">{t("common:labels.appNameWithEdition")}</h1>
+              <p className="text-[10px] uppercase tracking-[0.24em] text-accent-strong sm:text-xs sm:tracking-[0.28em]">PrivadIn</p>
+              <h1 className="truncate text-base font-black text-fg sm:text-2xl">{t("common:labels.appNameWithEdition")}</h1>
             </div>
           </button>
 
           <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto sm:flex-nowrap">
-            <img className="h-9 w-9 rounded-full bg-yellow-200 sm:hidden" src={currentUser?.avatar} alt="" />
+            <img className="h-9 w-9 rounded-full bg-accent-soft sm:hidden" src={currentUser?.avatar} alt="" />
             <label
-              className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/10 px-2.5 py-2 text-slate-200 md:hidden"
+              className="flex items-center gap-1.5 rounded-xl border border-line/10 bg-panel px-2.5 py-2 text-fg-soft md:hidden"
               title={t("common:language.switcherLabel")}
             >
-              <Languages size={15} className="text-yellow-200" />
+              <Languages size={15} className="text-accent-strong" />
               <span className="sr-only">{t("common:language.label")}</span>
               <select
                 className="max-w-[42vw] bg-transparent text-xs font-semibold outline-none"
@@ -63,17 +69,17 @@ export function Shell({ currentUser, view, onViewChange, muted, onToggleMuted, c
                 }}
               >
                 {options.map((option) => (
-                  <option key={option.value} value={option.value} className="bg-slate-900 text-slate-100">
+                  <option key={option.value} value={option.value} className="bg-panel-strong text-fg">
                     {option.label}
                   </option>
                 ))}
               </select>
             </label>
             <label
-              className="hidden items-center gap-2 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-slate-200 md:flex"
+              className="hidden items-center gap-2 rounded-xl border border-line/10 bg-panel px-3 py-2 text-fg-soft md:flex"
               title={t("common:language.switcherLabel")}
             >
-              <Languages size={16} className="text-yellow-200" />
+              <Languages size={16} className="text-accent-strong" />
               <span className="sr-only">{t("common:language.label")}</span>
               <select
                 className="bg-transparent text-sm font-semibold outline-none"
@@ -84,28 +90,57 @@ export function Shell({ currentUser, view, onViewChange, muted, onToggleMuted, c
                 }}
               >
                 {options.map((option) => (
-                  <option key={option.value} value={option.value} className="bg-slate-900 text-slate-100">
+                  <option key={option.value} value={option.value} className="bg-panel-strong text-fg">
                     {option.label}
                   </option>
                 ))}
               </select>
             </label>
             <button
-              className="rounded-xl border border-white/10 bg-white/10 p-2.5 text-slate-200 transition hover:bg-white/20 sm:p-3"
+              className="rounded-xl border border-line/10 bg-panel p-2.5 text-fg-soft transition hover:bg-panel-strong hover:text-fg sm:p-3"
               onClick={onToggleMuted}
               title={muted ? t("shell:soundOn") : t("shell:soundOff")}
             >
               {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
             </button>
-            <div className="hidden items-center gap-3 rounded-xl border border-white/10 bg-white/10 px-3 py-2 sm:flex">
-              <img className="h-8 w-8 rounded-full bg-yellow-200" src={currentUser?.avatar} alt="" />
+            <div
+              role="group"
+              className="flex items-center rounded-xl border border-line/10 bg-panel p-1"
+              title={t("common:theme.switcherLabel")}
+              aria-label={t("common:theme.switcherLabel")}
+            >
+              {themeOptions.map((option) => {
+                const Icon = option.icon;
+                const active = resolvedTheme === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setTheme(option.value)}
+                    aria-pressed={active}
+                    aria-label={option.label}
+                    className={clsx(
+                      "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-bold transition sm:px-3",
+                      active
+                        ? "bg-accent text-accent-fg shadow-accent"
+                        : "text-fg-soft hover:bg-panel-strong hover:text-fg",
+                    )}
+                  >
+                    <Icon size={16} />
+                    <span className="hidden sm:inline">{option.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="hidden items-center gap-3 rounded-xl border border-line/10 bg-panel px-3 py-2 sm:flex">
+              <img className="h-8 w-8 rounded-full bg-accent-soft" src={currentUser?.avatar} alt="" />
               <div className="leading-tight">
-                <p className="text-sm font-bold text-white">{currentUser?.name}</p>
-                <p className="text-xs text-slate-400">{currentUser?.role === "admin" ? t("common:roles.admin") : t("common:roles.player")}</p>
+                <p className="text-sm font-bold text-fg">{currentUser?.name}</p>
+                <p className="text-xs text-fg-muted">{currentUser?.role === "admin" ? t("common:roles.admin") : t("common:roles.player")}</p>
               </div>
             </div>
             <button
-              className="rounded-xl border border-white/10 bg-white/10 p-2.5 text-slate-200 transition hover:bg-red-500/20 hover:text-red-100 sm:p-3"
+              className="rounded-xl border border-line/10 bg-panel p-2.5 text-fg-soft transition hover:bg-danger-soft/70 hover:text-danger sm:p-3"
               onClick={logout}
               title={t("shell:logout")}
             >
@@ -117,7 +152,7 @@ export function Shell({ currentUser, view, onViewChange, muted, onToggleMuted, c
         <main className="grid flex-1 gap-4 py-4 md:gap-5 md:py-5 lg:grid-cols-[88px_1fr]">
           <nav
             className={clsx(
-              "mobile-nav-safe fixed inset-x-3 bottom-0 z-30 grid gap-1 rounded-t-3xl border border-white/10 border-b-0 bg-slate-950/90 px-2 pt-2 shadow-2xl shadow-black/40 backdrop-blur-xl sm:inset-x-6 md:static md:inset-x-auto md:bottom-auto md:order-2 md:gap-2 md:rounded-2xl md:border-b md:bg-white/8 md:p-2 md:shadow-none lg:order-1 lg:h-fit lg:grid-cols-1 lg:gap-1.5 lg:p-1.5",
+              "mobile-nav-safe fixed inset-x-3 bottom-0 z-30 grid gap-1 rounded-t-3xl border border-line/10 border-b-0 bg-panel/95 px-2 pt-2 shadow-panel backdrop-blur-xl sm:inset-x-6 md:static md:inset-x-auto md:bottom-auto md:order-2 md:gap-2 md:rounded-2xl md:border-b md:bg-panel/90 md:p-2 md:shadow-none lg:order-1 lg:h-fit lg:grid-cols-1 lg:gap-1.5 lg:p-1.5",
               navItems.length === 6
                 ? "grid-cols-6 md:grid-cols-6"
                 : navItems.length === 5
@@ -138,8 +173,8 @@ export function Shell({ currentUser, view, onViewChange, muted, onToggleMuted, c
                   className={clsx(
                     "flex min-h-[3.5rem] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1.5 py-2 text-[11px] font-bold transition md:min-h-14 md:flex-row md:justify-center md:gap-2 md:rounded-xl md:px-3 md:py-3 md:text-sm lg:min-h-[4.25rem] lg:flex-col lg:justify-center lg:gap-1 lg:px-2 lg:py-2.5 lg:text-xs",
                     active
-                      ? "bg-yellow-300 text-slate-950 shadow-lg shadow-yellow-300/20"
-                      : "text-slate-300 hover:bg-white/10 hover:text-white",
+                      ? "bg-accent text-accent-fg shadow-accent"
+                      : "text-fg-muted hover:bg-panel-strong hover:text-fg",
                   )}
                 >
                   <Icon size={18} />
@@ -160,7 +195,7 @@ export function Shell({ currentUser, view, onViewChange, muted, onToggleMuted, c
           </nav>
           <section className="mobile-nav-offset min-w-0 lg:order-2">
             {children}
-            <footer className="pb-20 pt-5 text-center text-xs text-slate-500 md:pb-0">
+            <footer className="pb-20 pt-5 text-center text-xs text-fg-muted md:pb-0">
               v{APP_VERSION}
             </footer>
           </section>

@@ -39,26 +39,26 @@ export function StatsPage({
       <section className="grid gap-4 sm:gap-5 xl:grid-cols-[1fr_360px]">
         <Card>
           <div className="mb-4">
-            <p className="text-sm font-bold text-yellow-100">{t("performanceEyebrow")}</p>
-            <h2 className="text-2xl font-black text-white">{t("performanceTitle")}</h2>
+            <p className="text-sm font-bold text-accent-strong">{t("performanceEyebrow")}</p>
+            <h2 className="text-2xl font-black text-fg">{t("performanceTitle")}</h2>
           </div>
           <WeeklyChart buckets={buildDailyBuckets(logs)} />
         </Card>
 
         <Card>
-          <p className="text-sm font-bold text-yellow-100">{t("officeHoursEyebrow")}</p>
-          <h2 className="text-2xl font-black text-white">{t("officeHoursTitle", { count: getBusinessHoursCount(logs) })}</h2>
-          <p className="mt-3 text-sm text-slate-400">
+          <p className="text-sm font-bold text-accent-strong">{t("officeHoursEyebrow")}</p>
+          <h2 className="text-2xl font-black text-fg">{t("officeHoursTitle", { count: getBusinessHoursCount(logs) })}</h2>
+          <p className="mt-3 text-sm text-fg-muted">
             {t("officeHoursDescription")}
           </p>
-          <div className="mt-5 rounded-2xl bg-slate-950/50 p-5 text-center text-5xl sm:text-6xl">💼</div>
+          <div className="mt-5 rounded-2xl bg-canvas-elevated/75 p-5 text-center text-5xl sm:text-6xl">💼</div>
         </Card>
       </section>
 
       <Card>
         <div className="mb-4">
-          <p className="text-sm font-bold text-yellow-100">{t("achievementsEyebrow")}</p>
-          <h2 className="text-2xl font-black text-white">{t("achievementsTitle")}</h2>
+          <p className="text-sm font-bold text-accent-strong">{t("achievementsEyebrow")}</p>
+          <h2 className="text-2xl font-black text-fg">{t("achievementsTitle")}</h2>
         </div>
         <AchievementGrid achievements={achievements} />
       </Card>

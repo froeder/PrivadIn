@@ -131,16 +131,16 @@ export function EditProfilePage({ user }: { user: AppUser }) {
     <div className="space-y-4 sm:space-y-5">
       <Card>
         <div className="mb-4">
-          <p className="text-sm font-bold text-yellow-100">{t("eyebrow")}</p>
-          <h2 className="text-2xl font-black text-white">{t("title")}</h2>
-          <p className="mt-1 text-sm text-slate-400">{t("description")}</p>
+          <p className="text-sm font-bold text-accent-strong">{t("eyebrow")}</p>
+          <h2 className="text-2xl font-black text-fg">{t("title")}</h2>
+          <p className="mt-1 text-sm text-fg-muted">{t("description")}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="grid gap-4">
           <label>
-            <span className="mb-2 block text-sm font-bold text-slate-300">{t("name")}</span>
+            <span className="mb-2 block text-sm font-bold text-fg-soft">{t("name")}</span>
             <input
-              className="w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none"
+              className="w-full rounded-2xl border border-line/10 bg-field px-4 py-3 text-fg outline-none"
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
@@ -148,21 +148,21 @@ export function EditProfilePage({ user }: { user: AppUser }) {
           </label>
 
           <label>
-            <span className="mb-2 block text-sm font-bold text-slate-300">{t("nickname")}</span>
+            <span className="mb-2 block text-sm font-bold text-fg-soft">{t("nickname")}</span>
             <input
-              className="w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none"
+              className="w-full rounded-2xl border border-line/10 bg-field px-4 py-3 text-fg outline-none placeholder:text-fg-muted"
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
               placeholder={t("nicknamePlaceholder")}
               maxLength={15}
             />
-            <p className="mt-2 text-xs text-slate-500">{t("charsCount", { count: nickname.length })}</p>
+            <p className="mt-2 text-xs text-fg-muted">{t("charsCount", { count: nickname.length })}</p>
           </label>
 
           <label>
-            <span className="mb-2 block text-sm font-bold text-slate-300">{t("avatarLabel")}</span>
+            <span className="mb-2 block text-sm font-bold text-fg-soft">{t("avatarLabel")}</span>
             <input
-              className="w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none"
+              className="w-full rounded-2xl border border-line/10 bg-field px-4 py-3 text-fg outline-none"
               type="url"
               value={avatar}
               onChange={(e) => {
@@ -184,11 +184,11 @@ export function EditProfilePage({ user }: { user: AppUser }) {
               placeholder="https://api.dicebear.com/9.x/croodles/svg?seed=Liliana"
               required
             />
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-2 text-xs text-fg-muted">
               {t("avatarHint")}
               {" "}
               <a
-                className="font-semibold text-yellow-100 underline underline-offset-2"
+                className="font-semibold text-accent-strong underline underline-offset-2"
                 href="https://www.dicebear.com/playground/"
                 target="_blank"
                 rel="noreferrer"
@@ -198,19 +198,19 @@ export function EditProfilePage({ user }: { user: AppUser }) {
               .
             </p>
             {!hasValidAvatar ? (
-              <p className="mt-1 text-xs font-semibold text-red-300">
+              <p className="mt-1 text-xs font-semibold text-danger">
                 {t("avatarInvalid")}
               </p>
             ) : avatarStatus === "checking" ? (
-              <p className="mt-1 text-xs font-semibold text-sky-200">
+              <p className="mt-1 text-xs font-semibold text-info">
                 {t("avatarChecking")}
               </p>
             ) : avatarStatus === "valid" ? (
-              <p className="mt-1 text-xs font-semibold text-emerald-300">
+              <p className="mt-1 text-xs font-semibold text-success">
                 {t("avatarValid")}
               </p>
             ) : avatarStatus === "invalid" ? (
-              <p className="mt-1 text-xs font-semibold text-red-300">
+              <p className="mt-1 text-xs font-semibold text-danger">
                 {t("avatarLoadError")}
               </p>
             ) : null}
@@ -219,12 +219,12 @@ export function EditProfilePage({ user }: { user: AppUser }) {
           <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
             <img src={previewAvatar} alt="avatar" className="h-16 w-16 rounded-full" />
             <div className="w-full flex-1">
-              <p className="font-black text-white">{t("avatarCurrent")}</p>
-              <p className="text-sm text-slate-400">{t("avatarCurrentHint")}</p>
+              <p className="font-black text-fg">{t("avatarCurrent")}</p>
+              <p className="text-sm text-fg-muted">{t("avatarCurrentHint")}</p>
             </div>
             <button
               disabled={busy || !hasValidAvatar}
-              className="w-full rounded-2xl bg-yellow-300 px-5 py-3 font-black text-slate-950 hover:bg-yellow-200 disabled:opacity-60 sm:w-auto"
+              className="w-full rounded-2xl bg-accent px-5 py-3 font-black text-accent-fg hover:bg-accent-strong disabled:opacity-60 sm:w-auto"
             >
               {t("save")}
             </button>
@@ -235,8 +235,8 @@ export function EditProfilePage({ user }: { user: AppUser }) {
       <Card>
         <div className="space-y-3">
           <div>
-            <p className="text-sm font-bold text-slate-400">{t("versionLabel")}</p>
-            <p className="text-lg font-black text-white">
+            <p className="text-sm font-bold text-fg-muted">{t("versionLabel")}</p>
+            <p className="text-lg font-black text-fg">
               {t("versionText", { version: currentVersion })}
             </p>
           </div>
@@ -244,11 +244,11 @@ export function EditProfilePage({ user }: { user: AppUser }) {
           <button
             onClick={() => void handleCheckUpdates()}
             disabled={updateCheckStatus === "checking" || busy}
-            className="w-full rounded-2xl bg-slate-700 px-5 py-3 font-black text-white hover:bg-slate-600 disabled:opacity-60 sm:w-auto"
+            className="w-full rounded-2xl bg-panel-strong px-5 py-3 font-black text-fg hover:bg-panel-subtle disabled:opacity-60 sm:w-auto"
           >
             {updateCheckStatus === "checking" ? (
               <span className="flex items-center justify-center gap-2">
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-fg border-t-transparent" />
                 {t("checkUpdatesLoading")}
               </span>
             ) : (
@@ -257,24 +257,24 @@ export function EditProfilePage({ user }: { user: AppUser }) {
           </button>
 
           {updateCheckStatus === "available" && latestVersion && (
-            <div className="rounded-lg bg-emerald-900/30 border border-emerald-600/50 p-3">
-              <p className="text-sm font-semibold text-emerald-300">
+            <div className="rounded-lg border border-success/35 bg-success-soft/45 p-3">
+              <p className="text-sm font-semibold text-success">
                 {t("updateAvailable", { newVersion: latestVersion })}
               </p>
             </div>
           )}
 
           {updateCheckStatus === "unavailable" && (
-            <div className="rounded-lg bg-blue-900/30 border border-blue-600/50 p-3">
-              <p className="text-sm font-semibold text-blue-300">
+            <div className="rounded-lg border border-info/35 bg-info-soft/45 p-3">
+              <p className="text-sm font-semibold text-info">
                 {t("updateNotAvailable")}
               </p>
             </div>
           )}
 
           {updateCheckStatus === "error" && (
-            <div className="rounded-lg bg-red-900/30 border border-red-600/50 p-3">
-              <p className="text-sm font-semibold text-red-300">
+            <div className="rounded-lg border border-danger/35 bg-danger-soft/45 p-3">
+              <p className="text-sm font-semibold text-danger">
                 {t("updateCheckError")}
               </p>
             </div>

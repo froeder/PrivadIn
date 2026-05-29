@@ -100,22 +100,22 @@ export function DashboardPage({
         <Card className="relative overflow-hidden p-4 sm:p-6">
           <div className="absolute right-4 top-4 hidden text-8xl opacity-10 sm:right-6 sm:top-6 sm:block">🚽</div>
           <div className="relative max-w-2xl">
-            <span className="inline-flex items-center gap-2 rounded-full bg-yellow-300/15 px-3 py-1 text-xs font-bold text-yellow-100 sm:text-sm">
+            <span className="inline-flex items-center gap-2 rounded-full bg-accent-soft/35 px-3 py-1 text-xs font-bold text-accent-strong sm:text-sm">
               <TimerReset size={15} />
               {t("cooldownBadge", { count: cooldownMinutes })}
             </span>
-            <h2 className="mt-4 text-2xl font-black leading-tight text-white sm:text-5xl">{t("heroTitle")}</h2>
-            <p className="mt-3 text-sm text-slate-300 sm:text-base">
+            <h2 className="mt-4 text-2xl font-black leading-tight text-fg sm:text-5xl">{t("heroTitle")}</h2>
+            <p className="mt-3 text-sm text-fg-soft sm:text-base">
               {t("heroDescription", { points: formattedPointsPerLog })}
             </p>
             <button
               onClick={handleRegister}
               aria-disabled={isOnCooldown}
               title={isOnCooldown ? cooldownWarningMessage : t("registerTooltip")}
-              className={`mt-6 w-full rounded-2xl bg-yellow-300 px-5 py-4 text-base font-black text-slate-950 shadow-xl shadow-yellow-300/20 transition sm:w-auto sm:rounded-3xl sm:px-6 sm:py-6 sm:text-xl ${
+              className={`mt-6 w-full rounded-2xl bg-accent px-5 py-4 text-base font-black text-accent-fg shadow-accent transition sm:w-auto sm:rounded-3xl sm:px-6 sm:py-6 sm:text-xl ${
                 isOnCooldown
                   ? "cursor-not-allowed opacity-60"
-                  : "hover:-translate-y-1 hover:bg-yellow-200"
+                  : "hover:-translate-y-1 hover:bg-accent-strong"
               }`}
             >
               {isOnCooldown
@@ -128,10 +128,10 @@ export function DashboardPage({
         <Card>
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <p className="text-sm font-bold text-yellow-100">{t("podiumEyebrow")}</p>
-              <h2 className="text-xl font-black text-white">{t("podiumTitle")}</h2>
+              <p className="text-sm font-bold text-accent-strong">{t("podiumEyebrow")}</p>
+              <h2 className="text-xl font-black text-fg">{t("podiumTitle")}</h2>
             </div>
-            <Crown className="text-yellow-200" />
+            <Crown className="text-accent-strong" />
           </div>
           <RankingList users={rankedUsers.slice(0, 3)} currentUid={user.uid} />
         </Card>
@@ -141,12 +141,12 @@ export function DashboardPage({
         <Card>
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-bold text-yellow-100">{t("overallEyebrow")}</p>
-              <h2 className="text-2xl font-black text-white">{t("overallTitle")}</h2>
+              <p className="text-sm font-bold text-accent-strong">{t("overallEyebrow")}</p>
+              <h2 className="text-2xl font-black text-fg">{t("overallTitle")}</h2>
             </div>
             <button
               onClick={handleShareRanking}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-yellow-200/20 bg-yellow-300/15 px-4 py-3 text-sm font-black text-yellow-100 transition hover:bg-yellow-300 hover:text-slate-950 sm:w-auto"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-accent/20 bg-accent-soft/35 px-4 py-3 text-sm font-black text-accent-strong transition hover:bg-accent hover:text-accent-fg sm:w-auto"
               title={t("shareTitle")}
             >
               <Share2 size={18} />
@@ -157,8 +157,8 @@ export function DashboardPage({
         </Card>
         <Card>
           <div className="mb-4">
-            <p className="text-sm font-bold text-yellow-100">{t("weeklyEyebrow", { count: countThisWeek(userLogs) })}</p>
-            <h2 className="text-2xl font-black text-white">{t("weeklyTitle")}</h2>
+            <p className="text-sm font-bold text-accent-strong">{t("weeklyEyebrow", { count: countThisWeek(userLogs) })}</p>
+            <h2 className="text-2xl font-black text-fg">{t("weeklyTitle")}</h2>
           </div>
           <RankingList users={rankedUsers} mode="weekly" currentUid={user.uid} />
         </Card>

@@ -29,6 +29,12 @@ export const resources = {
         label: "Idioma",
         switcherLabel: "Trocar idioma",
       },
+      theme: {
+        label: "Tema",
+        switcherLabel: "Trocar tema",
+        light: "Claro",
+        dark: "Escuro",
+      },
       time: {
         noRecordsYet: "Sem registros ainda",
         justNow: "agora",
@@ -389,6 +395,12 @@ export const resources = {
         label: "Language",
         switcherLabel: "Change language",
       },
+      theme: {
+        label: "Theme",
+        switcherLabel: "Change theme",
+        light: "Light",
+        dark: "Dark",
+      },
       time: {
         noRecordsYet: "No records yet",
         justNow: "just now",
@@ -746,6 +758,12 @@ export const resources = {
         label: "Idioma",
         switcherLabel: "Cambiar idioma",
       },
+      theme: {
+        label: "Tema",
+        switcherLabel: "Cambiar tema",
+        light: "Claro",
+        dark: "Oscuro",
+      },
       time: {
         noRecordsYet: "Aún no hay registros",
         justNow: "ahora mismo",
@@ -1093,6 +1111,12 @@ export const resources = {
         label: "语言",
         switcherLabel: "切换语言",
       },
+      theme: {
+        label: "主题",
+        switcherLabel: "切换主题",
+        light: "浅色",
+        dark: "深色",
+      },
       time: {
         noRecordsYet: "还没有记录",
         justNow: "刚刚",
@@ -1436,6 +1460,12 @@ export const resources = {
       language: {
         label: "اللغة",
         switcherLabel: "تغيير اللغة",
+      },
+      theme: {
+        label: "المظهر",
+        switcherLabel: "تغيير المظهر",
+        light: "فاتح",
+        dark: "داكن",
       },
       time: {
         noRecordsYet: "لا توجد سجلات بعد",
@@ -1783,6 +1813,12 @@ export const resources = {
       language: {
         label: "Language",
         switcherLabel: "Change language",
+      },
+      theme: {
+        label: "Theme",
+        switcherLabel: "Change theme",
+        light: "Light",
+        dark: "Dark",
       },
       time: {
         noRecordsYet: "No records yet",
@@ -2140,6 +2176,12 @@ export const resources = {
       language: {
         label: "Idioma",
         switcherLabel: "Kambia idioma",
+      },
+      theme: {
+        label: "Tema",
+        switcherLabel: "Kambia tema",
+        light: "Klaru",
+        dark: "Skur",
       },
       time: {
         noRecordsYet: "Sin records aun",

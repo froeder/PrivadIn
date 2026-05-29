@@ -20,6 +20,7 @@ import { StatsPage } from "./pages/StatsPage";
 import { AdminPage } from "./pages/AdminPage";
 import { EditProfilePage } from "./pages/EditProfilePage";
 import { CuiterPage } from "./pages/CuiterPage";
+import { useTheme } from "./hooks/useTheme";
 import type { AppView } from "./types";
 
 function AppContent() {
@@ -42,9 +43,9 @@ function AppContent() {
 
   if (loading) {
     return (
-      <div className="grid min-h-screen place-items-center bg-slate-950 text-center text-slate-100">
+      <div className="grid min-h-screen place-items-center bg-canvas text-center text-fg">
         <div>
-          <div className="mx-auto mb-4 h-16 w-16 animate-bounce rounded-3xl bg-yellow-300 text-5xl">🚽</div>
+          <div className="mx-auto mb-4 grid h-16 w-16 animate-bounce place-items-center rounded-3xl bg-accent text-5xl text-accent-fg shadow-accent">🚽</div>
           <p className="font-black">{t("loading")}</p>
         </div>
       </div>
@@ -86,16 +87,35 @@ function AppContent() {
 }
 
 export default function App() {
+  const { resolvedTheme } = useTheme();
+
   return (
     <AuthProvider>
       <AppContent />
       <Toaster
         position="top-right"
         toastOptions={{
+          iconTheme: {
+            primary: "rgb(var(--accent))",
+            secondary: "rgb(var(--accent-fg))",
+          },
           style: {
-            background: "#0f172a",
-            border: "1px solid rgba(255,255,255,0.12)",
-            color: "#f8fafc",
+            background: "rgb(var(--panel-strong) / 0.98)",
+            border: "1px solid rgb(var(--line) / 0.12)",
+            color: "rgb(var(--fg))",
+            boxShadow: "0 18px 48px rgb(var(--shadow-color) / 0.22)",
+          },
+          success: {
+            iconTheme: {
+              primary: "rgb(var(--success))",
+              secondary: resolvedTheme === "dark" ? "#052e16" : "#ecfdf5",
+            },
+          },
+          error: {
+            iconTheme: {
+              primary: "rgb(var(--danger))",
+              secondary: resolvedTheme === "dark" ? "#450a0a" : "#fef2f2",
+            },
           },
         }}
       />
