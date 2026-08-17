@@ -1,4 +1,4 @@
-import { BarChart3, Coins, History, LayoutDashboard, LogOut, MessageCircle, Moon, Shield, Sun, User, Volume2, VolumeX } from "lucide-react";
+import { BarChart3, Coins, History, LayoutDashboard, LogOut, MessageCircle, Moon, Shield, Sun, User, Users, Volume2, VolumeX } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { APP_VERSION } from "../constants/app";
 import type { AppTheme, AppUser, AppView } from "../types";
@@ -26,6 +26,7 @@ export function Shell({ currentUser, view, onViewChange, muted, onToggleMuted, c
   const items: NavItem[] = [
     { view: "dashboard", label: t("shell:nav.dashboard"), icon: LayoutDashboard },
     { view: "poopcoins", label: t("shell:nav.poopcoins"), icon: Coins },
+    { view: "groups", label: t("shell:nav.groups", { defaultValue: "Grupos" }), icon: Users },
     { view: "cuiter", label: t("shell:nav.cuiter"), icon: MessageCircle },
     { view: "history", label: t("shell:nav.history"), icon: History },
     { view: "stats", label: t("shell:nav.stats"), icon: BarChart3, mobile: false },

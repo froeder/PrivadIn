@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
-import { KeyRound, Lock, Mail, Sparkles } from "lucide-react";
+import { Lock, Mail, Sparkles, Users } from "lucide-react";
 import toast from "react-hot-toast";
-import { Trans, useTranslation } from "react-i18next";
+import { useTranslation } from "react-i18next";
 import { APP_VERSION } from "../constants/app";
 import { LanguageSwitcher } from "../components/LanguageSwitcher";
 import { useAuth } from "../contexts/AuthContext";
@@ -21,49 +21,31 @@ export function LoginPage({
   const { login, loading, pendingTermsUser, acceptPendingTerms, logout } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [approvalCode, setApprovalCode] = useState("");
-  const [needsCode, setNeedsCode] = useState(false);
-  const [requestedEmail, setRequestedEmail] = useState("");
+  const [groupCode, setGroupCode] = useState("");
   const [termsChecked, setTermsChecked] = useState(false);
   const termsText = getCurrentTermsText(appSettings);
   const termsVersion = getCurrentTermsVersion(appSettings);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    const emailForLogin = needsCode ? requestedEmail || email : email;
 
     try {
-      const result = await login(
-        emailForLogin,
-        password,
-        needsCode ? approvalCode : undefined,
-      );
-      if (result.status === "access_code_required") {
-        setNeedsCode(true);
-        setRequestedEmail(result.request.email);
-        setEmail(result.request.email);
-        toast.success(t("toastRequestCreated"));
-        return;
-      }
+      const result = await login(email, password, groupCode);
 
       toast.success(
         result.status === "terms_required"
           ? t("termsRequiredToast", { version: termsVersion })
-          : needsCode
-            ? t("toastWelcome")
-            : t("toastAuthorized"),
+          : t("toastAuthorized"),
       );
     } catch (error) {
       console.error(error);
       if (error instanceof AuthLoginError) {
-        toast.error(loginErrorMessage(error.code, needsCode));
+        toast.error(loginErrorMessage(error.code, false));
         return;
       }
       toast.error(
         isFirebaseConfigured
-          ? needsCode
-            ? t("fallbackCodeValidation")
-            : t("fallbackAccessRequest")
+          ? t("fallbackAccessRequest")
           : t("firebaseConfigMissing"),
       );
     }
@@ -190,9 +172,7 @@ export function LoginPage({
                 🚽
               </div>
               <h2 className="mt-4 text-2xl font-black text-fg">{t("cardTitle")}</h2>
-              <p className="mt-1 text-sm text-fg-muted">
-                {t("cardDescription")}
-              </p>
+              <p className="mt-1 text-sm text-fg-muted">{t("cardDescription")}</p>
             </div>
 
             <label className="mb-4 block">
@@ -205,7 +185,6 @@ export function LoginPage({
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder={t("emailPlaceholder")}
-                  readOnly={needsCode && Boolean(requestedEmail)}
                   required
                 />
               </span>
@@ -220,85 +199,38 @@ export function LoginPage({
                   type="password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  placeholder={needsCode ? t("passwordPlaceholderWithCode") : t("passwordPlaceholder")}
+                  placeholder={t("passwordPlaceholder")}
                   required
                 />
               </span>
             </label>
 
-            {needsCode ? (
-              <div className="mb-6 rounded-2xl border border-accent/30 bg-accent-soft/30 p-4">
-                <div className="mb-3 flex items-start gap-3">
-                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent text-accent-fg">
-                    <KeyRound size={18} />
-                  </div>
-                  <div>
-                    <p className="font-black text-accent-strong">{t("approvalTitle")}</p>
-                    <p className="mt-1 text-sm text-fg-soft">
-                      <Trans
-                        i18nKey="login:approvalDescription"
-                        values={{ email: requestedEmail || email }}
-                        components={{ strong: <span className="font-bold text-fg" /> }}
-                      />
-                    </p>
-                  </div>
-                </div>
-
-                <label className="block">
-                  <span className="mb-2 block text-sm font-bold text-fg-soft">{t("approvalCodeLabel")}</span>
-                  <span className="flex items-center gap-3 rounded-2xl border border-accent/20 bg-canvas-elevated/70 px-4 py-3">
-                    <KeyRound className="text-accent-strong" size={18} />
-                    <input
-                      className="w-full bg-transparent font-mono tracking-[0.18em] text-fg outline-none placeholder:tracking-normal placeholder:text-fg-muted"
-                      type="text"
-                      value={approvalCode}
-                      onChange={(event) => setApprovalCode(event.target.value.toUpperCase())}
-                      placeholder="ABC123"
-                      required={needsCode}
-                      maxLength={6}
-                      autoFocus
-                    />
-                  </span>
-                </label>
-              </div>
-            ) : null}
+            <label className="mb-6 block">
+              <span className="mb-2 block text-sm font-bold text-fg-soft">
+                {t("groupCodeLabel", { defaultValue: "Código do grupo (opcional)" })}
+              </span>
+              <span className="flex items-center gap-3 rounded-2xl border border-line/10 bg-field px-4 py-3">
+                <Users className="text-accent-strong" size={18} />
+                <input
+                  className="w-full bg-transparent font-mono tracking-[0.12em] text-fg outline-none placeholder:font-sans placeholder:tracking-normal placeholder:text-fg-muted"
+                  type="text"
+                  value={groupCode}
+                  onChange={(event) => setGroupCode(event.target.value.trim().toUpperCase())}
+                  placeholder={t("groupCodePlaceholder", { defaultValue: "Ex: ABCD1234" })}
+                  maxLength={32}
+                />
+              </span>
+              <p className="mt-2 text-xs text-fg-muted">
+                {t("groupCodeHint", { defaultValue: "Se você recebeu um ID de grupo, sua conta já entra nele ao ser criada." })}
+              </p>
+            </label>
 
             <button
               disabled={loading}
               className="w-full rounded-2xl bg-accent px-5 py-4 text-base font-black text-accent-fg shadow-accent transition hover:-translate-y-0.5 hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loading
-                ? t("submitLoading")
-                : needsCode
-                  ? t("submitWithCode")
-                  : t("submitDefault")}
+              {loading ? t("submitLoading") : t("submitDefault")}
             </button>
-            {needsCode ? (
-              <button
-                type="button"
-                className="mt-3 w-full rounded-2xl border border-line/10 px-5 py-3 text-sm font-bold text-fg-soft transition hover:bg-panel-strong hover:text-fg"
-                onClick={() => {
-                  setNeedsCode(false);
-                  setApprovalCode("");
-                  setRequestedEmail("");
-                }}
-              >
-                {t("backToNormal")}
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="mt-3 w-full rounded-2xl border border-line/10 px-5 py-3 text-sm font-bold text-fg-soft transition hover:bg-panel-strong hover:text-fg"
-                onClick={() => {
-                  setNeedsCode(true);
-                  setRequestedEmail(email.trim());
-                  setApprovalCode("");
-                  toast(t("toastCodeHint"), { icon: "🔑" });
-                }}
-              >
-                {t("alreadyHaveCode")}
-              </button>
-            )}
             <p className="mt-4 text-center text-xs text-fg-muted">
               {isFirebaseConfigured
                 ? t("footerConfigured")

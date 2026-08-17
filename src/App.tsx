@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Toaster, toast } from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
@@ -6,10 +6,10 @@ import {
   useAdminAuditLogs,
   useAllLogs,
   useAppSettings,
+  useGroups,
   usePoopcoinSupply,
   usePoopcoinTransactions,
   useRegistrationAttempts,
-  useRegistrationRequests,
   useUserLogs,
   useUsers,
 } from "./hooks/useFirestoreData";
@@ -24,14 +24,17 @@ import { EditProfilePage } from "./pages/EditProfilePage";
 import { UserProfilePage } from "./pages/UserProfilePage";
 import { CuiterPage } from "./pages/CuiterPage";
 import { PoopcoinsPage } from "./pages/PoopcoinsPage";
+import { GroupsPage } from "./pages/GroupsPage";
 import { useTheme } from "./hooks/useTheme";
 import type { AppView } from "./types";
+import { getDueWeeklyResetKey, runAutomaticWeeklyReset } from "./services/poopService";
 
 function AppContent() {
   const { t } = useTranslation("common");
   const { user, loading, logout, currentAppSettings } = useAuth();
   const { appSettings } = useAppSettings();
-  const { users, rankedUsers } = useUsers(Boolean(user));
+  const { users, rankedUsers, logs: rankingLogs } = useUsers(Boolean(user));
+  const groups = useGroups(Boolean(user));
   const [view, setView] = useState<AppView>("dashboard");
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
   const [previousView, setPreviousView] = useState<AppView>("dashboard");
@@ -43,6 +46,7 @@ function AppContent() {
   const poopcoinTransactions = usePoopcoinTransactions(Boolean(user) && (view === "poopcoins" || view === "admin"));
   const poopcoinSupply = usePoopcoinSupply(Boolean(user) && (view === "poopcoins" || view === "admin"));
   const { muted, toggleMuted, playFlush } = useSound();
+  const automaticResetAttemptKey = useRef<string | null>(null);
 
   const liveUser = useMemo(() => {
     if (!user) return null;
@@ -74,8 +78,28 @@ function AppContent() {
     }
   }, [liveUser, logout, t]);
 
+  useEffect(() => {
+    if (!liveUser || users.length === 0) return;
+
+    const resetKey = getDueWeeklyResetKey();
+    if (appSettings.lastWeeklyResetKey === resetKey || automaticResetAttemptKey.current === resetKey) {
+      return;
+    }
+
+    automaticResetAttemptKey.current = resetKey;
+    void runAutomaticWeeklyReset(liveUser, rankingLogs, users, groups)
+      .then((didReset) => {
+        if (didReset) {
+          toast.success("Reset semanal automatico concluido.");
+        }
+      })
+      .catch((error) => {
+        console.error("Erro no reset semanal automatico:", error);
+        automaticResetAttemptKey.current = null;
+      });
+  }, [appSettings.lastWeeklyResetKey, groups, liveUser, rankingLogs, users]);
+
   const adminAuditLogs = useAdminAuditLogs(liveUser?.role === "admin");
-  const registrationRequests = useRegistrationRequests(liveUser?.role === "admin");
   const registrationAttempts = useRegistrationAttempts(liveUser?.role === "admin");
 
   if (loading) {
@@ -136,6 +160,15 @@ function AppContent() {
           supply={poopcoinSupply}
         />
       ) : null}
+      {view === "groups" ? (
+        <GroupsPage
+          user={liveUser}
+          users={users}
+          logs={rankingLogs}
+          groups={groups}
+          onViewProfile={handleViewProfile}
+        />
+      ) : null}
       {view === "history" ? <HistoryPage logs={userLogs} /> : null}
       {view === "stats" ? <StatsPage user={liveUser} logs={userLogs} allLogs={allLogs} rankedUsers={rankedUsers} overallRankingVisible={appSettings.overallRankingVisible === true} /> : null}
       {view === "cuiter" ? (
@@ -153,8 +186,8 @@ function AppContent() {
           logs={allLogs}
           appSettings={appSettings}
           auditLogs={adminAuditLogs}
-          registrationRequests={registrationRequests}
           registrationAttempts={registrationAttempts}
+          groups={groups}
           poopcoinTransactions={poopcoinTransactions}
           poopcoinSupply={poopcoinSupply}
         />

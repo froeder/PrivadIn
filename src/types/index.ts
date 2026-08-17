@@ -3,7 +3,7 @@ import type { Timestamp } from "@firebase/firestore";
 export type AppLanguage = "pt-BR" | "en-US" | "es-ES" | "zh-Hans" | "ar" | "jam-JM" | "pap-CW";
 export type AppTheme = "light" | "dark";
 
-export type AppView = "dashboard" | "poopcoins" | "history" | "stats" | "cuiter" | "admin" | "profile" | "edit-profile";
+export type AppView = "dashboard" | "poopcoins" | "groups" | "history" | "stats" | "cuiter" | "admin" | "profile" | "edit-profile";
 
 export type UserRole = "player" | "admin";
 
@@ -49,6 +49,21 @@ export interface AppUser {
   poopcoinBalance?: number;
   poopcoinMigratedAt?: Timestamp;
   bio?: string;
+  ownedGroupId?: string | null;
+}
+
+export interface RankingGroup {
+  id: string;
+  name: string;
+  description: string;
+  ownerId: string;
+  memberIds: string[];
+  memberCount: number;
+  edition: number;
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
+  deletedAt?: Timestamp | null;
+  deletedBy?: string | null;
 }
 
 export interface PoopLog {
@@ -130,6 +145,9 @@ export interface AppSettings {
   cuiterPostCost: number;
   edition: number;
   overallRankingVisible?: boolean;
+  lastWeeklyResetKey?: string;
+  lastWeeklyResetAt?: Timestamp;
+  lastWeeklyResetBy?: string;
   termsOfUseText?: string;
   termsOfUseVersion?: number;
   termsOfUseUpdatedAt?: Timestamp;
@@ -219,6 +237,7 @@ export interface RegistrationAttempt {
   status: RegistrationAttemptStatus;
   createdAt: Timestamp;
   approvalCodeProvided?: string;
+  groupCodeProvided?: string;
   requestId?: string;
   message?: string;
 }

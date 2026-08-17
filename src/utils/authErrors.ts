@@ -10,6 +10,7 @@ export type AuthLoginErrorCode =
   | "wrong_password"
   | "deactivated_user"
   | "firebase_not_configured"
+  | "invalid_group_code"
   | "unknown";
 
 export class AuthLoginError extends Error {
@@ -42,6 +43,8 @@ export function loginErrorMessage(code: AuthLoginErrorCode, needsCode: boolean) 
       return i18n.t("auth:deactivated_user");
     case "firebase_not_configured":
       return i18n.t("auth:firebase_not_configured");
+    case "invalid_group_code":
+      return i18n.t("auth:invalid_group_code", { defaultValue: "Grupo nao encontrado. Confira o codigo recebido." });
     default:
       return i18n.t(needsCode ? "auth:unknown_with_code" : "auth:unknown_without_code");
   }

@@ -9,11 +9,12 @@ import {
   orderBy,
   query,
   runTransaction,
+  serverTimestamp,
   where,
   writeBatch,
 } from "@firebase/firestore";
 import { db } from "./firebase";
-import type { AdminAuditAction, AppUser, BonusTimeRange, PoopLocation, PoopLog } from "../types";
+import type { AdminAuditAction, AppUser, BonusTimeRange, PoopLocation, PoopLog, RankingGroup } from "../types";
 import {
   DAILY_LIMIT,
   calculateDailyStreak,
@@ -591,10 +592,30 @@ export async function removeLog(admin: AppUser, log: PoopLog) {
 const APP_SETTINGS_DOC_ID = "global";
 const appSettingsDocRef = doc(db, "app_settings", APP_SETTINGS_DOC_ID);
 
-export async function resetWeeklyRanking(admin: AppUser, logs: PoopLog[], users: AppUser[]) {
+function weeklyResetKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function getDueWeeklyResetKey(now = new Date()) {
+  const sundayAt23 = new Date(now);
+  sundayAt23.setHours(23, 0, 0, 0);
+  sundayAt23.setDate(now.getDate() - now.getDay());
+
+  if (now.getTime() < sundayAt23.getTime()) {
+    sundayAt23.setDate(sundayAt23.getDate() - 7);
+  }
+
+  return weeklyResetKey(sundayAt23);
+}
+
+export async function resetWeeklyRanking(admin: AppUser, logs: PoopLog[], users: AppUser[], groups: RankingGroup[] = []) {
   const settingsSnapshot = await getDoc(appSettingsDocRef);
   const currentEdition = Number(settingsSnapshot.data()?.edition ?? 17);
   const nextEdition = Math.max(1, Math.trunc(currentEdition)) + 1;
+  const resetKey = getDueWeeklyResetKey();
 
   const batch = writeBatch(db);
   users.forEach((user) => {
@@ -603,13 +624,22 @@ export async function resetWeeklyRanking(admin: AppUser, logs: PoopLog[], users:
   logs.forEach((log) => {
     if (log.isWeeklyActive) {
       batch.update(doc(db, "poop_logs", log.id), { isWeeklyActive: false });
-    }
+      }
+  });
+  groups.forEach((group) => {
+    batch.update(doc(db, "groups", group.id), {
+      edition: Math.max(1, Math.trunc(Number(group.edition ?? currentEdition))) + 1,
+      updatedAt: Timestamp.now(),
+    });
   });
   batch.set(
     appSettingsDocRef,
     {
       edition: nextEdition,
       overallRankingVisible: true,
+      lastWeeklyResetKey: resetKey,
+      lastWeeklyResetAt: Timestamp.now(),
+      lastWeeklyResetBy: admin.uid,
       updatedAt: Timestamp.now(),
       updatedBy: admin.uid,
     },
@@ -624,4 +654,69 @@ export async function resetWeeklyRanking(admin: AppUser, logs: PoopLog[], users:
     }),
   );
   await batch.commit();
+}
+
+export async function runAutomaticWeeklyReset(
+  actor: AppUser,
+  logs: PoopLog[],
+  users: AppUser[],
+  groups: RankingGroup[],
+  now = new Date(),
+) {
+  const resetKey = getDueWeeklyResetKey(now);
+  const serverNow = serverTimestamp();
+
+  return runTransaction(db, async (transaction) => {
+    const settingsSnapshot = await transaction.get(appSettingsDocRef);
+    const settings = settingsSnapshot.data();
+
+    if (settings?.lastWeeklyResetKey === resetKey) {
+      return false;
+    }
+
+    const currentEdition = Number(settings?.edition ?? 17);
+    const nextEdition = Math.max(1, Math.trunc(currentEdition)) + 1;
+
+    users.forEach((user) => {
+      transaction.update(doc(db, "users", user.uid), { weeklyPoints: 0 });
+    });
+
+    logs.forEach((log) => {
+      if (log.isWeeklyActive) {
+        transaction.update(doc(db, "poop_logs", log.id), { isWeeklyActive: false });
+      }
+    });
+
+    groups.forEach((group) => {
+      transaction.update(doc(db, "groups", group.id), {
+        edition: Math.max(1, Math.trunc(Number(group.edition ?? currentEdition))) + 1,
+        updatedAt: serverNow,
+      });
+    });
+
+    transaction.set(
+      appSettingsDocRef,
+      {
+        edition: nextEdition,
+        overallRankingVisible: true,
+        lastWeeklyResetKey: resetKey,
+        lastWeeklyResetAt: serverNow,
+        lastWeeklyResetBy: actor.uid,
+        updatedAt: serverNow,
+        updatedBy: actor.uid,
+      },
+      { merge: true },
+    );
+
+    transaction.set(
+      doc(adminLogsRef),
+      createAuditLog({
+        action: "reset_weekly",
+        admin: actor,
+        edition: nextEdition,
+      }),
+    );
+
+    return true;
+  });
 }

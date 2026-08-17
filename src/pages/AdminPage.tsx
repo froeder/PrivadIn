@@ -12,7 +12,7 @@ import type {
   PoopcoinSupplySummary,
   PoopcoinTransaction,
   RegistrationAttempt,
-  RegistrationRequest,
+  RankingGroup,
 } from "../types";
 import { adjustUserPoints, removeLog, resetWeeklyRanking } from "../services/poopService";
 import {
@@ -44,6 +44,7 @@ import {
   recalculatePoopcoinSupply,
   reversePoopcoinTransaction,
 } from "../services/poopcoinService";
+import { deleteGroup } from "../services/groupService";
 
 function actionLabel(action: AdminAuditLog["action"], t: (key: string) => string) {
   return t(`actionLabels.${action}`);
@@ -95,8 +96,8 @@ export function AdminPage({
   logs,
   appSettings,
   auditLogs,
-  registrationRequests,
   registrationAttempts,
+  groups,
   poopcoinTransactions,
   poopcoinSupply,
 }: {
@@ -105,8 +106,8 @@ export function AdminPage({
   logs: PoopLog[];
   appSettings: AppSettings;
   auditLogs: AdminAuditLog[];
-  registrationRequests: RegistrationRequest[];
   registrationAttempts: RegistrationAttempt[];
+  groups: RankingGroup[];
   poopcoinTransactions: PoopcoinTransaction[];
   poopcoinSupply: PoopcoinSupplySummary;
 }) {
@@ -248,6 +249,16 @@ export function AdminPage({
     );
   }
 
+  async function runDeleteGroup(group: RankingGroup) {
+    const confirmed = window.confirm(`Excluir o grupo "${group.name}"? Esta acao remove o ranking privado para todos os membros.`);
+    if (!confirmed) return;
+
+    await runAdminAction(
+      () => deleteGroup(admin, group),
+      "Grupo excluido.",
+    );
+  }
+
   async function runPoopcoinSupplyRecalculation() {
     await runAdminAction(
       () => recalculatePoopcoinSupply(admin).then(() => undefined),
@@ -269,7 +280,7 @@ export function AdminPage({
             </div>
             <button
               disabled={busy}
-              onClick={() => runAdminAction(() => resetWeeklyRanking(admin, logs, users), t("toast.weeklyResetSuccess"))}
+              onClick={() => runAdminAction(() => resetWeeklyRanking(admin, logs, users, groups), t("toast.weeklyResetSuccess"))}
               className="rounded-2xl bg-accent px-5 py-3 font-black text-accent-fg transition hover:bg-accent-strong disabled:opacity-60"
             >
               {t("actions.weeklyReset")}
@@ -479,40 +490,48 @@ export function AdminPage({
 
       <Card className="order-60">
         <CollapsibleSection
-          eyebrow={t("requestsEyebrow")}
-          title={t("requestsTitle")}
-          description={t("requestsDescription")}
+          eyebrow="Grupos"
+          title="Grupos criados"
+          description="O admin do sistema pode acompanhar e excluir grupos."
         >
           <div className="grid gap-3 lg:grid-cols-2">
-          {registrationRequests.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-line/15 p-8 text-center text-fg-muted lg:col-span-2">
-              {t("requestsEmpty")}
-            </div>
-          ) : (
-            registrationRequests.slice(0, 12).map((request) => (
-              <div
-                key={request.id}
-                className="rounded-2xl border border-line/10 bg-panel-strong/40 p-4"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate font-black text-fg">{request.email}</p>
-                    <p className="text-xs text-fg-muted">{formatDateTime(request.createdAt)}</p>
-                  </div>
-                  <span className="rounded-full bg-panel px-2 py-1 text-xs font-black text-fg-soft">
-                    {request.status === "pending" ? t("requestStatusPending") : t("requestStatusUsed")}
-                  </span>
-                </div>
-                <div className="mt-4 rounded-2xl bg-canvas-elevated/75 p-4 text-center">
-                  <p className="text-xs font-bold uppercase tracking-[0.24em] text-fg-muted">{t("requestCodeLabel")}</p>
-                  <p className="mt-1 font-mono text-3xl font-black tracking-[0.18em] text-accent-strong">
-                    {request.approvalCode}
-                  </p>
-                </div>
+            {groups.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-line/15 p-8 text-center text-fg-muted lg:col-span-2">
+                Nenhum grupo criado ainda.
               </div>
-            ))
-          )}
-        </div>
+            ) : (
+              groups.map((group) => {
+                const owner = usersById.get(group.ownerId);
+                return (
+                  <div
+                    key={group.id}
+                    className="grid gap-4 rounded-2xl border border-line/10 bg-panel-strong/40 p-4 sm:grid-cols-[1fr_auto] sm:items-start"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="truncate font-black text-fg">{group.name}</p>
+                        <span className="rounded-full bg-panel px-2 py-1 text-xs font-black text-fg-soft">
+                          {group.memberCount} membro(s)
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm text-fg-muted">{group.description || "Sem descricao."}</p>
+                      <p className="mt-2 text-xs text-fg-muted">
+                        ID <span className="font-mono text-accent-strong">{group.id}</span> · admin{" "}
+                        <span className="text-fg-soft">{owner?.name ?? group.ownerId}</span> · {formatDateTime(group.createdAt)}
+                      </p>
+                    </div>
+                    <button
+                      disabled={busy}
+                      onClick={() => void runDeleteGroup(group)}
+                      className="rounded-xl bg-danger-soft/45 px-3 py-2 text-sm font-black text-danger transition hover:bg-danger-soft/65 disabled:opacity-60"
+                    >
+                      Excluir
+                    </button>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </CollapsibleSection>
       </Card>
 
@@ -546,13 +565,13 @@ export function AdminPage({
                     ) : null}
                   </div>
                   <div className="text-left md:text-right">
-                    {attempt.approvalCodeProvided ? (
+                    {attempt.groupCodeProvided || attempt.approvalCodeProvided ? (
                       <>
                         <p className="text-xs font-bold uppercase tracking-[0.2em] text-fg-muted">
                           {t("attemptCodeUsed")}
                         </p>
                         <p className="font-mono text-lg font-black tracking-[0.16em] text-accent-strong">
-                          {attempt.approvalCodeProvided}
+                          {attempt.groupCodeProvided ?? attempt.approvalCodeProvided}
                         </p>
                       </>
                     ) : (

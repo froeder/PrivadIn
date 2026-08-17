@@ -51,6 +51,7 @@ export const resources = {
         history: "Histórico",
         stats: "Estatísticas",
         cuiter: "Cuiter",
+        groups: "Grupos",
         profile: "Perfil",
         admin: "Admin",
       },
@@ -68,21 +69,24 @@ export const resources = {
       featureAntiFraud_one: "Anti-fraude {{count}} min",
       featureAntiFraud_other: "Anti-fraude {{count}} min",
       cardTitle: "Bater ponto no banheiro",
-      cardDescription: "Entre normalmente ou solicite um código individual ao admin.",
+      cardDescription: "Entre normalmente. Se o email ainda nao existir, a conta e criada na hora.",
       emailLabel: "Email",
       emailPlaceholder: "voce@empresa.com",
       passwordLabel: "Senha",
       passwordPlaceholder: "senha secreta do trono",
       passwordPlaceholderWithCode: "crie uma senha (não é o código)",
+      groupCodeLabel: "Código do grupo (opcional)",
+      groupCodePlaceholder: "Ex: ABCD1234",
+      groupCodeHint: "Se voce recebeu um ID de grupo, sua conta ja entra nele ao ser criada.",
       approvalTitle: "Acesso aguardando código",
       approvalDescription: "Peça ao admin o código exibido para <strong>{{email}}</strong>.",
       approvalCodeLabel: "Código do admin",
       submitLoading: "Consultando o cadastro...",
       submitWithCode: "VALIDAR CÓDIGO E ENTRAR",
-      submitDefault: "ENTRAR OU SOLICITAR ACESSO",
+      submitDefault: "ENTRAR OU CRIAR CONTA",
       backToNormal: "Voltar para login normal",
       alreadyHaveCode: "Já tenho código",
-      footerConfigured: "Sem código de admin, sem campeonato. Democracia, mas com portaria.",
+      footerConfigured: "Sem aprovacao manual: email novo ja nasce competidor.",
       footerNotConfigured: "Copie .env.example para .env e preencha as chaves do Firebase.",
       toastRequestCreated: "Pedido criado. Peça o código para um admin do PrivadIn.",
       toastWelcome: "Cadastro liberado. Bem-vindo ao campeonato.",
@@ -91,7 +95,7 @@ export const resources = {
         "Use o código do admin no campo abaixo. A senha é a que você escolher, não o código.",
       fallbackCodeValidation:
         "Não foi possível validar o código. Confira email, senha e código com o admin.",
-      fallbackAccessRequest: "Não achei acesso ativo. Vou preparar uma solicitação de código.",
+      fallbackAccessRequest: "Nao consegui entrar ou criar a conta. Confira email, senha e codigo de grupo.",
       firebaseConfigMissing: "Configure o .env com as credenciais Firebase antes de entrar.",
     },
     dashboard: {
@@ -357,9 +361,9 @@ export const resources = {
       attemptsEyebrow: "Tentativas de cadastro",
       attemptsTitle: "Histórico de criação de conta",
       attemptsDescription:
-        "Cada tentativa gera um documento próprio no Firestore, inclusive código inválido.",
+        "Cada criação de conta gera um documento próprio no Firestore.",
       attemptsEmpty: "Nenhuma tentativa registrada ainda.",
-      attemptCodeUsed: "Código usado",
+      attemptCodeUsed: "Codigo/grupo usado",
       attemptWithoutCode: "Sem código",
       manualEyebrow: "Ajuste manual",
       manualTitle: "Pontuação dos usuários",
@@ -411,6 +415,7 @@ export const resources = {
     },
     auth: {
       invalid_code: "Código incorreto. Confira com o admin e tente de novo.",
+      invalid_group_code: "Grupo nao encontrado. Confira o codigo recebido.",
       no_request_with_code:
         "Não achei pedido para este email. Clique em ENTRAR primeiro para gerar a solicitação.",
       no_request_without_code: "Não achei acesso ativo. Vou preparar uma solicitação de código.",
@@ -423,7 +428,7 @@ export const resources = {
       firebase_not_configured: "Configure o .env com as credenciais Firebase antes de entrar.",
       unknown_with_code:
         "Não foi possível validar o código. Confira email, senha e código com o admin.",
-      unknown_without_code: "Não achei acesso ativo. Vou preparar uma solicitação de código.",
+      unknown_without_code: "Nao consegui entrar ou criar a conta. Confira os dados e tente de novo.",
     },
     services: {
       poop: {

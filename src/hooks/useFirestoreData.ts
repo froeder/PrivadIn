@@ -8,6 +8,7 @@ import type {
   PoopcoinSupplySummary,
   PoopcoinTransaction,
   RankedUser,
+  RankingGroup,
   RegistrationAttempt,
   RegistrationRequest,
 } from "../types";
@@ -33,6 +34,7 @@ import {
   poopcoinChainHeadRef,
   poopcoinTransactionsQuery,
 } from "../services/poopcoinService";
+import { groupsQuery } from "../services/groupService";
 
 function sortLogs(logs: PoopLog[]) {
   return [...logs].sort((a, b) => {
@@ -85,7 +87,7 @@ export function useUsers(enabled = true) {
   }, [enabled]);
 
   const rankedUsers = useMemo<RankedUser[]>(() => rankUsers(users, logs), [logs, users]);
-  return { users, rankedUsers, loading };
+  return { users, rankedUsers, logs, loading };
 }
 
 export function useUserLogs(uid?: string, enabled = true) {
@@ -213,6 +215,29 @@ export function useRegistrationAttempts(enabled = true) {
   }, [enabled]);
 
   return attempts;
+}
+
+export function useGroups(enabled = true) {
+  const [groups, setGroups] = useState<RankingGroup[]>([]);
+
+  useEffect(() => {
+    if (!enabled || !isFirebaseConfigured) {
+      setGroups([]);
+      return;
+    }
+
+    return onSnapshot(
+      groupsQuery(),
+      (snapshot) => {
+        setGroups(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as RankingGroup));
+      },
+      (error) => {
+        console.error("Erro ao ler grupos:", error);
+      },
+    );
+  }, [enabled]);
+
+  return groups;
 }
 
 export function useAppSettings(enabled = true) {

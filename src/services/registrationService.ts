@@ -44,12 +44,14 @@ export async function createRegistrationAttempt({
   email,
   status,
   approvalCodeProvided,
+  groupCodeProvided,
   requestId,
   message,
 }: {
   email: string;
   status: RegistrationAttemptStatus;
   approvalCodeProvided?: string;
+  groupCodeProvided?: string;
   requestId?: string;
   message?: string;
 }) {
@@ -57,6 +59,7 @@ export async function createRegistrationAttempt({
     email: normalizeEmail(email),
     status,
     approvalCodeProvided: approvalCodeProvided?.trim().toUpperCase() ?? null,
+    groupCodeProvided: groupCodeProvided?.trim().toUpperCase() ?? null,
     requestId: requestId ?? null,
     message: message ?? null,
     createdAt: Timestamp.now(),

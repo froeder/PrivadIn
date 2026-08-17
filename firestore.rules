@@ -27,7 +27,7 @@ service cloud.firestore {
     function userProtectedFields() {
       return [
         "uid", "email", "role", "createdAt",
-        "isActive", "deactivatedAt", "deactivatedBy"
+        "isActive", "deactivatedAt", "deactivatedBy", "ownedGroupId"
       ];
     }
 
@@ -38,6 +38,142 @@ service cloud.firestore {
 
     function changedOnly(fields) {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields);
+    }
+
+    function autoResetSettingsPath() {
+      return /databases/$(database)/documents/app_settings/global;
+    }
+
+    function autoResetCommittedByRequester() {
+      return signedIn()
+        && existsAfter(autoResetSettingsPath())
+        && getAfter(autoResetSettingsPath()).data.lastWeeklyResetBy == request.auth.uid
+        && getAfter(autoResetSettingsPath()).data.lastWeeklyResetAt == request.time;
+    }
+
+    function validResetKey(key) {
+      return key is string && key.matches("^\\d{4}-\\d{2}-\\d{2}$");
+    }
+
+    function canAutoResetSettings() {
+      return signedIn()
+        && changedOnly([
+          "edition", "overallRankingVisible", "lastWeeklyResetKey",
+          "lastWeeklyResetAt", "lastWeeklyResetBy", "updatedAt", "updatedBy"
+        ])
+        && request.resource.data.edition is int
+        && request.resource.data.edition == resource.data.edition + 1
+        && request.resource.data.overallRankingVisible == true
+        && validResetKey(request.resource.data.lastWeeklyResetKey)
+        && request.resource.data.lastWeeklyResetKey != resource.data.lastWeeklyResetKey
+        && request.resource.data.lastWeeklyResetAt == request.time
+        && request.resource.data.lastWeeklyResetBy == request.auth.uid
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.updatedBy == request.auth.uid;
+    }
+
+    function canAutoResetUserWeeklyPoints() {
+      return signedIn()
+        && changedOnly(["weeklyPoints"])
+        && request.resource.data.weeklyPoints == 0
+        && autoResetCommittedByRequester();
+    }
+
+    function canAutoResetPoopLog() {
+      return signedIn()
+        && changedOnly(["isWeeklyActive"])
+        && resource.data.isWeeklyActive == true
+        && request.resource.data.isWeeklyActive == false
+        && autoResetCommittedByRequester();
+    }
+
+    function currentUserPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function userHasNoOwnedGroup() {
+      return !("ownedGroupId" in get(currentUserPath()).data)
+        || get(currentUserPath()).data.ownedGroupId == null;
+    }
+
+    function canClaimOwnedGroup(userId) {
+      return isOwner(userId)
+        && changedOnly(["ownedGroupId"])
+        && userHasNoOwnedGroup()
+        && request.resource.data.ownedGroupId is string
+        && existsAfter(/databases/$(database)/documents/groups/$(request.resource.data.ownedGroupId))
+        && getAfter(/databases/$(database)/documents/groups/$(request.resource.data.ownedGroupId)).data.ownerId == request.auth.uid;
+    }
+
+    function validGroupName(name) {
+      return name is string && name.size() > 0 && name.size() <= 48;
+    }
+
+    function validGroupDescription(description) {
+      return description is string && description.size() <= 220;
+    }
+
+    function validGroupMembers(memberIds) {
+      return memberIds is list && memberIds.size() >= 1 && memberIds.size() <= 200;
+    }
+
+    function validGroupData(data) {
+      return data.keys().hasOnly([
+          "name", "description", "ownerId", "memberIds", "memberCount",
+          "edition", "createdAt", "updatedAt", "deletedAt", "deletedBy"
+        ])
+        && validGroupName(data.name)
+        && validGroupDescription(data.description)
+        && data.ownerId is string
+        && data.ownerId.size() > 0
+        && data.ownerId.size() <= 128
+        && validGroupMembers(data.memberIds)
+        && data.memberCount is int
+        && data.memberCount == data.memberIds.size()
+        && data.edition is int
+        && data.edition >= 1
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && (!("deletedAt" in data) || data.deletedAt == null || data.deletedAt is timestamp)
+        && (!("deletedBy" in data) || data.deletedBy == null || data.deletedBy is string);
+    }
+
+    function canCreateGroup(groupId) {
+      return signedIn()
+        && validGroupData(request.resource.data)
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.memberIds.size() == 1
+        && request.resource.data.memberIds[0] == request.auth.uid
+        && request.resource.data.memberCount == 1
+        && userHasNoOwnedGroup()
+        && getAfter(currentUserPath()).data.ownedGroupId == groupId;
+    }
+
+    function canJoinGroup() {
+      return signedIn()
+        && validGroupData(request.resource.data)
+        && changedOnly(["memberIds", "memberCount", "updatedAt"])
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.memberIds.hasAll(resource.data.memberIds)
+        && !resource.data.memberIds.hasAny([request.auth.uid])
+        && request.resource.data.memberIds.hasAny([request.auth.uid])
+        && request.resource.data.memberIds.size() == resource.data.memberIds.size() + 1
+        && request.resource.data.memberCount == resource.data.memberCount + 1;
+    }
+
+    function canManageGroup() {
+      return signedIn()
+        && validGroupData(request.resource.data)
+        && request.resource.data.ownerId == resource.data.ownerId
+        && (resource.data.ownerId == request.auth.uid || isAdmin());
+    }
+
+    function canAutoResetGroupEdition() {
+      return signedIn()
+        && changedOnly(["edition", "updatedAt"])
+        && request.resource.data.edition == resource.data.edition + 1
+        && request.resource.data.updatedAt == request.time
+        && autoResetCommittedByRequester();
     }
 
     function validPoopcoinHash(hash) {
@@ -172,7 +308,7 @@ service cloud.firestore {
       // Permite criar se for o dono
       allow create: if isOwner(userId) && isPlayerRoleOnCreate();
       // Admin edita tudo. Dono edita o que quiser, desde que não trapaceie os pontos/status
-      allow update: if (isOwner(userId) && ownerKeepsProtectedUserFields()) || isAdmin() || canUpdatePoopcoinBalance(userId);
+      allow update: if (isOwner(userId) && ownerKeepsProtectedUserFields()) || isAdmin() || canUpdatePoopcoinBalance(userId) || canAutoResetUserWeeklyPoints() || canClaimOwnedGroup(userId);
       allow delete: if false;
     }
 
@@ -181,7 +317,8 @@ service cloud.firestore {
       allow read: if signedIn();
       // O usuário logado só pode criar logs para ele mesmo
       allow create: if (signedIn() && request.resource.data.userId == request.auth.uid) || isAdmin();
-      allow update, delete: if isAdmin();
+      allow update: if isAdmin() || canAutoResetPoopLog();
+      allow delete: if isAdmin();
     }
 
     // DADOS PRIVADOS DO USUÁRIO
@@ -191,7 +328,11 @@ service cloud.firestore {
 
     // LOGS DE AUDITORIA (ADMIN)
     match /admin_audit_logs/{auditLogId} {
-      allow create: if isAdmin();
+      allow create: if isAdmin()
+        || (signedIn()
+          && request.resource.data.action == "reset_weekly"
+          && request.resource.data.adminId == request.auth.uid
+          && autoResetCommittedByRequester());
       allow read: if isAdmin() || (signedIn() && resource.data.action == "reset_weekly");
       allow update, delete: if false;
     }
@@ -199,8 +340,17 @@ service cloud.firestore {
     // CONFIGURAÇÕES DO APP
     match /app_settings/{settingId} {
       allow read: if true;
-      allow create, update: if isAdmin() && validOptionalPoopcoinRuleSettings();
+      allow create: if isAdmin() && validOptionalPoopcoinRuleSettings();
+      allow update: if (isAdmin() && validOptionalPoopcoinRuleSettings()) || canAutoResetSettings();
       allow delete: if false;
+    }
+
+    // GRUPOS DE RANKING
+    match /groups/{groupId} {
+      allow read: if signedIn();
+      allow create: if canCreateGroup(groupId);
+      allow update: if canManageGroup() || canJoinGroup() || canAutoResetGroupEdition();
+      allow delete: if isAdmin();
     }
 
     // REQUISIÇÕES DE CADASTRO
