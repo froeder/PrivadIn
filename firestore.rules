@@ -40,53 +40,6 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields);
     }
 
-    function autoResetSettingsPath() {
-      return /databases/$(database)/documents/app_settings/global;
-    }
-
-    function autoResetCommittedByRequester() {
-      return signedIn()
-        && existsAfter(autoResetSettingsPath())
-        && getAfter(autoResetSettingsPath()).data.lastWeeklyResetBy == request.auth.uid
-        && getAfter(autoResetSettingsPath()).data.lastWeeklyResetAt == request.time;
-    }
-
-    function validResetKey(key) {
-      return key is string && key.matches("^\\d{4}-\\d{2}-\\d{2}$");
-    }
-
-    function canAutoResetSettings() {
-      return signedIn()
-        && changedOnly([
-          "edition", "overallRankingVisible", "lastWeeklyResetKey",
-          "lastWeeklyResetAt", "lastWeeklyResetBy", "updatedAt", "updatedBy"
-        ])
-        && request.resource.data.edition is int
-        && request.resource.data.edition == resource.data.edition + 1
-        && request.resource.data.overallRankingVisible == true
-        && validResetKey(request.resource.data.lastWeeklyResetKey)
-        && request.resource.data.lastWeeklyResetKey != resource.data.lastWeeklyResetKey
-        && request.resource.data.lastWeeklyResetAt == request.time
-        && request.resource.data.lastWeeklyResetBy == request.auth.uid
-        && request.resource.data.updatedAt == request.time
-        && request.resource.data.updatedBy == request.auth.uid;
-    }
-
-    function canAutoResetUserWeeklyPoints() {
-      return signedIn()
-        && changedOnly(["weeklyPoints"])
-        && request.resource.data.weeklyPoints == 0
-        && autoResetCommittedByRequester();
-    }
-
-    function canAutoResetPoopLog() {
-      return signedIn()
-        && changedOnly(["isWeeklyActive"])
-        && resource.data.isWeeklyActive == true
-        && request.resource.data.isWeeklyActive == false
-        && autoResetCommittedByRequester();
-    }
-
     function currentUserPath() {
       return /databases/$(database)/documents/users/$(request.auth.uid);
     }
@@ -166,14 +119,6 @@ service cloud.firestore {
         && validGroupData(request.resource.data)
         && request.resource.data.ownerId == resource.data.ownerId
         && (resource.data.ownerId == request.auth.uid || isAdmin());
-    }
-
-    function canAutoResetGroupEdition() {
-      return signedIn()
-        && changedOnly(["edition", "updatedAt"])
-        && request.resource.data.edition == resource.data.edition + 1
-        && request.resource.data.updatedAt == request.time
-        && autoResetCommittedByRequester();
     }
 
     function validPoopcoinHash(hash) {
@@ -308,7 +253,7 @@ service cloud.firestore {
       // Permite criar se for o dono
       allow create: if isOwner(userId) && isPlayerRoleOnCreate();
       // Admin edita tudo. Dono edita o que quiser, desde que não trapaceie os pontos/status
-      allow update: if (isOwner(userId) && ownerKeepsProtectedUserFields()) || isAdmin() || canUpdatePoopcoinBalance(userId) || canAutoResetUserWeeklyPoints() || canClaimOwnedGroup(userId);
+      allow update: if (isOwner(userId) && ownerKeepsProtectedUserFields()) || isAdmin() || canUpdatePoopcoinBalance(userId) || canClaimOwnedGroup(userId);
       allow delete: if false;
     }
 
@@ -317,7 +262,7 @@ service cloud.firestore {
       allow read: if signedIn();
       // O usuário logado só pode criar logs para ele mesmo
       allow create: if (signedIn() && request.resource.data.userId == request.auth.uid) || isAdmin();
-      allow update: if isAdmin() || canAutoResetPoopLog();
+      allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
@@ -328,11 +273,7 @@ service cloud.firestore {
 
     // LOGS DE AUDITORIA (ADMIN)
     match /admin_audit_logs/{auditLogId} {
-      allow create: if isAdmin()
-        || (signedIn()
-          && request.resource.data.action == "reset_weekly"
-          && request.resource.data.adminId == request.auth.uid
-          && autoResetCommittedByRequester());
+      allow create: if isAdmin();
       allow read: if isAdmin() || (signedIn() && resource.data.action == "reset_weekly");
       allow update, delete: if false;
     }
@@ -341,7 +282,7 @@ service cloud.firestore {
     match /app_settings/{settingId} {
       allow read: if true;
       allow create: if isAdmin() && validOptionalPoopcoinRuleSettings();
-      allow update: if (isAdmin() && validOptionalPoopcoinRuleSettings()) || canAutoResetSettings();
+      allow update: if isAdmin() && validOptionalPoopcoinRuleSettings();
       allow delete: if false;
     }
 
@@ -349,7 +290,7 @@ service cloud.firestore {
     match /groups/{groupId} {
       allow read: if signedIn();
       allow create: if canCreateGroup(groupId);
-      allow update: if canManageGroup() || canJoinGroup() || canAutoResetGroupEdition();
+      allow update: if canManageGroup() || canJoinGroup();
       allow delete: if isAdmin();
     }
 

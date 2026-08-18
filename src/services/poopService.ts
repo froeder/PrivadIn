@@ -9,7 +9,6 @@ import {
   orderBy,
   query,
   runTransaction,
-  serverTimestamp,
   where,
   writeBatch,
 } from "@firebase/firestore";
@@ -624,7 +623,7 @@ export async function resetWeeklyRanking(admin: AppUser, logs: PoopLog[], users:
   logs.forEach((log) => {
     if (log.isWeeklyActive) {
       batch.update(doc(db, "poop_logs", log.id), { isWeeklyActive: false });
-      }
+    }
   });
   groups.forEach((group) => {
     batch.update(doc(db, "groups", group.id), {
@@ -654,69 +653,4 @@ export async function resetWeeklyRanking(admin: AppUser, logs: PoopLog[], users:
     }),
   );
   await batch.commit();
-}
-
-export async function runAutomaticWeeklyReset(
-  actor: AppUser,
-  logs: PoopLog[],
-  users: AppUser[],
-  groups: RankingGroup[],
-  now = new Date(),
-) {
-  const resetKey = getDueWeeklyResetKey(now);
-  const serverNow = serverTimestamp();
-
-  return runTransaction(db, async (transaction) => {
-    const settingsSnapshot = await transaction.get(appSettingsDocRef);
-    const settings = settingsSnapshot.data();
-
-    if (settings?.lastWeeklyResetKey === resetKey) {
-      return false;
-    }
-
-    const currentEdition = Number(settings?.edition ?? 17);
-    const nextEdition = Math.max(1, Math.trunc(currentEdition)) + 1;
-
-    users.forEach((user) => {
-      transaction.update(doc(db, "users", user.uid), { weeklyPoints: 0 });
-    });
-
-    logs.forEach((log) => {
-      if (log.isWeeklyActive) {
-        transaction.update(doc(db, "poop_logs", log.id), { isWeeklyActive: false });
-      }
-    });
-
-    groups.forEach((group) => {
-      transaction.update(doc(db, "groups", group.id), {
-        edition: Math.max(1, Math.trunc(Number(group.edition ?? currentEdition))) + 1,
-        updatedAt: serverNow,
-      });
-    });
-
-    transaction.set(
-      appSettingsDocRef,
-      {
-        edition: nextEdition,
-        overallRankingVisible: true,
-        lastWeeklyResetKey: resetKey,
-        lastWeeklyResetAt: serverNow,
-        lastWeeklyResetBy: actor.uid,
-        updatedAt: serverNow,
-        updatedBy: actor.uid,
-      },
-      { merge: true },
-    );
-
-    transaction.set(
-      doc(adminLogsRef),
-      createAuditLog({
-        action: "reset_weekly",
-        admin: actor,
-        edition: nextEdition,
-      }),
-    );
-
-    return true;
-  });
 }

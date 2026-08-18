@@ -74,6 +74,15 @@ export function countThisWeek(logs: PoopLog[]) {
   }).length;
 }
 
+export function sumThisWeekPoints(logs: PoopLog[]) {
+  const start = getWeekStart();
+  return logs.reduce((sum, log) => {
+    const date = toDate(log.createdAt);
+    if (!date || !isAfter(date, start)) return sum;
+    return sum + Math.max(0, Number(log.points) || 0);
+  }, 0);
+}
+
 export function getLastLog(logs: PoopLog[]) {
   return [...logs].sort((a, b) => {
     const aTime = a.createdAt?.toMillis?.() ?? 0;

@@ -8,7 +8,7 @@ import { Card, MetricCard } from "../components/Card";
 import { RankingList } from "../components/RankingList";
 import { useAuth } from "../contexts/AuthContext";
 import type { AppUser, PoopLog, RankedUser } from "../types";
-import { countThisWeek, formatDateTime, formatHour, getCooldownSeconds, getLastLog } from "../utils/date";
+import { countThisWeek, formatDateTime, formatHour, getCooldownSeconds, getLastLog, sumThisWeekPoints } from "../utils/date";
 import { formatNumber } from "../utils/format";
 import { toRoman } from "../utils/roman";
 import { requestCurrentLocation } from "../services/locationService";
@@ -49,6 +49,7 @@ export function DashboardPage({
   const { openTermsReview } = useAuth();
   const currentRank = rankedUsers.find((ranked) => ranked.uid === user.uid);
   const lastLog = getLastLog(userLogs);
+  const visibleWeeklyPoints = userLogs.length > 0 ? sumThisWeekPoints(userLogs) : user.weeklyPoints;
   const logCooldownSeconds = getCooldownSeconds(userLogs, cooldownMinutes);
   const userCooldownSeconds = user.cooldownUntil
     ? Math.max(0, Math.ceil((user.cooldownUntil.toMillis() - Date.now()) / 1000))
@@ -194,7 +195,7 @@ export function DashboardPage({
 
       <section className="order-3 grid grid-cols-2 gap-3 sm:gap-4 md:order-1 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard icon="💩" label={t("metric.total")} value={formatNumber(user.totalPoints)} hint={t("metric.totalHint", { points: formattedPointsPerLog })} />
-        <MetricCard icon="📊" label={t("metric.weeklyPoints")} value={formatNumber(user.weeklyPoints)} hint={t("metric.weeklyPointsHint")} />
+        <MetricCard icon="📊" label={t("metric.weeklyPoints")} value={formatNumber(visibleWeeklyPoints)} hint={t("metric.weeklyPointsHint")} />
         <MetricCard icon="🔥" label={t("metric.streak")} value={`${user.currentDailyStreak}d`} hint={t("metric.streakHint", { count: user.currentWeeklyStreak })} />
         <MetricCard icon="🕘" label={t("metric.lastLog")} value={formatHour(lastLog?.createdAt)} hint={formatDateTime(lastLog?.createdAt)} />
       </section>

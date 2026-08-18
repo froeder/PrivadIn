@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Toaster, toast } from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
@@ -27,7 +27,6 @@ import { PoopcoinsPage } from "./pages/PoopcoinsPage";
 import { GroupsPage } from "./pages/GroupsPage";
 import { useTheme } from "./hooks/useTheme";
 import type { AppView } from "./types";
-import { getDueWeeklyResetKey, runAutomaticWeeklyReset } from "./services/poopService";
 
 function AppContent() {
   const { t } = useTranslation("common");
@@ -46,7 +45,6 @@ function AppContent() {
   const poopcoinTransactions = usePoopcoinTransactions(Boolean(user) && (view === "poopcoins" || view === "admin"));
   const poopcoinSupply = usePoopcoinSupply(Boolean(user) && (view === "poopcoins" || view === "admin"));
   const { muted, toggleMuted, playFlush } = useSound();
-  const automaticResetAttemptKey = useRef<string | null>(null);
 
   const liveUser = useMemo(() => {
     if (!user) return null;
@@ -77,27 +75,6 @@ function AppContent() {
       void logout();
     }
   }, [liveUser, logout, t]);
-
-  useEffect(() => {
-    if (!liveUser || users.length === 0) return;
-
-    const resetKey = getDueWeeklyResetKey();
-    if (appSettings.lastWeeklyResetKey === resetKey || automaticResetAttemptKey.current === resetKey) {
-      return;
-    }
-
-    automaticResetAttemptKey.current = resetKey;
-    void runAutomaticWeeklyReset(liveUser, rankingLogs, users, groups)
-      .then((didReset) => {
-        if (didReset) {
-          toast.success("Reset semanal automatico concluido.");
-        }
-      })
-      .catch((error) => {
-        console.error("Erro no reset semanal automatico:", error);
-        automaticResetAttemptKey.current = null;
-      });
-  }, [appSettings.lastWeeklyResetKey, groups, liveUser, rankingLogs, users]);
 
   const adminAuditLogs = useAdminAuditLogs(liveUser?.role === "admin");
   const registrationAttempts = useRegistrationAttempts(liveUser?.role === "admin");

@@ -1,5 +1,6 @@
 import type { AppUser, PoopLog, RankedUser } from "../types";
 import i18n from "../i18n";
+import { getWeekStart, toDate } from "./date";
 
 const DICEBEAR_URL_PREFIX = "https://api.dicebear.com/";
 
@@ -7,6 +8,9 @@ export function rankUsers(users: AppUser[], logs: PoopLog[] = []): RankedUser[] 
   const activeUsers = users.filter((user) => user.isActive !== false);
   const latestLogAt = new Map<string, number>();
   const currentCompetitionLatestLogAt = new Map<string, number>();
+  const currentWeekPoints = new Map<string, number>();
+  const currentWeekStart = getWeekStart();
+  const useLogWeeklyPoints = logs.length > 0;
 
   for (const log of logs) {
     const createdAtMs = log.createdAt?.toMillis?.() ?? 0;
@@ -16,11 +20,19 @@ export function rankUsers(users: AppUser[], logs: PoopLog[] = []): RankedUser[] 
       latestLogAt.set(log.userId, createdAtMs);
     }
 
-    if (!log.isWeeklyActive) continue;
+    const logDate = toDate(log.createdAt);
+    const isCurrentWeekLog = Boolean(logDate && logDate > currentWeekStart);
 
-    const previousWeeklyLatest = currentCompetitionLatestLogAt.get(log.userId) ?? 0;
-    if (createdAtMs > previousWeeklyLatest) {
-      currentCompetitionLatestLogAt.set(log.userId, createdAtMs);
+    if (isCurrentWeekLog) {
+      currentWeekPoints.set(
+        log.userId,
+        (currentWeekPoints.get(log.userId) ?? 0) + Math.max(0, Number(log.points) || 0),
+      );
+
+      const previousWeeklyLatest = currentCompetitionLatestLogAt.get(log.userId) ?? 0;
+      if (createdAtMs > previousWeeklyLatest) {
+        currentCompetitionLatestLogAt.set(log.userId, createdAtMs);
+      }
     }
   }
 
@@ -32,9 +44,11 @@ export function rankUsers(users: AppUser[], logs: PoopLog[] = []): RankedUser[] 
   });
 
   const weekly = [...activeUsers].sort((a, b) => {
-    if (b.weeklyPoints !== a.weeklyPoints) return b.weeklyPoints - a.weeklyPoints;
-    const aLatest = currentCompetitionLatestLogAt.get(a.uid) ?? (a.weeklyPoints > 0 ? a.lastLogAt?.toMillis() : undefined) ?? 0;
-    const bLatest = currentCompetitionLatestLogAt.get(b.uid) ?? (b.weeklyPoints > 0 ? b.lastLogAt?.toMillis() : undefined) ?? 0;
+    const aWeeklyPoints = useLogWeeklyPoints ? currentWeekPoints.get(a.uid) ?? 0 : a.weeklyPoints;
+    const bWeeklyPoints = useLogWeeklyPoints ? currentWeekPoints.get(b.uid) ?? 0 : b.weeklyPoints;
+    if (bWeeklyPoints !== aWeeklyPoints) return bWeeklyPoints - aWeeklyPoints;
+    const aLatest = currentCompetitionLatestLogAt.get(a.uid) ?? (aWeeklyPoints > 0 ? a.lastLogAt?.toMillis() : undefined) ?? 0;
+    const bLatest = currentCompetitionLatestLogAt.get(b.uid) ?? (bWeeklyPoints > 0 ? b.lastLogAt?.toMillis() : undefined) ?? 0;
     return bLatest - aLatest;
   });
 
@@ -42,6 +56,7 @@ export function rankUsers(users: AppUser[], logs: PoopLog[] = []): RankedUser[] 
 
   return overall.map((user, index) => ({
     ...user,
+    weeklyPoints: useLogWeeklyPoints ? currentWeekPoints.get(user.uid) ?? 0 : user.weeklyPoints,
     rank: index + 1,
     weeklyRank: weeklyRanks.get(user.uid) ?? activeUsers.length,
   }));
