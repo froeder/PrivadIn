@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
-import { ArrowLeft, Copy, Edit3, MessageCircle, Moon, Sun } from "lucide-react";
+import { ArrowLeft, Copy, Edit3, LogOut, MessageCircle, Moon, Sun } from "lucide-react";
 import { clsx } from "clsx";
 import { AvatarImage } from "../components/AvatarImage";
 import { Card } from "../components/Card";
 import { LanguageSwitcher } from "../components/LanguageSwitcher";
+import { useAuth } from "../contexts/AuthContext";
 import { fetchUserCuiterPosts } from "../services/cuiterService";
 import { formatTimeAgo } from "../utils/date";
 import type { AppTheme, AppUser, AppView, CuiterPost } from "../types";
@@ -25,6 +26,7 @@ export function UserProfilePage({
   onBack,
 }: UserProfilePageProps) {
   const { t } = useTranslation(["profile", "common"]);
+  const { logout } = useAuth();
   const { resolvedTheme, setTheme } = useTheme();
   const [posts, setPosts] = useState<CuiterPost[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
@@ -123,6 +125,18 @@ export function UserProfilePage({
                 );
               })}
             </div>
+          </div>
+
+          <div className="mt-4 border-t border-line/10 pt-4">
+            <button
+              type="button"
+              onClick={() => void logout()}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-danger/20 bg-danger-soft/45 px-4 py-3 text-sm font-black text-danger transition hover:bg-danger-soft/65 sm:w-auto"
+              title={t("shell:logout", { defaultValue: "Sair" })}
+            >
+              <LogOut size={18} />
+              {t("shell:logout", { defaultValue: "Sair" })}
+            </button>
           </div>
         </Card>
       ) : null}

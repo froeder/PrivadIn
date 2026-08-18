@@ -1,9 +1,8 @@
 import { useState } from "react";
-import { BarChart3, Coins, History, LayoutDashboard, LogOut, Menu, MessageCircle, Shield, User, Users, Volume2, VolumeX, X } from "lucide-react";
+import { BarChart3, Coins, History, LayoutDashboard, Menu, MessageCircle, Shield, User, Users, Volume2, VolumeX, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { APP_VERSION } from "../constants/app";
 import type { AppUser, AppView } from "../types";
-import { useAuth } from "../contexts/AuthContext";
 import { clsx } from "clsx";
 import { AvatarImage } from "./AvatarImage";
 
@@ -20,7 +19,6 @@ type NavItem = { view: AppView; label: string; icon: React.ElementType; mobile?:
 
 export function Shell({ currentUser, view, onViewChange, muted, onToggleMuted, children }: ShellProps) {
   const { t } = useTranslation(["common", "shell"]);
-  const { logout } = useAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const items: NavItem[] = [
     { view: "dashboard", label: t("shell:nav.dashboard"), icon: LayoutDashboard },
@@ -42,7 +40,21 @@ export function Shell({ currentUser, view, onViewChange, muted, onToggleMuted, c
     <div className="min-h-screen overflow-x-hidden bg-canvas text-fg">
       <div className="app-shell-gradient pointer-events-none fixed inset-0" />
       <div className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-3 py-3 sm:px-6 sm:py-4 lg:px-8">
-        <header className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line/10 bg-panel/90 px-3 py-2.5 shadow-panel backdrop-blur-xl sm:flex-nowrap sm:gap-3 sm:rounded-2xl sm:px-4 sm:py-3">
+        <header className="flex items-center justify-between gap-2 rounded-xl border border-line/10 bg-panel/90 px-3 py-2.5 shadow-panel backdrop-blur-xl sm:gap-3 sm:rounded-2xl sm:px-4 sm:py-3">
+          <button
+            type="button"
+            className={clsx(
+              "shrink-0 rounded-xl border border-line/10 bg-panel p-2.5 text-fg-soft transition hover:bg-panel-strong hover:text-fg md:hidden",
+              drawerOpen && "bg-accent text-accent-fg shadow-accent",
+            )}
+            onClick={() => setDrawerOpen((current) => !current)}
+            aria-expanded={drawerOpen}
+            aria-label={t("shell:moreMenu", { defaultValue: "Abrir menu" })}
+            title={t("shell:moreMenu", { defaultValue: "Abrir menu" })}
+          >
+            <Menu size={18} />
+          </button>
+
           <button className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={() => onViewChange("dashboard")}>
             <div className="grid h-9 w-9 place-items-center rounded-xl bg-accent text-xl text-accent-fg shadow-accent sm:h-11 sm:w-11 sm:rounded-2xl sm:text-2xl">
               🚽
@@ -53,20 +65,7 @@ export function Shell({ currentUser, view, onViewChange, muted, onToggleMuted, c
             </div>
           </button>
 
-          <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto sm:flex-nowrap">
-            <button
-              type="button"
-              className={clsx(
-                "rounded-xl border border-line/10 bg-panel p-2.5 text-fg-soft transition hover:bg-panel-strong hover:text-fg md:hidden",
-                drawerOpen && "bg-accent text-accent-fg shadow-accent",
-              )}
-              onClick={() => setDrawerOpen((current) => !current)}
-              aria-expanded={drawerOpen}
-              aria-label={t("shell:moreMenu", { defaultValue: "Abrir menu" })}
-              title={t("shell:moreMenu", { defaultValue: "Abrir menu" })}
-            >
-              <Menu size={18} />
-            </button>
+          <div className="flex shrink-0 items-center justify-end gap-2">
             {currentUser ? <AvatarImage className="h-9 w-9 sm:hidden" avatar={currentUser.avatar} email={currentUser.email} name={currentUser.name} /> : null}
             <button
               className="rounded-xl border border-line/10 bg-panel p-2.5 text-fg-soft transition hover:bg-panel-strong hover:text-fg sm:p-3"
@@ -82,13 +81,6 @@ export function Shell({ currentUser, view, onViewChange, muted, onToggleMuted, c
                 <p className="text-xs text-fg-muted">{currentUser?.role === "admin" ? t("common:roles.admin") : t("common:roles.player")}</p>
               </div>
             </div>
-            <button
-              className="rounded-xl border border-line/10 bg-panel p-2.5 text-fg-soft transition hover:bg-danger-soft/70 hover:text-danger sm:p-3"
-              onClick={logout}
-              title={t("shell:logout")}
-            >
-              <LogOut size={18} />
-            </button>
           </div>
         </header>
 
