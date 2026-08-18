@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
-import { ArrowLeft, Copy, Edit3, MessageCircle } from "lucide-react";
+import { ArrowLeft, Copy, Edit3, MessageCircle, Moon, Sun } from "lucide-react";
+import { clsx } from "clsx";
 import { AvatarImage } from "../components/AvatarImage";
 import { Card } from "../components/Card";
+import { LanguageSwitcher } from "../components/LanguageSwitcher";
 import { fetchUserCuiterPosts } from "../services/cuiterService";
 import { formatTimeAgo } from "../utils/date";
-import type { AppUser, AppView, CuiterPost } from "../types";
+import type { AppTheme, AppUser, AppView, CuiterPost } from "../types";
+import { useTheme } from "../hooks/useTheme";
 
 interface UserProfilePageProps {
   currentUser: AppUser;
@@ -22,9 +25,14 @@ export function UserProfilePage({
   onBack,
 }: UserProfilePageProps) {
   const { t } = useTranslation(["profile", "common"]);
+  const { resolvedTheme, setTheme } = useTheme();
   const [posts, setPosts] = useState<CuiterPost[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
   const isOwnProfile = currentUser.uid === profileUser.uid;
+  const themeOptions: Array<{ value: AppTheme; label: string; icon: React.ElementType }> = [
+    { value: "light", label: t("common:theme.light"), icon: Sun },
+    { value: "dark", label: t("common:theme.dark"), icon: Moon },
+  ];
 
   useEffect(() => {
     async function loadUserPosts() {
@@ -72,6 +80,52 @@ export function UserProfilePage({
           </button>
         ) : null}
       </div>
+
+      {isOwnProfile ? (
+        <Card>
+          <div className="mb-4">
+            <p className="text-sm font-bold text-accent-strong">
+              {t("profile:preferencesEyebrow", { defaultValue: "Preferencias" })}
+            </p>
+            <h2 className="text-2xl font-black text-fg">
+              {t("profile:preferencesTitle", { defaultValue: "Idioma e tema" })}
+            </h2>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+            <LanguageSwitcher className="min-w-0 bg-field" />
+            <div
+              role="group"
+              className="flex items-center rounded-xl border border-line/10 bg-field p-1"
+              title={t("common:theme.switcherLabel")}
+              aria-label={t("common:theme.switcherLabel")}
+            >
+              {themeOptions.map((option) => {
+                const Icon = option.icon;
+                const active = resolvedTheme === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setTheme(option.value)}
+                    aria-pressed={active}
+                    aria-label={option.label}
+                    className={clsx(
+                      "inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg px-3 text-sm font-bold transition sm:flex-none",
+                      active
+                        ? "bg-accent text-accent-fg shadow-accent"
+                        : "text-fg-soft hover:bg-panel-strong hover:text-fg",
+                    )}
+                  >
+                    <Icon size={16} />
+                    <span>{option.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </Card>
+      ) : null}
 
       {/* Cartão Principal de Perfil */}
       <Card>
