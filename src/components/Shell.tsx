@@ -1,10 +1,12 @@
 import { useState } from "react";
-import { BarChart3, Coins, History, LayoutDashboard, Menu, MessageCircle, Shield, User, Users, Volume2, VolumeX, X } from "lucide-react";
+import { BarChart3, Bell, Coins, History, LayoutDashboard, Menu, MessageCircle, Shield, User, Users, Volume2, VolumeX, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { APP_VERSION } from "../constants/app";
 import type { AppUser, AppView } from "../types";
 import { clsx } from "clsx";
 import { AvatarImage } from "./AvatarImage";
+import { NotificationCenter } from "./NotificationCenter";
+import type { PoopNotification } from "../hooks/usePoopNotifications";
 
 interface ShellProps {
   currentUser: AppUser | null;
@@ -12,14 +14,34 @@ interface ShellProps {
   onViewChange: (view: AppView) => void;
   muted: boolean;
   onToggleMuted: () => void;
+  notifications?: PoopNotification[];
+  unreadNotificationCount?: number;
+  onMarkAllNotificationsRead?: () => void;
+  onClearNotifications?: () => void;
+  notificationPermission?: NotificationPermission | "unsupported";
+  onRequestNotificationPermission?: () => Promise<NotificationPermission | "unsupported">;
   children: React.ReactNode;
 }
 
 type NavItem = { view: AppView; label: string; icon: React.ElementType; mobile?: boolean; drawerOnlyMobile?: boolean };
 
-export function Shell({ currentUser, view, onViewChange, muted, onToggleMuted, children }: ShellProps) {
+export function Shell({
+  currentUser,
+  view,
+  onViewChange,
+  muted,
+  onToggleMuted,
+  notifications,
+  unreadNotificationCount,
+  onMarkAllNotificationsRead,
+  onClearNotifications,
+  notificationPermission,
+  onRequestNotificationPermission,
+  children,
+}: ShellProps) {
   const { t } = useTranslation(["common", "shell"]);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const items: NavItem[] = [
     { view: "dashboard", label: t("shell:nav.dashboard"), icon: LayoutDashboard },
     { view: "poopcoins", label: t("shell:nav.poopcoins"), icon: Coins, drawerOnlyMobile: true },
@@ -67,6 +89,44 @@ export function Shell({ currentUser, view, onViewChange, muted, onToggleMuted, c
 
           <div className="flex shrink-0 items-center justify-end gap-2">
             {currentUser ? <AvatarImage className="h-9 w-9 sm:hidden" avatar={currentUser.avatar} email={currentUser.email} name={currentUser.name} /> : null}
+
+            {/* Central de Notificações */}
+            <div className="relative">
+              <button
+                type="button"
+                className={clsx(
+                  "relative rounded-xl border border-line/10 bg-panel p-2.5 text-fg-soft transition hover:bg-panel-strong hover:text-fg sm:p-3",
+                  notificationsOpen && "bg-accent text-accent-fg shadow-accent",
+                )}
+                onClick={() => {
+                  setNotificationsOpen((prev) => !prev);
+                  if (!notificationsOpen && unreadNotificationCount && unreadNotificationCount > 0) {
+                    onMarkAllNotificationsRead?.();
+                  }
+                }}
+                title={t("shell:notifications", { defaultValue: "Notificações de pontuação" })}
+                aria-label={t("shell:notifications", { defaultValue: "Notificações de pontuação" })}
+              >
+                <Bell size={18} />
+                {unreadNotificationCount && unreadNotificationCount > 0 ? (
+                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-black text-accent-fg shadow-accent animate-pulse">
+                    {unreadNotificationCount > 9 ? "9+" : unreadNotificationCount}
+                  </span>
+                ) : null}
+              </button>
+
+              <NotificationCenter
+                isOpen={notificationsOpen}
+                onClose={() => setNotificationsOpen(false)}
+                notifications={notifications ?? []}
+                unreadCount={unreadNotificationCount ?? 0}
+                onMarkAllAsRead={() => onMarkAllNotificationsRead?.()}
+                onClearNotifications={() => onClearNotifications?.()}
+                permission={notificationPermission ?? "unsupported"}
+                onRequestPermission={onRequestNotificationPermission ?? (() => Promise.resolve("denied"))}
+              />
+            </div>
+
             <button
               className="rounded-xl border border-line/10 bg-panel p-2.5 text-fg-soft transition hover:bg-panel-strong hover:text-fg sm:p-3"
               onClick={onToggleMuted}

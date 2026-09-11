@@ -26,6 +26,7 @@ import { CuiterPage } from "./pages/CuiterPage";
 import { PoopcoinsPage } from "./pages/PoopcoinsPage";
 import { GroupsPage } from "./pages/GroupsPage";
 import { useTheme } from "./hooks/useTheme";
+import { usePoopNotifications } from "./hooks/usePoopNotifications";
 import type { AppView } from "./types";
 
 function AppContent() {
@@ -44,12 +45,21 @@ function AppContent() {
   const allLogs = useAllLogs(view === "stats" || view === "admin");
   const poopcoinTransactions = usePoopcoinTransactions(Boolean(user) && (view === "poopcoins" || view === "admin"));
   const poopcoinSupply = usePoopcoinSupply(Boolean(user) && (view === "poopcoins" || view === "admin"));
-  const { muted, toggleMuted, playFlush } = useSound();
+  const { muted, toggleMuted, playFlush, playNotification } = useSound();
 
   const liveUser = useMemo(() => {
     if (!user) return null;
     return users.find((candidate) => candidate.uid === user.uid) ?? user;
   }, [user, users]);
+
+  const {
+    notifications,
+    unreadCount,
+    markAllAsRead,
+    clearNotifications,
+    permission: notificationPermission,
+    requestNotificationPermission,
+  } = usePoopNotifications(liveUser, playNotification);
 
   const profileUser = useMemo(() => {
     if (!profileUserId) return liveUser;
@@ -100,7 +110,19 @@ function AppContent() {
   }
 
   return (
-    <Shell currentUser={liveUser} view={view} onViewChange={handleViewChange} muted={muted} onToggleMuted={toggleMuted}>
+    <Shell
+      currentUser={liveUser}
+      view={view}
+      onViewChange={handleViewChange}
+      muted={muted}
+      onToggleMuted={toggleMuted}
+      notifications={notifications}
+      unreadNotificationCount={unreadCount}
+      onMarkAllNotificationsRead={markAllAsRead}
+      onClearNotifications={clearNotifications}
+      notificationPermission={notificationPermission}
+      onRequestNotificationPermission={requestNotificationPermission}
+    >
       {view === "dashboard" ? (
         <DashboardPage
           user={liveUser}

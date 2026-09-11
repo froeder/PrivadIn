@@ -19,29 +19,33 @@ import type { PoopLog } from "../types";
 export const DEFAULT_COOLDOWN_MINUTES = 15;
 export const DAILY_LIMIT = Number(import.meta.env.VITE_DAILY_LOG_LIMIT ?? 8);
 
-export function toDate(value?: Timestamp) {
-  return value?.toDate();
+export function toDate(value?: Timestamp | Date | number) {
+  if (!value) return undefined;
+  if (value instanceof Date) return value;
+  if (typeof value === "number") return new Date(value);
+  if ("toDate" in value && typeof value.toDate === "function") return value.toDate();
+  return undefined;
 }
 
 function getCurrentLanguage(language?: string | null) {
   return language ?? i18n.resolvedLanguage;
 }
 
-export function formatDateTime(value?: Timestamp, language?: string | null) {
+export function formatDateTime(value?: Timestamp | Date | number, language?: string | null) {
   const date = toDate(value);
   return date
     ? format(date, "PPp", { locale: getDateFnsLocale(getCurrentLanguage(language)) })
     : i18n.t("common:time.noRecordsYet");
 }
 
-export function formatHour(value?: Timestamp, language?: string | null) {
+export function formatHour(value?: Timestamp | Date | number, language?: string | null) {
   const date = toDate(value);
   return date
     ? format(date, "HH:mm", { locale: getDateFnsLocale(getCurrentLanguage(language)) })
     : i18n.t("common:time.emptyHour");
 }
 
-export function formatTimeAgo(value?: Timestamp, language?: string | null) {
+export function formatTimeAgo(value?: Timestamp | Date | number, language?: string | null) {
   const date = toDate(value);
   if (!date) return i18n.t("common:time.justNow");
   return formatDistanceToNow(date, {
