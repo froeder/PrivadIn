@@ -75,6 +75,7 @@ export const resources = {
       passwordLabel: "Senha",
       passwordPlaceholder: "senha secreta do trono",
       passwordPlaceholderWithCode: "crie uma senha (não é o código)",
+      forgotOrChangePassword: "Esqueceu ou deseja alterar a senha?",
       groupCodeLabel: "Código do grupo (opcional)",
       groupCodePlaceholder: "Ex: ABCD1234",
       groupCodeHint: "Se voce recebeu um ID de grupo, sua conta ja entra nele ao ser criada.",
@@ -274,6 +275,7 @@ export const resources = {
       noBio: "Nenhuma biografia fornecida.",
       noPosts: "Este usuário ainda não publicou no Cuiter.",
       editProfileButton: "Editar Perfil",
+      changePasswordButton: "Alterar Senha",
       backButton: "Voltar",
     },
     cuiter: {
@@ -520,6 +522,7 @@ export const resources = {
       passwordLabel: "Password",
       passwordPlaceholder: "the throne's secret password",
       passwordPlaceholderWithCode: "create a password (not the code)",
+      forgotOrChangePassword: "Forgot or want to change password?",
       approvalTitle: "Waiting for access code",
       approvalDescription: "Ask an admin for the code shown for <strong>{{email}}</strong>.",
       approvalCodeLabel: "Admin code",
@@ -714,6 +717,7 @@ export const resources = {
       noBio: "No bio provided.",
       noPosts: "This user hasn't posted on Cuiter yet.",
       editProfileButton: "Edit Profile",
+      changePasswordButton: "Change Password",
       backButton: "Back",
     },
     cuiter: {

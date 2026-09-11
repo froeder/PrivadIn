@@ -8,6 +8,7 @@ import { isFirebaseConfigured } from "../services/firebase";
 import { AuthLoginError, loginErrorMessage } from "../utils/authErrors";
 import type { AppSettings } from "../types";
 import { getCurrentTermsText, getCurrentTermsVersion } from "../utils/terms";
+import { LoginPasswordModal } from "../components/LoginPasswordModal";
 
 export function LoginPage({
   cooldownMinutes,
@@ -22,6 +23,7 @@ export function LoginPage({
   const [password, setPassword] = useState("");
   const [groupCode, setGroupCode] = useState("");
   const [termsChecked, setTermsChecked] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const termsText = getCurrentTermsText(appSettings);
   const termsVersion = getCurrentTermsVersion(appSettings);
 
@@ -195,6 +197,16 @@ export function LoginPage({
               </span>
             </label>
 
+            <div className="-mt-2 mb-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowPasswordModal(true)}
+                className="text-xs font-bold text-accent-strong transition hover:underline"
+              >
+                {t("forgotOrChangePassword", { defaultValue: "Esqueceu ou deseja alterar a senha?" })}
+              </button>
+            </div>
+
             <label className="mb-6 block">
               <span className="mb-2 block text-sm font-bold text-fg-soft">
                 {t("groupCodeLabel", { defaultValue: "Código do grupo (opcional)" })}
@@ -232,6 +244,16 @@ export function LoginPage({
           v{APP_VERSION}
         </footer>
       </main>
+
+      <LoginPasswordModal
+        isOpen={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+        initialEmail={email}
+        onPasswordChanged={(changedEmail) => {
+          setEmail(changedEmail);
+          setPassword("");
+        }}
+      />
     </div>
   );
 }

@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
-import { ArrowLeft, Copy, Edit3, LogOut, MessageCircle, Moon, Sun } from "lucide-react";
+import { ArrowLeft, Copy, Edit3, KeyRound, LogOut, MessageCircle, Moon, Sun } from "lucide-react";
 import { clsx } from "clsx";
 import { AvatarImage } from "../components/AvatarImage";
 import { Card } from "../components/Card";
+import { ChangePasswordModal } from "../components/ChangePasswordModal";
 import { LanguageSwitcher } from "../components/LanguageSwitcher";
 import { useAuth } from "../contexts/AuthContext";
 import { fetchUserCuiterPosts } from "../services/cuiterService";
@@ -26,10 +27,11 @@ export function UserProfilePage({
   onBack,
 }: UserProfilePageProps) {
   const { t } = useTranslation(["profile", "common"]);
-  const { logout } = useAuth();
+  const { logout, firebaseUser } = useAuth();
   const { resolvedTheme, setTheme } = useTheme();
   const [posts, setPosts] = useState<CuiterPost[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const isOwnProfile = currentUser.uid === profileUser.uid;
   const themeOptions: Array<{ value: AppTheme; label: string; icon: React.ElementType }> = [
     { value: "light", label: t("common:theme.light"), icon: Sun },
@@ -73,13 +75,23 @@ export function UserProfilePage({
         </button>
 
         {isOwnProfile ? (
-          <button
-            onClick={() => setView("edit-profile")}
-            className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-black text-accent-fg transition hover:bg-accent-strong shadow-accent"
-          >
-            <Edit3 size={16} />
-            {t("profile:editProfileButton")}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowChangePasswordModal(true)}
+              className="inline-flex items-center gap-2 rounded-xl border border-line/10 bg-panel px-4 py-2.5 text-sm font-black text-fg transition hover:bg-panel-strong"
+            >
+              <KeyRound size={16} />
+              {t("profile:changePasswordButton", { defaultValue: "Alterar Senha" })}
+            </button>
+
+            <button
+              onClick={() => setView("edit-profile")}
+              className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-black text-accent-fg transition hover:bg-accent-strong shadow-accent"
+            >
+              <Edit3 size={16} />
+              {t("profile:editProfileButton")}
+            </button>
+          </div>
         ) : null}
       </div>
 
@@ -264,6 +276,13 @@ export function UserProfilePage({
           )}
         </div>
       </Card>
+      {isOwnProfile && firebaseUser ? (
+        <ChangePasswordModal
+          isOpen={showChangePasswordModal}
+          onClose={() => setShowChangePasswordModal(false)}
+          firebaseUser={firebaseUser}
+        />
+      ) : null}
     </div>
   );
 }
