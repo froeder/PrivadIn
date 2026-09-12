@@ -7,29 +7,36 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
-import { listenAuthState, getUserProfile } from "./src/services/authService";
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { listenAuthState, ensureUserProfile } from "./src/services/authService";
 import { AppUser, TabType } from "./src/types";
 import LoginScreen from "./src/screens/LoginScreen";
 import DashboardScreen from "./src/screens/DashboardScreen";
 import RankingScreen from "./src/screens/RankingScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
 
-export default function App() {
+function MainApp() {
+  const insets = useSafeAreaInsets();
   const [firebaseUser, setFirebaseUser] = useState<any>(null);
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentTab, setCurrentTab] = useState<TabType>("timer");
 
-  const loadUserData = async (uid: string) => {
-    const profile = await getUserProfile(uid);
-    if (profile) {
+  const loadUserData = async (fbUser: any) => {
+    if (!fbUser) {
+      setAppUser(null);
+      return;
+    }
+    try {
+      const profile = await ensureUserProfile(fbUser);
       setAppUser(profile);
-    } else {
+    } catch (error) {
+      console.error("Error loading user profile:", error);
+      // Fallback
       setAppUser({
-        uid,
-        name: firebaseUser?.displayName || "Cagador",
-        email: firebaseUser?.email || "",
+        uid: fbUser.uid,
+        name: fbUser.displayName || fbUser.email?.split("@")[0] || "Cagador",
+        email: fbUser.email || "",
         totalPoints: 0,
         currentDailyStreak: 0,
         salary: 3000,
@@ -42,7 +49,7 @@ export default function App() {
     const unsubscribe = listenAuthState(async (user) => {
       setFirebaseUser(user);
       if (user) {
-        await loadUserData(user.uid);
+        await loadUserData(user);
       } else {
         setAppUser(null);
       }
@@ -64,81 +71,94 @@ export default function App() {
   }
 
   return (
-    <SafeAreaProvider>
-      <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-        <StatusBar style="light" />
+    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
+      <StatusBar style="light" />
 
-        {!firebaseUser || !appUser ? (
-          <LoginScreen />
-        ) : (
-          <View style={styles.mainContainer}>
-            {/* Screen Content */}
-            <View style={styles.screenContent}>
-              {currentTab === "timer" && (
-                <DashboardScreen
-                  user={appUser}
-                  onRefreshUser={() => loadUserData(appUser.uid)}
-                />
-              )}
-              {currentTab === "ranking" && <RankingScreen />}
-              {currentTab === "profile" && (
-                <ProfileScreen
-                  user={appUser}
-                  onRefreshUser={() => loadUserData(appUser.uid)}
-                />
-              )}
-            </View>
-
-            {/* Bottom Tab Bar */}
-            <View style={styles.tabBar}>
-              <TouchableOpacity
-                style={[styles.tabItem, currentTab === "timer" && styles.tabItemActive]}
-                onPress={() => setCurrentTab("timer")}
-              >
-                <Text style={styles.tabIcon}>🚽</Text>
-                <Text
-                  style={[
-                    styles.tabLabel,
-                    currentTab === "timer" && styles.tabLabelActive,
-                  ]}
-                >
-                  Trono
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.tabItem, currentTab === "ranking" && styles.tabItemActive]}
-                onPress={() => setCurrentTab("ranking")}
-              >
-                <Text style={styles.tabIcon}>🏆</Text>
-                <Text
-                  style={[
-                    styles.tabLabel,
-                    currentTab === "ranking" && styles.tabLabelActive,
-                  ]}
-                >
-                  Ranking
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.tabItem, currentTab === "profile" && styles.tabItemActive]}
-                onPress={() => setCurrentTab("profile")}
-              >
-                <Text style={styles.tabIcon}>👤</Text>
-                <Text
-                  style={[
-                    styles.tabLabel,
-                    currentTab === "profile" && styles.tabLabelActive,
-                  ]}
-                >
-                  Perfil
-                </Text>
-              </TouchableOpacity>
-            </View>
+      {!firebaseUser || !appUser ? (
+        <LoginScreen />
+      ) : (
+        <View style={styles.mainContainer}>
+          {/* Screen Content */}
+          <View style={styles.screenContent}>
+            {currentTab === "timer" && (
+              <DashboardScreen
+                user={appUser}
+                onRefreshUser={() => loadUserData(firebaseUser)}
+              />
+            )}
+            {currentTab === "ranking" && (
+              <RankingScreen currentUserId={appUser.uid} />
+            )}
+            {currentTab === "profile" && (
+              <ProfileScreen
+                user={appUser}
+                onRefreshUser={() => loadUserData(firebaseUser)}
+              />
+            )}
           </View>
-        )}
-      </SafeAreaView>
+
+          {/* Bottom Tab Bar with Safe Inset */}
+          <View
+            style={[
+              styles.tabBar,
+              { paddingBottom: Math.max(insets.bottom, 10) },
+            ]}
+          >
+            <TouchableOpacity
+              style={[styles.tabItem, currentTab === "timer" && styles.tabItemActive]}
+              onPress={() => setCurrentTab("timer")}
+            >
+              <Text style={styles.tabIcon}>🚽</Text>
+              <Text
+                style={[
+                  styles.tabLabel,
+                  currentTab === "timer" && styles.tabLabelActive,
+                ]}
+              >
+                Trono
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.tabItem, currentTab === "ranking" && styles.tabItemActive]}
+              onPress={() => setCurrentTab("ranking")}
+            >
+              <Text style={styles.tabIcon}>🏆</Text>
+              <Text
+                style={[
+                  styles.tabLabel,
+                  currentTab === "ranking" && styles.tabLabelActive,
+                ]}
+              >
+                Ranking
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.tabItem, currentTab === "profile" && styles.tabItemActive]}
+              onPress={() => setCurrentTab("profile")}
+            >
+              <Text style={styles.tabIcon}>👤</Text>
+              <Text
+                style={[
+                  styles.tabLabel,
+                  currentTab === "profile" && styles.tabLabelActive,
+                ]}
+              >
+                Perfil
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+    </SafeAreaView>
+  );
+}
+
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <MainApp />
     </SafeAreaProvider>
   );
 }

@@ -37,20 +37,29 @@ export default function LoginScreen() {
     setLoading(true);
     setError(null);
 
+    const normalizedEmail = email.trim().toLowerCase();
+
     try {
       if (isRegister) {
-        await registerWithEmail(email, password, name);
+        await registerWithEmail(normalizedEmail, password, name);
       } else {
-        await loginWithEmail(email, password);
+        await loginWithEmail(normalizedEmail, password);
       }
     } catch (err: any) {
       console.error(err);
-      if (err.code === "auth/invalid-credential" || err.code === "auth/wrong-password") {
+      if (
+        err.code === "auth/invalid-credential" ||
+        err.code === "auth/wrong-password"
+      ) {
         setError("E-mail ou senha incorretos.");
+      } else if (err.code === "auth/user-not-found") {
+        setError("Nenhuma conta encontrada com este e-mail.");
       } else if (err.code === "auth/email-already-in-use") {
-        setError("Este e-mail já está cadastrado.");
+        setError("Este e-mail já está cadastrado. Tente entrar.");
       } else if (err.code === "auth/invalid-email") {
         setError("E-mail inválido.");
+      } else if (err.code === "auth/weak-password") {
+        setError("A senha escolhida é fraca demais. Use ao menos 6 caracteres.");
       } else {
         setError(err.message || "Erro ao autenticar. Tente novamente.");
       }

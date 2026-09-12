@@ -7,39 +7,111 @@ import {
   Alert,
   ScrollView,
   ActivityIndicator,
+  AppState,
+  AppStateStatus,
 } from "react-native";
-import { AppUser } from "../types";
-import { registerPoopLog } from "../services/poopService";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { AppUser, PoopLog } from "../types";
+import { registerPoopLog, getUserRecentLogs } from "../services/poopService";
 
 interface DashboardScreenProps {
   user: AppUser;
   onRefreshUser: () => void;
 }
 
+const ACTIVE_TIMER_STORAGE_KEY = "@privadin:active_timer";
+
 export default function DashboardScreen({ user, onRefreshUser }: DashboardScreenProps) {
   const [isActive, setIsActive] = useState(false);
+  const [startTime, setStartTime] = useState<number | null>(null);
   const [seconds, setSeconds] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [recentLogs, setRecentLogs] = useState<PoopLog[]>([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
   const [lastFinishedBreak, setLastFinishedBreak] = useState<{
     duration: number;
     earned: number;
   } | null>(null);
 
-  // Hourly rate calculation (default to R$ 20.00/h if not defined)
+  const startTimeRef = useRef<number | null>(null);
+  startTimeRef.current = startTime;
+
+  // Hourly rate calculation
   const hourlyRate = user.hourlyRate || (user.salary ? user.salary / 176 : 20);
   const currentEarned = (seconds / 3600) * hourlyRate;
 
+  // Load recent logs
+  const loadRecentLogs = async () => {
+    if (!user?.uid) return;
+    setLoadingLogs(true);
+    try {
+      const logs = await getUserRecentLogs(user.uid, 5);
+      setRecentLogs(logs);
+    } catch (error) {
+      console.error("Error loading recent logs:", error);
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
+
+  // Restore any persisted active timer on mount
+  useEffect(() => {
+    loadRecentLogs();
+
+    const restoreTimer = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(ACTIVE_TIMER_STORAGE_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed && typeof parsed.startTime === "number") {
+            const now = Date.now();
+            const elapsed = Math.max(0, Math.floor((now - parsed.startTime) / 1000));
+            // Only restore if less than 8 hours old
+            if (elapsed < 8 * 3600) {
+              setStartTime(parsed.startTime);
+              setSeconds(elapsed);
+              setIsActive(true);
+            } else {
+              await AsyncStorage.removeItem(ACTIVE_TIMER_STORAGE_KEY);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error restoring timer:", err);
+      }
+    };
+
+    restoreTimer();
+  }, [user.uid]);
+
+  // Handle AppState changes (coming from background / phone lock)
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextAppState: AppStateStatus) => {
+      if (nextAppState === "active" && startTimeRef.current) {
+        const elapsed = Math.max(0, Math.floor((Date.now() - startTimeRef.current) / 1000));
+        setSeconds(elapsed);
+      }
+    });
+
+    return () => subscription.remove();
+  }, []);
+
+  // Timer interval with real timestamp delta calculation
   useEffect(() => {
     let interval: any = null;
-    if (isActive) {
+    if (isActive && startTime) {
+      // Immediate sync
+      setSeconds(Math.max(0, Math.floor((Date.now() - startTime) / 1000)));
+
       interval = setInterval(() => {
-        setSeconds((prev) => prev + 1);
+        setSeconds(Math.max(0, Math.floor((Date.now() - startTime) / 1000)));
       }, 1000);
     } else {
       clearInterval(interval);
     }
+
     return () => clearInterval(interval);
-  }, [isActive]);
+  }, [isActive, startTime]);
 
   const formatTime = (totalSeconds: number) => {
     const hrs = Math.floor(totalSeconds / 3600);
@@ -53,47 +125,116 @@ export default function DashboardScreen({ user, onRefreshUser }: DashboardScreen
     return `${pad(mins)}:${pad(secs)}`;
   };
 
+  const startTimer = async () => {
+    const now = Date.now();
+    setStartTime(now);
+    setSeconds(0);
+    setLastFinishedBreak(null);
+    setIsActive(true);
+    try {
+      await AsyncStorage.setItem(
+        ACTIVE_TIMER_STORAGE_KEY,
+        JSON.stringify({ startTime: now })
+      );
+    } catch (e) {
+      console.error("Failed to persist timer:", e);
+    }
+  };
+
+  const handleCancelTimer = () => {
+    Alert.alert(
+      "Cancelar Trono",
+      "Deseja descartar a cagada em andamento?",
+      [
+        { text: "Continuar no Trono", style: "cancel" },
+        {
+          text: "Descartar",
+          style: "destructive",
+          onPress: async () => {
+            setIsActive(false);
+            setStartTime(null);
+            setSeconds(0);
+            await AsyncStorage.removeItem(ACTIVE_TIMER_STORAGE_KEY);
+          },
+        },
+      ]
+    );
+  };
+
   const handleToggleTimer = async () => {
     if (!isActive) {
-      // Start timer
-      setSeconds(0);
-      setLastFinishedBreak(null);
-      setIsActive(true);
+      await startTimer();
     } else {
-      // Stop timer
-      if (seconds < 10) {
+      const currentElapsed = startTime
+        ? Math.max(0, Math.floor((Date.now() - startTime) / 1000))
+        : seconds;
+
+      if (currentElapsed < 10) {
         Alert.alert(
           "Cagada muito rápida!",
           "Você ficou menos de 10 segundos. Deseja cancelar ou salvar?",
           [
-            { text: "Cancelar", style: "cancel", onPress: () => { setIsActive(false); setSeconds(0); } },
-            { text: "Salvar Mesmo Assim", onPress: () => finalizeBreak() },
+            {
+              text: "Cancelar",
+              style: "cancel",
+              onPress: async () => {
+                setIsActive(false);
+                setStartTime(null);
+                setSeconds(0);
+                await AsyncStorage.removeItem(ACTIVE_TIMER_STORAGE_KEY);
+              },
+            },
+            {
+              text: "Salvar Mesmo Assim",
+              onPress: () => finalizeBreak(currentElapsed),
+            },
           ]
         );
       } else {
-        await finalizeBreak();
+        await finalizeBreak(currentElapsed);
       }
     }
   };
 
-  const finalizeBreak = async () => {
+  const finalizeBreak = async (finalSeconds: number) => {
     setIsActive(false);
     setSaving(true);
     try {
-      const earned = (seconds / 3600) * hourlyRate;
-      await registerPoopLog(user, seconds, earned);
+      const earned = (finalSeconds / 3600) * hourlyRate;
+      await registerPoopLog(user, finalSeconds, earned);
+      await AsyncStorage.removeItem(ACTIVE_TIMER_STORAGE_KEY);
       setLastFinishedBreak({
-        duration: seconds,
+        duration: finalSeconds,
         earned,
       });
       onRefreshUser();
+      loadRecentLogs();
     } catch (error: any) {
       console.error(error);
       Alert.alert("Erro", "Não foi possível registrar o intervalo.");
     } finally {
       setSaving(false);
+      setStartTime(null);
       setSeconds(0);
     }
+  };
+
+  const formatLogDate = (createdAt: any) => {
+    if (!createdAt) return "Hoje";
+    let d: Date;
+    if (typeof createdAt.toDate === "function") {
+      d = createdAt.toDate();
+    } else if (createdAt.seconds) {
+      d = new Date(createdAt.seconds * 1000);
+    } else {
+      d = new Date(createdAt);
+    }
+    if (isNaN(d.getTime())) return "Hoje";
+    const day = String(d.getDate()).padStart(2, "0");
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const hours = String(d.getHours()).padStart(2, "0");
+    const minutes = String(d.getMinutes()).padStart(2, "0");
+    return `${day}/${month} às ${hours}:${minutes}`;
   };
 
   return (
@@ -118,7 +259,7 @@ export default function DashboardScreen({ user, onRefreshUser }: DashboardScreen
         </View>
         <View style={styles.statCard}>
           <Text style={styles.statLabel}>Taxa / Hora</Text>
-          <Text style={styles.statValue}>R$ {hourlyRate.toFixed(2)}</Text>
+          <Text style={styles.statValue}>R$ {hourlyRate.toFixed(2).replace(".", ",")}</Text>
         </View>
         <View style={styles.statCard}>
           <Text style={styles.statLabel}>Poopcoins</Text>
@@ -150,13 +291,27 @@ export default function DashboardScreen({ user, onRefreshUser }: DashboardScreen
           disabled={saving}
         >
           {saving ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={isActive ? "#fff" : "#020617"} />
           ) : (
-            <Text style={styles.actionButtonText}>
+            <Text
+              style={[
+                styles.actionButtonText,
+                !isActive && styles.actionButtonTextStart,
+              ]}
+            >
               {isActive ? "🚽 FINALIZAR CAGADA" : "🚀 INICIAR TRONO"}
             </Text>
           )}
         </TouchableOpacity>
+
+        {isActive && !saving && (
+          <TouchableOpacity
+            style={styles.cancelButton}
+            onPress={handleCancelTimer}
+          >
+            <Text style={styles.cancelButtonText}>Descartar / Cancelar</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Finished Summary Feedback */}
@@ -171,6 +326,40 @@ export default function DashboardScreen({ user, onRefreshUser }: DashboardScreen
           </Text>
         </View>
       )}
+
+      {/* Recent Logs Section */}
+      <View style={styles.historyCard}>
+        <View style={styles.historyHeader}>
+          <Text style={styles.historyTitle}>📜 Histórico Recente</Text>
+          {loadingLogs && <ActivityIndicator size="small" color="#eab308" />}
+        </View>
+
+        {recentLogs.length === 0 ? (
+          <Text style={styles.emptyHistoryText}>
+            Nenhuma cagada registrada ainda. Comece sua jornada no botão acima!
+          </Text>
+        ) : (
+          recentLogs.map((log, idx) => (
+            <View key={log.id || String(idx)} style={styles.historyItem}>
+              <View style={styles.historyIconBox}>
+                <Text style={styles.historyIcon}>🚽</Text>
+              </View>
+              <View style={styles.historyInfo}>
+                <Text style={styles.historyDate}>{formatLogDate(log.createdAt)}</Text>
+                <Text style={styles.historyDuration}>
+                  Duração: {formatTime(log.durationSeconds)}
+                </Text>
+              </View>
+              <View style={styles.historyEarned}>
+                <Text style={styles.historyEarnedText}>
+                  + R$ {(log.earnedAmount || 0).toFixed(2).replace(".", ",")}
+                </Text>
+                <Text style={styles.historyPoints}>+{log.points || 10} pts</Text>
+              </View>
+            </View>
+          ))
+        )}
+      </View>
 
       {/* Fun Tip */}
       <View style={styles.tipCard}>
@@ -326,10 +515,97 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   actionButtonText: {
-    color: "#020617",
+    color: "#ffffff",
     fontSize: 16,
     fontWeight: "900",
     letterSpacing: 0.5,
+  },
+  actionButtonTextStart: {
+    color: "#020617",
+  },
+  cancelButton: {
+    marginTop: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  cancelButtonText: {
+    color: "#94a3b8",
+    fontSize: 13,
+    fontWeight: "600",
+    textDecorationLine: "underline",
+  },
+  historyCard: {
+    backgroundColor: "#0f172a",
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+  },
+  historyHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  historyTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#f8fafc",
+    letterSpacing: 0.5,
+  },
+  emptyHistoryText: {
+    fontSize: 13,
+    color: "#64748b",
+    fontStyle: "italic",
+    paddingVertical: 8,
+    textAlign: "center",
+  },
+  historyItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#1e293b",
+  },
+  historyIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(234, 179, 8, 0.12)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  historyIcon: {
+    fontSize: 18,
+  },
+  historyInfo: {
+    flex: 1,
+  },
+  historyDate: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#f1f5f9",
+  },
+  historyDuration: {
+    fontSize: 11,
+    color: "#94a3b8",
+    marginTop: 2,
+  },
+  historyEarned: {
+    alignItems: "flex-end",
+  },
+  historyEarnedText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#4ade80",
+  },
+  historyPoints: {
+    fontSize: 11,
+    color: "#eab308",
+    fontWeight: "700",
+    marginTop: 2,
   },
   congratsCard: {
     backgroundColor: "rgba(34, 197, 94, 0.15)",

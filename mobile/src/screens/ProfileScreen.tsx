@@ -18,6 +18,30 @@ interface ProfileScreenProps {
   onRefreshUser: () => void;
 }
 
+function parseCurrencyInput(value: string): number {
+  const cleaned = value.replace(/[^\d.,]/g, "").trim();
+  if (!cleaned) return NaN;
+
+  if (cleaned.includes(".") && cleaned.includes(",")) {
+    if (cleaned.lastIndexOf(",") > cleaned.lastIndexOf(".")) {
+      return parseFloat(cleaned.replace(/\./g, "").replace(",", "."));
+    } else {
+      return parseFloat(cleaned.replace(/,/g, ""));
+    }
+  }
+
+  if (cleaned.includes(",")) {
+    return parseFloat(cleaned.replace(",", "."));
+  }
+
+  const parts = cleaned.split(".");
+  if (parts.length === 2 && parts[1].length === 3 && parseFloat(parts[0]) >= 1) {
+    return parseFloat(cleaned.replace(/\./g, ""));
+  }
+
+  return parseFloat(cleaned);
+}
+
 export default function ProfileScreen({ user, onRefreshUser }: ProfileScreenProps) {
   const [salaryInput, setSalaryInput] = useState(
     user.salary ? String(user.salary) : "3000"
@@ -25,16 +49,16 @@ export default function ProfileScreen({ user, onRefreshUser }: ProfileScreenProp
   const [saving, setSaving] = useState(false);
 
   const handleSaveSalary = async () => {
-    const num = parseFloat(salaryInput.replace(",", "."));
+    const num = parseCurrencyInput(salaryInput);
     if (isNaN(num) || num <= 0) {
-      Alert.alert("Erro", "Insira um salário válido.");
+      Alert.alert("Erro", "Insira um salário válido (ex: 3500 ou 3.500,00).");
       return;
     }
 
     setSaving(true);
     try {
       await updateUserSalary(user.uid, num);
-      Alert.alert("Sucesso", "Salário e valor/hora atualizados!");
+      Alert.alert("Sucesso", `Salário de R$ ${num.toFixed(2).replace(".", ",")} e valor/hora salvos!`);
       onRefreshUser();
     } catch (error: any) {
       console.error(error);
