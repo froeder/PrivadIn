@@ -11,6 +11,7 @@ import {
 import { AppUser, CuiterPost } from "../types";
 import { fetchUserCuiterPosts, fetchUserProfile, formatTimeAgo } from "../services/cuiterService";
 import { formatPoopcoins } from "../services/poopcoinService";
+import UserAvatar from "./UserAvatar";
 
 interface UserProfileModalProps {
   visible: boolean;
@@ -108,13 +109,17 @@ export default function UserProfileModal({
             >
               {/* User Avatar & Identity */}
               <View style={styles.identitySection}>
-                <View style={styles.avatarCircle}>
-                  <Text style={styles.avatarText}>
-                    {profileUser.equippedBadge
-                      ? profileUser.equippedBadge
-                      : (profileUser.name || "C").charAt(0).toUpperCase()}
-                  </Text>
-                </View>
+                <UserAvatar
+                  avatar={profileUser.avatar}
+                  badge={profileUser.equippedBadge}
+                  name={profileUser.name}
+                  size={84}
+                  borderColor="#eab308"
+                  borderWidth={3}
+                  backgroundColor="#1e293b"
+                  textColor="#eab308"
+                  fontSize={36}
+                />
 
                 <Text style={styles.userName}>
                   {profileUser.nickname?.trim() || profileUser.name || "Cagador Anônimo"}
