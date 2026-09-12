@@ -20,6 +20,7 @@ interface DashboardScreenProps {
   user: AppUser;
   onRefreshUser: () => void;
   onNavigateToPoopcoins?: () => void;
+  onNavigateToCuiter?: () => void;
 }
 
 const ACTIVE_TIMER_STORAGE_KEY = "@privadin:active_timer";
@@ -28,6 +29,7 @@ export default function DashboardScreen({
   user,
   onRefreshUser,
   onNavigateToPoopcoins,
+  onNavigateToCuiter,
 }: DashboardScreenProps) {
   const [isActive, setIsActive] = useState(false);
   const [startTime, setStartTime] = useState<number | null>(null);
@@ -375,6 +377,26 @@ export default function DashboardScreen({
         onViewLedger={onNavigateToPoopcoins}
       />
 
+      {/* Cuiter Shortcut Banner */}
+      {onNavigateToCuiter && (
+        <TouchableOpacity
+          style={styles.cuiterBanner}
+          onPress={onNavigateToCuiter}
+          activeOpacity={0.8}
+        >
+          <View style={styles.cuiterBannerLeft}>
+            <Text style={styles.cuiterBannerIcon}>🐦</Text>
+            <View style={styles.cuiterBannerContent}>
+              <Text style={styles.cuiterBannerTitle}>Pensamentos no Trono?</Text>
+              <Text style={styles.cuiterBannerSubtitle}>
+                Abra o Cuiter e compartilhe com a firma ao vivo!
+              </Text>
+            </View>
+          </View>
+          <Text style={styles.cuiterBannerArrow}>→</Text>
+        </TouchableOpacity>
+      )}
+
       {/* Recent Logs Section */}
       <View style={styles.historyCard}>
         <View style={styles.historyHeader}>
@@ -707,5 +729,44 @@ const styles = StyleSheet.create({
     color: "#94a3b8",
     fontStyle: "italic",
     lineHeight: 18,
+  },
+  cuiterBanner: {
+    backgroundColor: "#0f172a",
+    borderWidth: 1,
+    borderColor: "rgba(234, 179, 8, 0.3)",
+    borderRadius: 16,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  cuiterBannerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+    marginRight: 8,
+  },
+  cuiterBannerIcon: {
+    fontSize: 26,
+  },
+  cuiterBannerContent: {
+    flex: 1,
+  },
+  cuiterBannerTitle: {
+    color: "#f8fafc",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  cuiterBannerSubtitle: {
+    color: "#94a3b8",
+    fontSize: 11,
+    marginTop: 2,
+  },
+  cuiterBannerArrow: {
+    color: "#eab308",
+    fontSize: 18,
+    fontWeight: "800",
   },
 });

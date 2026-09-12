@@ -16,6 +16,7 @@ import RankingScreen from "./src/screens/RankingScreen";
 import PoopcoinsScreen from "./src/screens/PoopcoinsScreen";
 import GroupsScreen from "./src/screens/GroupsScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
+import CuiterScreen from "./src/screens/CuiterScreen";
 
 function MainApp() {
   const insets = useSafeAreaInsets();
@@ -93,6 +94,14 @@ function MainApp() {
                 user={appUser}
                 onRefreshUser={() => loadUserData(firebaseUser)}
                 onNavigateToPoopcoins={() => setCurrentTab("poopcoins")}
+                onNavigateToCuiter={() => setCurrentTab("cuiter")}
+              />
+            )}
+            {currentTab === "cuiter" && (
+              <CuiterScreen
+                user={appUser}
+                onRefreshUser={() => loadUserData(firebaseUser)}
+                onNavigateToPoopcoins={() => setCurrentTab("poopcoins")}
               />
             )}
             {currentTab === "ranking" && (
@@ -141,6 +150,21 @@ function MainApp() {
                 ]}
               >
                 Trono
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.tabItem, currentTab === "cuiter" && styles.tabItemActive]}
+              onPress={() => setCurrentTab("cuiter")}
+            >
+              <Text style={styles.tabIcon}>🐦</Text>
+              <Text
+                style={[
+                  styles.tabLabel,
+                  currentTab === "cuiter" && styles.tabLabelActive,
+                ]}
+              >
+                Cuiter
               </Text>
             </TouchableOpacity>
 
@@ -251,25 +275,26 @@ const styles = StyleSheet.create({
     backgroundColor: "#0f172a",
     borderTopWidth: 1,
     borderTopColor: "#1e293b",
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
     justifyContent: "space-around",
   },
   tabItem: {
     alignItems: "center",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 12,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderRadius: 10,
+    minWidth: 50,
   },
   tabItemActive: {
     backgroundColor: "rgba(234, 179, 8, 0.12)",
   },
   tabIcon: {
-    fontSize: 20,
-    marginBottom: 4,
+    fontSize: 19,
+    marginBottom: 2,
   },
   tabLabel: {
-    fontSize: 11,
+    fontSize: 10,
     color: "#64748b",
     fontWeight: "600",
   },

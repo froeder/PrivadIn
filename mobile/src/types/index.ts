@@ -121,7 +121,22 @@ export interface PoopcoinSupplySummary {
   supplyMigratedAt?: any | null;
 }
 
-export type TabType = "timer" | "ranking" | "poopcoins" | "groups" | "profile";
+export type TabType = "timer" | "cuiter" | "ranking" | "poopcoins" | "groups" | "profile";
+
+export type CuiterReactionType = "like" | "poop" | "laugh";
+
+export interface CuiterPost {
+  id: string;
+  userId: string;
+  userName: string;
+  userNickname?: string;
+  userBadge?: string;
+  userTitle?: string;
+  message: string;
+  createdAt: any;
+  poopcoinTransactionHash?: string;
+  reactions?: Record<string, CuiterReactionType>;
+}
 
 export type ShopItemCategory = "title" | "badge" | "perk";
 export type ShopItemRarity = "comum" | "raro" | "epico" | "lendario";
