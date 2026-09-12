@@ -17,6 +17,7 @@ import PoopcoinsScreen from "./src/screens/PoopcoinsScreen";
 import GroupsScreen from "./src/screens/GroupsScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
 import CuiterScreen from "./src/screens/CuiterScreen";
+import AnalyticsScreen from "./src/screens/AnalyticsScreen";
 
 function MainApp() {
   const insets = useSafeAreaInsets();
@@ -95,6 +96,7 @@ function MainApp() {
                 onRefreshUser={() => loadUserData(firebaseUser)}
                 onNavigateToPoopcoins={() => setCurrentTab("poopcoins")}
                 onNavigateToCuiter={() => setCurrentTab("cuiter")}
+                onNavigateToAnalytics={() => setCurrentTab("analytics")}
               />
             )}
             {currentTab === "cuiter" && (
@@ -124,11 +126,19 @@ function MainApp() {
                 onRefreshUser={() => loadUserData(firebaseUser)}
               />
             )}
+            {currentTab === "analytics" && (
+              <AnalyticsScreen
+                user={appUser}
+                onRefreshUser={() => loadUserData(firebaseUser)}
+                onBack={() => setCurrentTab("timer")}
+              />
+            )}
             {currentTab === "profile" && (
               <ProfileScreen
                 user={appUser}
                 onRefreshUser={() => loadUserData(firebaseUser)}
                 onNavigateToPoopcoins={() => setCurrentTab("poopcoins")}
+                onNavigateToAnalytics={() => setCurrentTab("analytics")}
               />
             )}
           </View>
@@ -216,6 +226,21 @@ function MainApp() {
             </TouchableOpacity>
 
             <TouchableOpacity
+              style={[styles.tabItem, currentTab === "analytics" && styles.tabItemActive]}
+              onPress={() => setCurrentTab("analytics")}
+            >
+              <Text style={styles.tabIcon}>📊</Text>
+              <Text
+                style={[
+                  styles.tabLabel,
+                  currentTab === "analytics" && styles.tabLabelActive,
+                ]}
+              >
+                Stats
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
               style={[styles.tabItem, currentTab === "profile" && styles.tabItemActive]}
               onPress={() => setCurrentTab("profile")}
             >
@@ -284,9 +309,9 @@ const styles = StyleSheet.create({
   tabItem: {
     alignItems: "center",
     paddingVertical: 4,
-    paddingHorizontal: 6,
+    paddingHorizontal: 2,
     borderRadius: 10,
-    minWidth: 50,
+    minWidth: 40,
   },
   tabItemActive: {
     backgroundColor: "rgba(234, 179, 8, 0.12)",

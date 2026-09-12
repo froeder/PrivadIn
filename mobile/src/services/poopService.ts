@@ -205,6 +205,41 @@ export async function getUserRecentLogs(userId: string, count = 10): Promise<Poo
   }
 }
 
+export async function getUserAllLogs(userId: string): Promise<PoopLog[]> {
+  try {
+    let snapshot;
+    try {
+      const q = query(
+        logsRef,
+        where("userId", "==", userId),
+        orderBy("createdAt", "desc")
+      );
+      snapshot = await getDocs(q);
+    } catch (orderErr) {
+      console.warn("Index query for all logs failed, querying without orderBy:", orderErr);
+      const q = query(logsRef, where("userId", "==", userId));
+      snapshot = await getDocs(q);
+    }
+
+    const logs = snapshot.docs.map((d) => ({
+      id: d.id,
+      ...(d.data() as any),
+    }));
+
+    // Sort descending by date in-memory
+    logs.sort((a, b) => {
+      const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : new Date(a.createdAt || 0).getTime());
+      const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : new Date(b.createdAt || 0).getTime());
+      return timeB - timeA;
+    });
+
+    return logs;
+  } catch (error) {
+    console.error("Error fetching all user logs:", error);
+    return [];
+  }
+}
+
 export async function updateUserSalary(userId: string, salary: number) {
   const hourlyRate = Number((salary / 176).toFixed(2));
   await updateDoc(doc(db, "users", userId), {

@@ -19,6 +19,7 @@ interface ProfileScreenProps {
   user: AppUser;
   onRefreshUser: () => void;
   onNavigateToPoopcoins?: () => void;
+  onNavigateToAnalytics?: () => void;
 }
 
 function parseCurrencyInput(value: string): number {
@@ -49,6 +50,7 @@ export default function ProfileScreen({
   user,
   onRefreshUser,
   onNavigateToPoopcoins,
+  onNavigateToAnalytics,
 }: ProfileScreenProps) {
   const [salaryInput, setSalaryInput] = useState(
     user.salary ? String(user.salary) : "3000"
@@ -135,6 +137,33 @@ export default function ProfileScreen({
             <Text style={styles.gridLabel}>Por Hora</Text>
           </View>
         </View>
+
+        {onNavigateToAnalytics && (
+          <TouchableOpacity
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              backgroundColor: "#1e293b",
+              borderRadius: 12,
+              paddingVertical: 10,
+              paddingHorizontal: 14,
+              marginTop: 14,
+              borderWidth: 1,
+              borderColor: "rgba(234, 179, 8, 0.25)",
+            }}
+            onPress={onNavigateToAnalytics}
+            activeOpacity={0.7}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Text style={{ fontSize: 16 }}>📊</Text>
+              <Text style={{ color: "#f8fafc", fontSize: 12, fontWeight: "800" }}>
+                Ver Analytics Completo & Gráficos
+              </Text>
+            </View>
+            <Text style={{ color: "#eab308", fontSize: 14, fontWeight: "900" }}>›</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Poopcoin Wallet Card */}

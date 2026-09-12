@@ -26,6 +26,7 @@ interface DashboardScreenProps {
   onRefreshUser: () => void;
   onNavigateToPoopcoins?: () => void;
   onNavigateToCuiter?: () => void;
+  onNavigateToAnalytics?: () => void;
 }
 
 const ACTIVE_TIMER_STORAGE_KEY = "@privadin:active_timer";
@@ -35,6 +36,7 @@ export default function DashboardScreen({
   onRefreshUser,
   onNavigateToPoopcoins,
   onNavigateToCuiter,
+  onNavigateToAnalytics,
 }: DashboardScreenProps) {
   const [isActive, setIsActive] = useState(false);
   const [startTime, setStartTime] = useState<number | null>(null);
@@ -622,7 +624,26 @@ export default function DashboardScreen({
       <View style={styles.historyCard}>
         <View style={styles.historyHeader}>
           <Text style={styles.historyTitle}>📜 Histórico Recente</Text>
-          {loadingLogs && <ActivityIndicator size="small" color="#eab308" />}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            {loadingLogs && <ActivityIndicator size="small" color="#eab308" />}
+            {onNavigateToAnalytics && (
+              <TouchableOpacity
+                onPress={onNavigateToAnalytics}
+                style={{
+                  backgroundColor: "rgba(234, 179, 8, 0.12)",
+                  borderWidth: 1,
+                  borderColor: "rgba(234, 179, 8, 0.3)",
+                  paddingHorizontal: 8,
+                  paddingVertical: 3,
+                  borderRadius: 8,
+                }}
+              >
+                <Text style={{ color: "#facc15", fontSize: 11, fontWeight: "800" }}>
+                  Ver Analytics 📊 ›
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
         {recentLogs.length === 0 ? (

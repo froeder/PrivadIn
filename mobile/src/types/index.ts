@@ -125,7 +125,7 @@ export interface PoopcoinSupplySummary {
   supplyMigratedAt?: any | null;
 }
 
-export type TabType = "timer" | "cuiter" | "ranking" | "poopcoins" | "groups" | "profile";
+export type TabType = "timer" | "cuiter" | "ranking" | "poopcoins" | "groups" | "profile" | "analytics";
 
 export type CuiterReactionType = "like" | "poop" | "laugh";
 
