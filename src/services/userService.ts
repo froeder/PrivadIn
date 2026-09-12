@@ -196,3 +196,22 @@ export async function reactivateUser(admin: AppUser, targetUser: AppUser) {
 
   await batch.commit();
 }
+
+export async function setUserRole(admin: AppUser, targetUser: AppUser, role: "player" | "admin") {
+  if (admin.uid === targetUser.uid && role !== "admin") {
+    throw new Error("Você não pode remover seu próprio privilégio de administrador.");
+  }
+
+  const batch = writeBatch(db);
+  batch.update(doc(db, "users", targetUser.uid), { role });
+  batch.set(
+    doc(adminLogsRef),
+    createAuditLog({
+      action: role === "admin" ? "promote_admin" : "demote_admin",
+      admin,
+      targetUser,
+    }),
+  );
+
+  await batch.commit();
+}

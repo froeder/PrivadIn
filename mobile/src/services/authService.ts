@@ -196,7 +196,7 @@ export async function fetchAppSettings(): Promise<AppSettings> {
         cooldownMinutes: Number(data.cooldownMinutes ?? 15),
         pointsPerLog: Number(data.pointsPerLog ?? 2000),
         poopcoinsPerLog: Number(data.poopcoinsPerLog ?? 1),
-        cuiterPostCost: Number(data.cuiterPostCost ?? 1000),
+        cuiterPostCost: Number(data.cuiterPostCost ?? 5),
         edition: Number(data.edition ?? 1),
         overallRankingVisible: Boolean(data.overallRankingVisible),
         termsOfUseText: data.termsOfUseText,
@@ -212,7 +212,7 @@ export async function fetchAppSettings(): Promise<AppSettings> {
     cooldownMinutes: 15,
     pointsPerLog: 2000,
     poopcoinsPerLog: 1,
-    cuiterPostCost: 1000,
+    cuiterPostCost: 5,
     edition: 1,
     termsOfUseVersion: 1,
   };

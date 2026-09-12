@@ -181,6 +181,8 @@ export type AdminAuditAction =
   | "update_terms_of_use"
   | "deactivate_user"
   | "reactivate_user"
+  | "promote_admin"
+  | "demote_admin"
   | "update_competition_announcement"
   | "update_poopcoin_rules"
   | "adjust_poopcoins"

@@ -18,6 +18,7 @@ import GroupsScreen from "./src/screens/GroupsScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
 import CuiterScreen from "./src/screens/CuiterScreen";
 import AnalyticsScreen from "./src/screens/AnalyticsScreen";
+import AdminScreen from "./src/screens/AdminScreen";
 
 function MainApp() {
   const insets = useSafeAreaInsets();
@@ -139,6 +140,14 @@ function MainApp() {
                 onRefreshUser={() => loadUserData(firebaseUser)}
                 onNavigateToPoopcoins={() => setCurrentTab("poopcoins")}
                 onNavigateToAnalytics={() => setCurrentTab("analytics")}
+                onNavigateToAdmin={() => setCurrentTab("admin")}
+              />
+            )}
+            {currentTab === "admin" && (
+              <AdminScreen
+                user={appUser}
+                onBack={() => setCurrentTab("profile")}
+                onRefreshUser={() => loadUserData(firebaseUser)}
               />
             )}
           </View>
@@ -254,6 +263,24 @@ function MainApp() {
                 Perfil
               </Text>
             </TouchableOpacity>
+
+            {appUser.role === "admin" && (
+              <TouchableOpacity
+                style={[styles.tabItem, currentTab === "admin" && styles.tabItemActive]}
+                onPress={() => setCurrentTab("admin")}
+              >
+                <Text style={styles.tabIcon}>🛡️</Text>
+                <Text
+                  style={[
+                    styles.tabLabel,
+                    currentTab === "admin" && styles.tabLabelActive,
+                    { color: currentTab === "admin" ? "#eab308" : "#94a3b8" },
+                  ]}
+                >
+                  Admin
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       )}

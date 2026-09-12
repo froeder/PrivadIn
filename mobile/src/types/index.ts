@@ -126,7 +126,53 @@ export interface PoopcoinSupplySummary {
   supplyMigratedAt?: any | null;
 }
 
-export type TabType = "timer" | "cuiter" | "ranking" | "poopcoins" | "groups" | "profile" | "analytics";
+export type TabType =
+  | "timer"
+  | "cuiter"
+  | "ranking"
+  | "poopcoins"
+  | "groups"
+  | "profile"
+  | "analytics"
+  | "admin";
+
+export type AdminAuditAction =
+  | "adjust_points"
+  | "remove_log"
+  | "reset_weekly"
+  | "update_cooldown"
+  | "update_points_per_log"
+  | "update_terms_of_use"
+  | "deactivate_user"
+  | "reactivate_user"
+  | "promote_admin"
+  | "demote_admin"
+  | "update_competition_announcement"
+  | "update_poopcoin_rules"
+  | "adjust_poopcoins"
+  | "reverse_poopcoin_transaction"
+  | "migrate_poopcoins"
+  | "recalculate_poopcoin_supply";
+
+export interface AdminAuditLog {
+  id: string;
+  action: AdminAuditAction;
+  adminId: string;
+  adminName?: string;
+  targetUserId?: string | null;
+  targetUserName?: string | null;
+  delta?: number | null;
+  points?: number | null;
+  removedLogId?: string | null;
+  cooldownMinutes?: number | null;
+  pointsPerLog?: number | null;
+  poopcoinsPerLog?: number | null;
+  cuiterPostCost?: number | null;
+  edition?: number | null;
+  poopcoins?: number | null;
+  poopcoinTransactionHash?: string | null;
+  createdAt: any;
+}
 
 export type CuiterReactionType = "like" | "poop" | "laugh";
 

@@ -26,6 +26,7 @@ interface ProfileScreenProps {
   onRefreshUser: () => void;
   onNavigateToPoopcoins?: () => void;
   onNavigateToAnalytics?: () => void;
+  onNavigateToAdmin?: () => void;
 }
 
 const AVATAR_PRESETS = [
@@ -87,6 +88,7 @@ export default function ProfileScreen({
   onRefreshUser,
   onNavigateToPoopcoins,
   onNavigateToAnalytics,
+  onNavigateToAdmin,
 }: ProfileScreenProps) {
   // Navigation / Modal States
   const [publicProfileModalVisible, setPublicProfileModalVisible] = useState(false);
@@ -298,6 +300,26 @@ export default function ProfileScreen({
             Ver Como os Colegas Me Veem
           </Text>
         </TouchableOpacity>
+
+        {/* 🛡️ Admin Master Portal Banner (Only for role="admin") */}
+        {user.role === "admin" && (
+          <TouchableOpacity
+            style={styles.adminAccessCard}
+            onPress={onNavigateToAdmin}
+            activeOpacity={0.85}
+          >
+            <View style={styles.adminAccessHeader}>
+              <View style={styles.adminBadgePill}>
+                <Text style={styles.adminBadgePillText}>👑 ACESSO MASTER</Text>
+              </View>
+              <Text style={styles.adminAccessArrow}>Abrir Painel →</Text>
+            </View>
+            <Text style={styles.adminAccessTitle}>🛡️ Painel do Administrador</Text>
+            <Text style={styles.adminAccessDesc}>
+              Gestão de usuários (banir/promover), regras de pontuação, reset semanal e auditoria.
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Navigation Sub-Tabs */}
@@ -1285,5 +1307,55 @@ const styles = StyleSheet.create({
     color: "#f87171",
     fontWeight: "700",
     fontSize: 14,
+  },
+  adminAccessCard: {
+    width: "100%",
+    backgroundColor: "#0f172a",
+    borderRadius: 16,
+    padding: 14,
+    marginTop: 14,
+    borderWidth: 1.5,
+    borderColor: "#eab308",
+    shadowColor: "#eab308",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  adminAccessHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  adminBadgePill: {
+    backgroundColor: "#eab30822",
+    borderWidth: 1,
+    borderColor: "#eab308",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  adminBadgePillText: {
+    color: "#eab308",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
+  adminAccessArrow: {
+    color: "#eab308",
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+  adminAccessTitle: {
+    color: "#f8fafc",
+    fontSize: 16,
+    fontWeight: "900",
+    marginBottom: 4,
+  },
+  adminAccessDesc: {
+    color: "#94a3b8",
+    fontSize: 12,
+    lineHeight: 16,
   },
 });
