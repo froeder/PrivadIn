@@ -31,7 +31,9 @@ export interface AppUser {
   equippedBadge?: string;
   unlockedItems?: string[];
   createdAt?: any;
+  firstLogAt?: any;
   lastLogAt?: any;
+  cooldownUntil?: any;
 }
 
 export interface AppSettings {
@@ -54,6 +56,7 @@ export interface PoopLog {
   earnedAmount?: number;
   points?: number;
   poopcoinsEarned?: number;
+  poopcoinTransactionHash?: string | null;
   createdAt: any;
   note?: string;
   isWeeklyActive?: boolean;

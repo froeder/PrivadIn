@@ -2,6 +2,7 @@ import {
   collection,
   doc,
   addDoc,
+  getDoc,
   getDocs,
   updateDoc,
   increment,
@@ -57,9 +58,31 @@ export async function registerPoopLog(
   earnedAmount: number,
   note?: string
 ) {
-  const pointsEarned = Math.max(10, Math.floor(durationSeconds / 60) * 5);
+  // Load settings for edition, pointsPerLog and cooldown
+  let cooldownMinutes = 15;
+  let currentEdition = 1;
+  let basePoints = 2000;
+  try {
+    const settingsSnap = await getDoc(doc(db, "app_settings", "global"));
+    if (settingsSnap.exists()) {
+      const data = settingsSnap.data();
+      if (typeof data.cooldownMinutes === "number") cooldownMinutes = data.cooldownMinutes;
+      if (typeof data.edition === "number") currentEdition = data.edition;
+      if (typeof data.pointsPerLog === "number") basePoints = data.pointsPerLog;
+    }
+  } catch (e) {
+    console.warn("Could not fetch global app_settings in registerPoopLog:", e);
+  }
+
+  // Calculate points: base points from edition settings + small bonus for duration
+  const durationBonus = Math.min(500, Math.floor(durationSeconds / 60) * 10);
+  const pointsEarned = basePoints + durationBonus;
+
   const newStreak = calculateNextStreak(user.lastLogAt, user.currentDailyStreak || 0);
   const newBestStreak = Math.max(user.bestStreak || 0, newStreak);
+
+  const nowMs = Date.now();
+  const nextCooldown = Timestamp.fromMillis(nowMs + cooldownMinutes * 60_000);
 
   // 1. Add log
   const logData: any = {
@@ -70,6 +93,7 @@ export async function registerPoopLog(
     points: pointsEarned,
     poopcoinsEarned: 0,
     isWeeklyActive: true,
+    competitionEdition: currentEdition,
     note: note || "Cagada remunerada pelo app mobile",
     createdAt: serverTimestamp(),
   };
@@ -93,7 +117,7 @@ export async function registerPoopLog(
     console.error("Error minting poopcoin on log:", err);
   }
 
-  // 3. Update user points, streak, last log (and fallback poopcoinBalance if minting failed)
+  // 3. Update user points, streak, last log, cooldownUntil (and fallback poopcoinBalance if minting failed)
   const userDoc = doc(db, "users", user.uid);
   const userUpdates: any = {
     totalPoints: increment(pointsEarned),
@@ -101,7 +125,11 @@ export async function registerPoopLog(
     currentDailyStreak: newStreak,
     bestStreak: newBestStreak,
     lastLogAt: serverTimestamp(),
+    cooldownUntil: nextCooldown,
   };
+  if (!user.firstLogAt) {
+    userUpdates.firstLogAt = serverTimestamp();
+  }
   if (mintedCoins === 0) {
     // If supply not migrated or minting had an issue, fallback increment so user gets their coin
     userUpdates.poopcoinBalance = increment(1);
@@ -111,8 +139,11 @@ export async function registerPoopLog(
   return {
     id: docRef.id,
     ...logData,
+    points: pointsEarned,
     poopcoinsEarned: Math.max(1, mintedCoins),
     newStreak,
+    cooldownUntil: nextCooldown,
+    competitionEdition: currentEdition,
   };
 }
 

@@ -17,7 +17,7 @@ import { AppUser, RankingGroup } from "../types";
 
 export const groupsRef = collection(db, "groups");
 export const usersRef = collection(db, "users");
-export const appSettingsDocRef = doc(db, "app_settings", "default");
+export const appSettingsDocRef = doc(db, "app_settings", "global");
 
 export const GROUP_NAME_MAX_LENGTH = 48;
 export const GROUP_DESCRIPTION_MAX_LENGTH = 220;
