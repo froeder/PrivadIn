@@ -75,7 +75,13 @@ function MainApp() {
       <StatusBar style="light" />
 
       {!firebaseUser || !appUser ? (
-        <LoginScreen />
+        <LoginScreen
+          onSuccess={() => {
+            if (firebaseUser) {
+              loadUserData(firebaseUser);
+            }
+          }}
+        />
       ) : (
         <View style={styles.mainContainer}>
           {/* Screen Content */}

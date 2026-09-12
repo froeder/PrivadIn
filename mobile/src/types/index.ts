@@ -24,9 +24,23 @@ export interface AppUser {
   poopcoinBalance?: number;
   bathroomDurationMinutes?: number;
   termsAccepted?: boolean;
+  acceptedTermsVersion?: number;
+  ownedGroupId?: string | null;
   workSchedule?: WorkSchedule;
   createdAt?: any;
   lastLogAt?: any;
+}
+
+export interface AppSettings {
+  cooldownMinutes: number;
+  pointsPerLog?: number;
+  poopcoinsPerLog?: number;
+  cuiterPostCost?: number;
+  edition?: number;
+  overallRankingVisible?: boolean;
+  termsOfUseText?: string;
+  termsOfUseVersion?: number;
+  competitionAnnouncement?: string;
 }
 
 export interface PoopLog {
@@ -44,4 +58,5 @@ export interface PoopLog {
 }
 
 export type TabType = "timer" | "ranking" | "profile";
+
 

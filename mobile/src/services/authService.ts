@@ -1,13 +1,22 @@
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  updatePassword,
   signOut as fbSignOut,
   onAuthStateChanged,
   User,
 } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  runTransaction,
+  serverTimestamp,
+} from "firebase/firestore";
 import { auth, db } from "./firebase";
-import { AppUser } from "../types";
+import { AppSettings, AppUser } from "../types";
 
 export function listenAuthState(callback: (user: User | null) => void) {
   return onAuthStateChanged(auth, callback);
@@ -17,7 +26,8 @@ export async function getUserProfile(uid: string): Promise<AppUser | null> {
   try {
     const userDoc = await getDoc(doc(db, "users", uid));
     if (userDoc.exists()) {
-      return { uid, ...(userDoc.data() as any) };
+      const data = userDoc.data() as any;
+      return { uid, ...data };
     }
     return null;
   } catch (error) {
@@ -31,7 +41,12 @@ export async function ensureUserProfile(firebaseUser: User, nameHint?: string): 
   const snap = await getDoc(userRef);
 
   if (snap.exists()) {
-    return { uid: firebaseUser.uid, ...(snap.data() as any) };
+    const data = snap.data() as any;
+    if (data.isActive === false) {
+      await fbSignOut(auth);
+      throw new Error("Este usuário foi desativado por um administrador.");
+    }
+    return { uid: firebaseUser.uid, ...data };
   }
 
   const defaultName =
@@ -55,6 +70,7 @@ export async function ensureUserProfile(firebaseUser: User, nameHint?: string): 
     hourlyRate: Number((3000 / 176).toFixed(2)),
     bathroomDurationMinutes: 10,
     termsAccepted: true,
+    acceptedTermsVersion: 1,
     workSchedule: {
       horarioInicioExpediente: "09:00",
       horarioFimExpediente: "18:00",
@@ -69,20 +85,146 @@ export async function ensureUserProfile(firebaseUser: User, nameHint?: string): 
   return newProfile;
 }
 
-export async function loginWithEmail(email: string, pass: string): Promise<User> {
-  const cred = await signInWithEmailAndPassword(auth, email.trim(), pass);
-  await ensureUserProfile(cred.user);
-  return cred.user;
+export async function joinGroup(user: { uid: string }, groupCode: string): Promise<string | null> {
+  const code = groupCode.trim().toUpperCase();
+  if (!code) return null;
+
+  const groupRef = doc(db, "groups", code);
+
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(groupRef);
+    if (!snap.exists()) {
+      throw new Error(`Grupo com código "${code}" não encontrado.`);
+    }
+
+    const groupData = snap.data() as any;
+    if (groupData.deletedAt) {
+      throw new Error("Este grupo foi desativado.");
+    }
+
+    const memberIds = Array.isArray(groupData.memberIds) ? groupData.memberIds : [];
+    if (!memberIds.includes(user.uid)) {
+      const nextMemberIds = [...memberIds, user.uid];
+      transaction.update(groupRef, {
+        memberIds: nextMemberIds,
+        memberCount: nextMemberIds.length,
+        updatedAt: serverTimestamp(),
+      });
+    }
+  });
+
+  return code;
+}
+
+export async function loginWithEmail(
+  email: string,
+  pass: string,
+  groupCode?: string
+): Promise<{ user: User; profile: AppUser }> {
+  const cred = await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), pass);
+  const profile = await ensureUserProfile(cred.user);
+
+  if (groupCode?.trim()) {
+    try {
+      await joinGroup(profile, groupCode.trim());
+    } catch (err: any) {
+      console.warn("Aviso ao vincular grupo:", err.message);
+    }
+  }
+
+  return { user: cred.user, profile };
 }
 
 export async function registerWithEmail(
   email: string,
   pass: string,
-  name: string
-): Promise<User> {
-  const cred = await createUserWithEmailAndPassword(auth, email.trim(), pass);
-  await ensureUserProfile(cred.user, name);
-  return cred.user;
+  name: string,
+  groupCode?: string
+): Promise<{ user: User; profile: AppUser }> {
+  const cred = await createUserWithEmailAndPassword(auth, email.trim().toLowerCase(), pass);
+  const profile = await ensureUserProfile(cred.user, name);
+
+  if (groupCode?.trim()) {
+    try {
+      await joinGroup(profile, groupCode.trim());
+    } catch (err: any) {
+      console.warn("Aviso ao vincular grupo:", err.message);
+    }
+  }
+
+  return { user: cred.user, profile };
+}
+
+export async function sendPasswordReset(email: string): Promise<void> {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized) {
+    throw new Error("Informe o seu e-mail.");
+  }
+  await sendPasswordResetEmail(auth, normalized);
+}
+
+export async function changePasswordWithCredentials(
+  email: string,
+  currentPass: string,
+  newPass: string
+): Promise<void> {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized) {
+    throw new Error("Informe o seu e-mail.");
+  }
+  if (!newPass || newPass.length < 6) {
+    throw new Error("A nova senha deve ter no mínimo 6 caracteres.");
+  }
+  if (currentPass === newPass) {
+    throw new Error("A nova senha não pode ser igual à senha atual.");
+  }
+
+  const credential = await signInWithEmailAndPassword(auth, normalized, currentPass);
+  try {
+    await updatePassword(credential.user, newPass);
+  } finally {
+    await fbSignOut(auth).catch(() => undefined);
+  }
+}
+
+export async function fetchAppSettings(): Promise<AppSettings> {
+  try {
+    const snap = await getDoc(doc(db, "app_settings", "global"));
+    if (snap.exists()) {
+      const data = snap.data();
+      return {
+        cooldownMinutes: Number(data.cooldownMinutes ?? 15),
+        pointsPerLog: Number(data.pointsPerLog ?? 2000),
+        poopcoinsPerLog: Number(data.poopcoinsPerLog ?? 1),
+        cuiterPostCost: Number(data.cuiterPostCost ?? 1000),
+        edition: Number(data.edition ?? 1),
+        overallRankingVisible: Boolean(data.overallRankingVisible),
+        termsOfUseText: data.termsOfUseText,
+        termsOfUseVersion: Number(data.termsOfUseVersion ?? 1),
+        competitionAnnouncement: data.competitionAnnouncement,
+      };
+    }
+  } catch (err) {
+    console.warn("Error loading app settings:", err);
+  }
+
+  return {
+    cooldownMinutes: 15,
+    pointsPerLog: 2000,
+    poopcoinsPerLog: 1,
+    cuiterPostCost: 1000,
+    edition: 1,
+    termsOfUseVersion: 1,
+  };
+}
+
+export async function acceptTerms(uid: string, version: number): Promise<void> {
+  const userRef = doc(db, "users", uid);
+  await updateDoc(userRef, {
+    termsAccepted: true,
+    acceptedTermsVersion: version,
+    termsAcceptedAt: serverTimestamp(),
+  });
 }
 
 export async function signOutUser() {
