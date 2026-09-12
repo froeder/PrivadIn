@@ -1,14 +1,17 @@
 {
   "name": "privadin",
   "private": true,
-  "version": "1.0.52",
+  "version": "1.0.53",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "prebuild": "npm version patch --no-git-tag-version",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "deploy": "tsc && vite build && firebase deploy"
+    "deploy": "tsc && vite build && firebase deploy",
+    "mobile": "npm --prefix mobile run start",
+    "mobile:android": "npm --prefix mobile run android",
+    "mobile:build:apk": "npm --prefix mobile run build:apk"
   },
   "devDependencies": {
     "@types/canvas-confetti": "^1.9.0",
