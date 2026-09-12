@@ -22,6 +22,7 @@ import {
   ShieldCheck,
   KeyRound,
   AlertCircle,
+  Globe,
 } from "lucide-react-native";
 import {
   loginWithEmail,
@@ -33,6 +34,12 @@ import {
 import { AppSettings, AppUser } from "../types";
 import LoginPasswordModal from "../components/LoginPasswordModal";
 import TermsModal from "../components/TermsModal";
+import {
+  translations,
+  SupportedLanguage,
+  getPersistedLanguage,
+  persistLanguage,
+} from "../utils/i18n";
 
 const APP_VERSION = "v1.0.53";
 
@@ -47,6 +54,7 @@ export default function LoginScreen({ onSuccess }: LoginScreenProps) {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [groupCode, setGroupCode] = useState("");
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,33 +63,68 @@ export default function LoginScreen({ onSuccess }: LoginScreenProps) {
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const [pendingTermsUser, setPendingTermsUser] = useState<AppUser | null>(null);
   const [isAcceptingTerms, setIsAcceptingTerms] = useState(false);
+  const [showTermsReadModal, setShowTermsReadModal] = useState(false);
+
+  // Language state
+  const [language, setLanguage] = useState<SupportedLanguage>("pt-BR");
+  const t = translations[language];
 
   // Password recovery / change modal
   const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   useEffect(() => {
+    getPersistedLanguage().then(setLanguage);
     fetchAppSettings().then((settings) => {
       setAppSettings(settings);
     });
   }, []);
 
+  const toggleLanguage = () => {
+    const next: SupportedLanguage = language === "pt-BR" ? "en-US" : "pt-BR";
+    setLanguage(next);
+    persistLanguage(next);
+  };
+
   const handleSubmit = async () => {
     const trimmedEmail = email.trim().toLowerCase();
     const trimmedPassword = password;
     const trimmedGroupCode = groupCode.trim().toUpperCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (!trimmedEmail || !trimmedPassword) {
-      setError("Preencha seu e-mail e sua senha.");
+      setError(t.errFillFields);
       return;
     }
 
-    if (isRegister && !name.trim()) {
-      setError("Informe seu nome ou apelido para o cadastro.");
+    if (!emailRegex.test(trimmedEmail)) {
+      setError(t.errEmailInvalid);
       return;
+    }
+
+    if (isRegister) {
+      if (!name.trim()) {
+        setError(t.errNameRequired);
+        return;
+      }
+
+      if (name.trim().length < 3) {
+        setError(t.errNameMin);
+        return;
+      }
+
+      if (name.trim().length > 30) {
+        setError(t.errNameMax);
+        return;
+      }
+
+      if (!termsAccepted) {
+        setError(t.errMustAcceptTerms);
+        return;
+      }
     }
 
     if (trimmedPassword.length < 6) {
-      setError("A senha deve conter no mínimo 6 caracteres.");
+      setError(t.errPasswordMin);
       return;
     }
 
@@ -95,7 +138,8 @@ export default function LoginScreen({ onSuccess }: LoginScreenProps) {
           trimmedEmail,
           trimmedPassword,
           name.trim(),
-          trimmedGroupCode || undefined
+          trimmedGroupCode || undefined,
+          appSettings?.termsOfUseVersion ?? 1
         );
         resultUser = profile;
       } else {
@@ -121,17 +165,17 @@ export default function LoginScreen({ onSuccess }: LoginScreenProps) {
         err.code === "auth/invalid-credential" ||
         err.code === "auth/wrong-password"
       ) {
-        setError("E-mail ou senha incorretos.");
+        setError(t.errWrongCredentials);
       } else if (err.code === "auth/user-not-found") {
-        setError("Nenhuma conta encontrada com este e-mail.");
+        setError(t.errUserNotFound);
       } else if (err.code === "auth/email-already-in-use") {
-        setError("Este e-mail já está cadastrado. Mude para a aba 'Entrar'.");
+        setError(t.errEmailInUse);
       } else if (err.code === "auth/invalid-email") {
-        setError("Formato de e-mail inválido.");
+        setError(t.errEmailInvalid);
       } else if (err.code === "auth/weak-password") {
-        setError("A senha escolhida é muito fraca. Use ao menos 6 caracteres.");
+        setError(t.errWeakPassword);
       } else if (err.code === "auth/too-many-requests") {
-        setError("Muitas tentativas sem sucesso. Aguarde alguns instantes.");
+        setError(t.errTooManyRequests);
       } else {
         setError(err.message || "Erro ao autenticar. Tente novamente.");
       }
@@ -173,12 +217,24 @@ export default function LoginScreen({ onSuccess }: LoginScreenProps) {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Top Feature Badge */}
-        <View style={styles.badgeContainer}>
+        {/* Top Feature Badge & Language Switcher */}
+        <View style={styles.topBarRow}>
           <View style={styles.badge}>
             <Sparkles size={14} color="#eab308" style={{ marginRight: 6 }} />
-            <Text style={styles.badgeText}>Competição Corporativa</Text>
+            <Text style={styles.badgeText}>{t.badge}</Text>
           </View>
+
+          {/* Language Switcher */}
+          <TouchableOpacity
+            style={styles.langSwitchBtn}
+            onPress={toggleLanguage}
+            activeOpacity={0.7}
+          >
+            <Globe size={13} color="#eab308" style={{ marginRight: 4 }} />
+            <Text style={styles.langSwitchText}>
+              {language === "pt-BR" ? "🇧🇷 PT" : "🇺🇸 EN"}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Header Branding */}
@@ -186,30 +242,30 @@ export default function LoginScreen({ onSuccess }: LoginScreenProps) {
           <View style={styles.logoCircle}>
             <Text style={styles.logoIcon}>🚽</Text>
           </View>
-          <Text style={styles.title}>PrivadIn</Text>
-          <Text style={styles.subtitle}>
-            O app definitivo da cagada remunerada
-          </Text>
+          <Text style={styles.title}>{t.title}</Text>
+          <Text style={styles.subtitle}>{t.subtitle}</Text>
         </View>
 
         {/* Feature Highlights Cards */}
         <View style={styles.featuresRow}>
           <View style={styles.featureCard}>
             <Zap size={16} color="#eab308" style={{ marginBottom: 4 }} />
-            <Text style={styles.featureTitle}>Tempo Real</Text>
-            <Text style={styles.featureSub}>Ganhos por segundo</Text>
+            <Text style={styles.featureTitle}>{t.featureRealtime}</Text>
+            <Text style={styles.featureSub}>{t.featureRealtimeSub}</Text>
           </View>
 
           <View style={styles.featureCard}>
             <Trophy size={16} color="#eab308" style={{ marginBottom: 4 }} />
-            <Text style={styles.featureTitle}>Ranking</Text>
-            <Text style={styles.featureSub}>Dispute a liderança</Text>
+            <Text style={styles.featureTitle}>{t.featureRanking}</Text>
+            <Text style={styles.featureSub}>{t.featureRankingSub}</Text>
           </View>
 
           <View style={styles.featureCard}>
             <ShieldCheck size={16} color="#eab308" style={{ marginBottom: 4 }} />
-            <Text style={styles.featureTitle}>Antifraude</Text>
-            <Text style={styles.featureSub}>{cooldown} min cooldown</Text>
+            <Text style={styles.featureTitle}>{t.featureAntifraud}</Text>
+            <Text style={styles.featureSub}>
+              {cooldown} min {t.featureAntifraudSub}
+            </Text>
           </View>
         </View>
 
@@ -225,7 +281,7 @@ export default function LoginScreen({ onSuccess }: LoginScreenProps) {
               }}
             >
               <Text style={[styles.tabText, !isRegister && styles.tabTextActive]}>
-                Entrar
+                {t.tabSignIn}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -236,7 +292,7 @@ export default function LoginScreen({ onSuccess }: LoginScreenProps) {
               }}
             >
               <Text style={[styles.tabText, isRegister && styles.tabTextActive]}>
-                Cadastrar
+                {t.tabRegister}
               </Text>
             </TouchableOpacity>
           </View>
@@ -252,11 +308,11 @@ export default function LoginScreen({ onSuccess }: LoginScreenProps) {
           {/* Registration Name Field */}
           {isRegister && (
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Nome ou Apelido</Text>
+              <Text style={styles.label}>{t.labelName}</Text>
               <View style={styles.inputContainer}>
                 <TextInput
                   style={styles.input}
-                  placeholder="Ex: Mestre do Trono"
+                  placeholder={t.placeholderName}
                   placeholderTextColor="#64748b"
                   value={name}
                   onChangeText={setName}
@@ -268,12 +324,12 @@ export default function LoginScreen({ onSuccess }: LoginScreenProps) {
 
           {/* Email Field */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>E-mail</Text>
+            <Text style={styles.label}>{t.labelEmail}</Text>
             <View style={styles.inputContainer}>
               <Mail size={18} color="#eab308" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="seu@empresa.com"
+                placeholder={t.placeholderEmail}
                 placeholderTextColor="#64748b"
                 value={email}
                 onChangeText={setEmail}
@@ -286,12 +342,12 @@ export default function LoginScreen({ onSuccess }: LoginScreenProps) {
 
           {/* Password Field */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Senha</Text>
+            <Text style={styles.label}>{t.labelPassword}</Text>
             <View style={styles.inputContainer}>
               <Lock size={18} color="#eab308" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="••••••••"
+                placeholder={t.placeholderPassword}
                 placeholderTextColor="#64748b"
                 value={password}
                 onChangeText={setPassword}
@@ -311,29 +367,29 @@ export default function LoginScreen({ onSuccess }: LoginScreenProps) {
           </View>
 
           {/* Forgot or change password link */}
-          <View style={styles.forgotPasswordRow}>
-            <TouchableOpacity
-              onPress={() => setShowPasswordModal(true)}
-              style={styles.forgotPasswordButton}
-            >
-              <KeyRound size={13} color="#eab308" style={{ marginRight: 4 }} />
-              <Text style={styles.forgotPasswordText}>
-                Esqueceu ou deseja alterar a senha?
-              </Text>
-            </TouchableOpacity>
-          </View>
+          {!isRegister && (
+            <View style={styles.forgotPasswordRow}>
+              <TouchableOpacity
+                onPress={() => setShowPasswordModal(true)}
+                style={styles.forgotPasswordButton}
+              >
+                <KeyRound size={13} color="#eab308" style={{ marginRight: 4 }} />
+                <Text style={styles.forgotPasswordText}>{t.forgotPassword}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Group Code (Optional) */}
           <View style={styles.inputGroup}>
             <View style={styles.labelRow}>
-              <Text style={styles.label}>Código do grupo</Text>
-              <Text style={styles.optionalBadge}>Opcional</Text>
+              <Text style={styles.label}>{t.labelGroupCode}</Text>
+              <Text style={styles.optionalBadge}>{t.badgeOptional}</Text>
             </View>
             <View style={styles.inputContainer}>
               <Users size={18} color="#eab308" style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, styles.monoInput]}
-                placeholder="Ex: ABCD1234"
+                placeholder={t.placeholderGroupCode}
                 placeholderTextColor="#64748b"
                 value={groupCode}
                 onChangeText={(text) => setGroupCode(text.trim().toUpperCase())}
@@ -341,10 +397,35 @@ export default function LoginScreen({ onSuccess }: LoginScreenProps) {
                 maxLength={32}
               />
             </View>
-            <Text style={styles.groupHint}>
-              Se você recebeu um código da sua equipe, você já entra nela ao criar a conta.
-            </Text>
+            <Text style={styles.groupHint}>{t.groupCodeHint}</Text>
           </View>
+
+          {/* Terms of use checkbox during registration */}
+          {isRegister && (
+            <View style={styles.termsCheckboxContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.termsCheckbox,
+                  termsAccepted && styles.termsCheckboxChecked,
+                ]}
+                onPress={() => setTermsAccepted(!termsAccepted)}
+                activeOpacity={0.8}
+              >
+                {termsAccepted && <Text style={styles.termsCheckmark}>✓</Text>}
+              </TouchableOpacity>
+              <View style={styles.termsTextWrapper}>
+                <Text style={styles.termsMainText}>
+                  {t.termsLabel}{" "}
+                  <Text
+                    style={styles.termsLinkText}
+                    onPress={() => setShowTermsReadModal(true)}
+                  >
+                    {t.termsLink} (v{appSettings?.termsOfUseVersion ?? 1})
+                  </Text>
+                </Text>
+              </View>
+            </View>
+          )}
 
           {/* Submit Button */}
           <TouchableOpacity
@@ -357,7 +438,7 @@ export default function LoginScreen({ onSuccess }: LoginScreenProps) {
               <ActivityIndicator color="#020617" />
             ) : (
               <Text style={styles.submitButtonText}>
-                {isRegister ? "Criar Conta e Começar" : "Acessar o Trono"}
+                {isRegister ? t.btnRegister : t.btnSignIn}
               </Text>
             )}
           </TouchableOpacity>
@@ -365,9 +446,7 @@ export default function LoginScreen({ onSuccess }: LoginScreenProps) {
 
         {/* Footer info */}
         <View style={styles.footerContainer}>
-          <Text style={styles.footerSecurity}>
-            🔒 Seus dados e cagadas permanecem confidenciais.
-          </Text>
+          <Text style={styles.footerSecurity}>{t.footerSecurity}</Text>
           <Text style={styles.footerVersion}>{APP_VERSION}</Text>
         </View>
       </ScrollView>
@@ -385,11 +464,24 @@ export default function LoginScreen({ onSuccess }: LoginScreenProps) {
 
       {/* Terms of Use Modal */}
       <TermsModal
-        isOpen={Boolean(pendingTermsUser)}
+        isOpen={showTermsReadModal || Boolean(pendingTermsUser)}
         termsText={appSettings?.termsOfUseText}
         termsVersion={appSettings?.termsOfUseVersion ?? 1}
-        onAccept={handleAcceptTerms}
-        onDecline={handleDeclineTerms}
+        onAccept={async () => {
+          if (pendingTermsUser) {
+            await handleAcceptTerms();
+          } else {
+            setTermsAccepted(true);
+            setShowTermsReadModal(false);
+          }
+        }}
+        onDecline={async () => {
+          if (pendingTermsUser) {
+            await handleDeclineTerms();
+          } else {
+            setShowTermsReadModal(false);
+          }
+        }}
         loading={isAcceptingTerms}
       />
     </KeyboardAvoidingView>
@@ -406,6 +498,27 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 20,
     paddingVertical: 32,
+  },
+  topBarRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 14,
+  },
+  langSwitchBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(30, 41, 59, 0.8)",
+    borderWidth: 1,
+    borderColor: "rgba(234, 179, 8, 0.3)",
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 16,
+  },
+  langSwitchText: {
+    color: "#eab308",
+    fontSize: 12,
+    fontWeight: "bold",
   },
   badgeContainer: {
     alignItems: "center",
@@ -626,6 +739,47 @@ const styles = StyleSheet.create({
     color: "#020617",
     fontSize: 15,
     fontWeight: "900",
+  },
+  termsCheckboxContainer: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    marginTop: 4,
+    marginBottom: 6,
+    paddingHorizontal: 2,
+  },
+  termsCheckbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: "#475569",
+    backgroundColor: "#0f172a",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2,
+  },
+  termsCheckboxChecked: {
+    backgroundColor: "#eab308",
+    borderColor: "#eab308",
+  },
+  termsCheckmark: {
+    color: "#0f172a",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  termsTextWrapper: {
+    flex: 1,
+  },
+  termsMainText: {
+    fontSize: 12,
+    color: "#94a3b8",
+    lineHeight: 18,
+  },
+  termsLinkText: {
+    color: "#eab308",
+    fontWeight: "700",
+    textDecorationLine: "underline",
   },
   footerContainer: {
     alignItems: "center",

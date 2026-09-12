@@ -8,10 +8,15 @@ import {
   User,
 } from "firebase/auth";
 import {
+  collection,
   doc,
   getDoc,
+  getDocs,
   setDoc,
   updateDoc,
+  addDoc,
+  query,
+  where,
   runTransaction,
   serverTimestamp,
 } from "firebase/firestore";
@@ -36,7 +41,36 @@ export async function getUserProfile(uid: string): Promise<AppUser | null> {
   }
 }
 
-export async function ensureUserProfile(firebaseUser: User, nameHint?: string): Promise<AppUser> {
+export async function createRegistrationAttempt({
+  email,
+  status,
+  groupCodeProvided,
+  message,
+}: {
+  email: string;
+  status: "account_created" | "failed" | "invalid_code" | "terms_declined";
+  groupCodeProvided?: string;
+  message?: string;
+}) {
+  try {
+    await addDoc(collection(db, "registration_attempts"), {
+      email: email.trim().toLowerCase(),
+      status,
+      groupCodeProvided: groupCodeProvided?.trim().toUpperCase() || null,
+      message: message || null,
+      createdAt: serverTimestamp(),
+    });
+  } catch (err) {
+    console.warn("Could not log registration attempt:", err);
+  }
+}
+
+export async function ensureUserProfile(
+  firebaseUser: User,
+  nameHint?: string,
+  termsAccepted = true,
+  acceptedTermsVersion = 1
+): Promise<AppUser> {
   const userRef = doc(db, "users", firebaseUser.uid);
   const snap = await getDoc(userRef);
 
@@ -69,8 +103,8 @@ export async function ensureUserProfile(firebaseUser: User, nameHint?: string): 
     salary: 3000,
     hourlyRate: Number((3000 / 176).toFixed(2)),
     bathroomDurationMinutes: 10,
-    termsAccepted: true,
-    acceptedTermsVersion: 1,
+    termsAccepted,
+    acceptedTermsVersion,
     workSchedule: {
       horarioInicioExpediente: "09:00",
       horarioFimExpediente: "18:00",
@@ -139,20 +173,68 @@ export async function registerWithEmail(
   email: string,
   pass: string,
   name: string,
-  groupCode?: string
+  groupCode?: string,
+  termsVersion = 1
 ): Promise<{ user: User; profile: AppUser }> {
-  const cred = await createUserWithEmailAndPassword(auth, email.trim().toLowerCase(), pass);
-  const profile = await ensureUserProfile(cred.user, name);
+  const cleanEmail = email.trim().toLowerCase();
+  const trimmedName = name.trim();
 
-  if (groupCode?.trim()) {
-    try {
-      await joinGroup(profile, groupCode.trim());
-    } catch (err: any) {
-      console.warn("Aviso ao vincular grupo:", err.message);
-    }
+  if (trimmedName.length < 3 || trimmedName.length > 30) {
+    throw new Error("O apelido deve conter entre 3 e 30 caracteres.");
   }
 
-  return { user: cred.user, profile };
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, cleanEmail, pass);
+
+    // Validação de apelido/username único no Firestore
+    const existingUsersSnap = await getDocs(
+      query(collection(db, "users"), where("name", "==", trimmedName))
+    );
+    const isDuplicate = existingUsersSnap.docs.some((d) => d.id !== cred.user.uid);
+    if (isDuplicate) {
+      await cred.user.delete().catch(() => undefined);
+      await createRegistrationAttempt({
+        email: cleanEmail,
+        status: "failed",
+        groupCodeProvided: groupCode,
+        message: `Apelido "${trimmedName}" já está em uso por outro competidor.`,
+      });
+      throw new Error(
+        `O apelido "${trimmedName}" já está em uso por outro competidor. Escolha outro apelido.`
+      );
+    }
+
+    const profile = await ensureUserProfile(cred.user, trimmedName, true, termsVersion);
+
+    if (groupCode?.trim()) {
+      try {
+        await joinGroup(profile, groupCode.trim());
+      } catch (err: any) {
+        console.warn("Aviso ao vincular grupo:", err.message);
+      }
+    }
+
+    await createRegistrationAttempt({
+      email: cleanEmail,
+      status: "account_created",
+      groupCodeProvided: groupCode,
+      message: groupCode
+        ? "Conta criada com aceite dos termos e vinculada à liga."
+        : "Conta criada com aceite dos termos.",
+    });
+
+    return { user: cred.user, profile };
+  } catch (err: any) {
+    if (err.message && !err.message.includes("já está em uso")) {
+      await createRegistrationAttempt({
+        email: cleanEmail,
+        status: "failed",
+        groupCodeProvided: groupCode,
+        message: err.message || "Falha ao criar conta.",
+      });
+    }
+    throw err;
+  }
 }
 
 export async function sendPasswordReset(email: string): Promise<void> {
