@@ -98,6 +98,7 @@ function MainApp() {
                 onNavigateToPoopcoins={() => setCurrentTab("poopcoins")}
                 onNavigateToCuiter={() => setCurrentTab("cuiter")}
                 onNavigateToAnalytics={() => setCurrentTab("analytics")}
+                onNavigateToRanking={() => setCurrentTab("ranking")}
               />
             )}
             {currentTab === "cuiter" && (

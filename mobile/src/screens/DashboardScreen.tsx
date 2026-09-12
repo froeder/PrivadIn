@@ -12,14 +12,18 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppUser, PoopLog, AppSettings } from "../types";
-import { registerPoopLog, getUserRecentLogs } from "../services/poopService";
+import { registerPoopLog, getUserRecentLogs, getLeaderboard } from "../services/poopService";
 import { fetchAppSettings } from "../services/authService";
 import { toRoman } from "../utils/roman";
 import { checkWorkScheduleStatus, ScheduleStatus } from "../utils/workSchedule";
 import { playFlushSound } from "../services/soundService";
+import { requestCurrentLocation } from "../services/locationService";
+import { shareWeeklyRanking } from "../utils/weeklyRankingShare";
 import PoopcoinWalletCard from "../components/PoopcoinWalletCard";
 import TransferPoopcoinsModal from "../components/TransferPoopcoinsModal";
 import PoopRewardModal from "../components/PoopRewardModal";
+import UserProfileModal from "../components/UserProfileModal";
+import UserAvatar from "../components/UserAvatar";
 
 interface DashboardScreenProps {
   user: AppUser;
@@ -27,6 +31,7 @@ interface DashboardScreenProps {
   onNavigateToPoopcoins?: () => void;
   onNavigateToCuiter?: () => void;
   onNavigateToAnalytics?: () => void;
+  onNavigateToRanking?: () => void;
 }
 
 const ACTIVE_TIMER_STORAGE_KEY = "@privadin:active_timer";
@@ -37,6 +42,7 @@ export default function DashboardScreen({
   onNavigateToPoopcoins,
   onNavigateToCuiter,
   onNavigateToAnalytics,
+  onNavigateToRanking,
 }: DashboardScreenProps) {
   const [isActive, setIsActive] = useState(false);
   const [startTime, setStartTime] = useState<number | null>(null);
@@ -48,6 +54,13 @@ export default function DashboardScreen({
 
   // App Settings (edition, announcement, cooldown, pointsPerLog)
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
+
+  // Weekly Leaderboard State
+  const [weeklyLeaders, setWeeklyLeaders] = useState<AppUser[]>([]);
+  const [loadingLeaders, setLoadingLeaders] = useState(false);
+  const [selectedProfileUserId, setSelectedProfileUserId] = useState<string | null>(null);
+  const [profileModalVisible, setProfileModalVisible] = useState(false);
+  const [sharingRanking, setSharingRanking] = useState(false);
 
   // Antifraud Cooldown State
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
@@ -107,6 +120,19 @@ export default function DashboardScreen({
     }
   };
 
+  // Load weekly leaderboard
+  const loadWeeklyLeaders = async () => {
+    setLoadingLeaders(true);
+    try {
+      const leaders = await getLeaderboard("weekly", 5);
+      setWeeklyLeaders(leaders);
+    } catch (error) {
+      console.warn("Error loading weekly leaderboard:", error);
+    } finally {
+      setLoadingLeaders(false);
+    }
+  };
+
   // Parse any Timestamp or date safely to milliseconds
   const parseTimestampMs = (val: any): number => {
     if (!val) return 0;
@@ -144,6 +170,7 @@ export default function DashboardScreen({
   useEffect(() => {
     loadSettings();
     loadRecentLogs();
+    loadWeeklyLeaders();
 
     const restoreTimer = async () => {
       try {
@@ -318,8 +345,16 @@ export default function DashboardScreen({
       // Play flush sound effect
       void playFlushSound();
 
-      // Register poop log with real business logic
-      const result = await registerPoopLog(user, finalSeconds, earned);
+      // Capture optional geolocation
+      let location: any = null;
+      try {
+        location = await requestCurrentLocation();
+      } catch (locErr) {
+        console.warn("Location capture skipped:", locErr);
+      }
+
+      // Register poop log with real business logic + location + peak hours bonus
+      const result = await registerPoopLog(user, finalSeconds, earned, undefined, location);
       await AsyncStorage.removeItem(ACTIVE_TIMER_STORAGE_KEY);
 
       // Open celebration reward modal
@@ -336,6 +371,7 @@ export default function DashboardScreen({
       onRefreshUser();
       loadRecentLogs();
       loadSettings();
+      loadWeeklyLeaders();
     } catch (error: any) {
       console.error(error);
       Alert.alert("Erro", "Não foi possível registrar o intervalo.");
@@ -344,6 +380,26 @@ export default function DashboardScreen({
       setStartTime(null);
       setSeconds(0);
     }
+  };
+
+  const handleShareRanking = async () => {
+    if (sharingRanking) return;
+    setSharingRanking(true);
+    try {
+      await shareWeeklyRanking({
+        users: weeklyLeaders,
+        edition: appSettings?.edition || 1,
+        currentUserId: user.uid,
+        announcement: appSettings?.competitionAnnouncement,
+      });
+    } finally {
+      setSharingRanking(false);
+    }
+  };
+
+  const handleOpenProfile = (uid: string) => {
+    setSelectedProfileUserId(uid);
+    setProfileModalVisible(true);
   };
 
   const formatLogDate = (createdAt: any) => {
@@ -620,6 +676,126 @@ export default function DashboardScreen({
         </TouchableOpacity>
       )}
 
+      {/* 🏆 Ranking Semanal & Pódio dos Campeões */}
+      <View style={styles.rankingCard}>
+        <View style={styles.rankingHeader}>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 }}>
+              <View style={styles.rankingBadge}>
+                <Text style={styles.rankingBadgeText}>⚡ RODADA SEMANAL</Text>
+              </View>
+              <Text style={styles.rankingEditionText}>
+                Edição {toRoman(appSettings?.edition ?? 1)}
+              </Text>
+            </View>
+            <Text style={styles.rankingTitle}>Pódio da Semana</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.shareRankingBtn}
+            onPress={handleShareRanking}
+            disabled={sharingRanking || weeklyLeaders.length === 0}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.shareRankingBtnText}>
+              {sharingRanking ? "⏳" : "📤 Compartilhar"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {loadingLeaders ? (
+          <ActivityIndicator size="small" color="#eab308" style={{ marginVertical: 20 }} />
+        ) : weeklyLeaders.length === 0 ? (
+          <Text style={styles.emptyRankingText}>
+            Nenhum registro ainda nesta rodada. Seja o primeiro a ocupar o trono!
+          </Text>
+        ) : (
+          <View style={styles.rankingContent}>
+            {/* Top 3 Podium Row */}
+            <View style={styles.dashboardPodiumRow}>
+              {weeklyLeaders.slice(0, 3).map((leader, idx) => {
+                const medals = ["🥇", "🥈", "🥉"];
+                const borderColors = ["#eab308", "#94a3b8", "#d97706"];
+                const isMe = leader.uid === user.uid;
+
+                return (
+                  <TouchableOpacity
+                    key={leader.uid}
+                    style={[
+                      styles.dashboardPodiumItem,
+                      { borderColor: borderColors[idx] },
+                      isMe && styles.dashboardPodiumItemMe,
+                    ]}
+                    onPress={() => handleOpenProfile(leader.uid)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.podiumMedalIcon}>{medals[idx]}</Text>
+                    <UserAvatar
+                      name={leader.name}
+                      avatar={leader.avatar}
+                      size={44}
+                      borderColor={borderColors[idx]}
+                    />
+                    <Text style={styles.podiumUserName} numberOfLines={1}>
+                      {leader.name?.split(" ")[0] || "Cagador"}
+                    </Text>
+                    <Text style={styles.podiumPoints}>
+                      {(leader.weeklyPoints || 0).toLocaleString("pt-BR")} pts
+                    </Text>
+                    {idx === 0 && (
+                      <View style={styles.kingBadge}>
+                        <Text style={styles.kingBadgeText}>👑 Rei do Trono</Text>
+                      </View>
+                    )}
+                    {leader.currentDailyStreak && leader.currentDailyStreak > 1 ? (
+                      <Text style={styles.podiumStreakText}>🔥 {leader.currentDailyStreak}d</Text>
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* If 4th & 5th exist, show compact rows */}
+            {weeklyLeaders.slice(3, 5).map((leader, idx) => {
+              const rank = idx + 4;
+              const isMe = leader.uid === user.uid;
+
+              return (
+                <TouchableOpacity
+                  key={leader.uid}
+                  style={[styles.rankingCompactRow, isMe && styles.rankingCompactRowMe]}
+                  onPress={() => handleOpenProfile(leader.uid)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.rankingCompactRank}>#{rank}</Text>
+                  <UserAvatar name={leader.name} avatar={leader.avatar} size={28} />
+                  <View style={{ flex: 1, marginLeft: 8 }}>
+                    <Text style={styles.rankingCompactName} numberOfLines={1}>
+                      {leader.name} {isMe ? "(Você)" : ""}
+                    </Text>
+                  </View>
+                  <Text style={styles.rankingCompactPoints}>
+                    {(leader.weeklyPoints || 0).toLocaleString("pt-BR")} pts
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+
+            {/* Navigation Button to Full Ranking */}
+            {onNavigateToRanking && (
+              <TouchableOpacity
+                style={styles.viewFullRankingBtn}
+                onPress={onNavigateToRanking}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.viewFullRankingBtnText}>
+                  Ver Ranking Completo da Firma 🏆 ›
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+      </View>
+
       {/* Recent Logs Section */}
       <View style={styles.historyCard}>
         <View style={styles.historyHeader}>
@@ -693,6 +869,19 @@ export default function DashboardScreen({
           onRefreshUser();
         }}
       />
+
+      {/* User Profile Modal */}
+      {selectedProfileUserId && (
+        <UserProfileModal
+          visible={profileModalVisible}
+          userId={selectedProfileUserId}
+          currentUserId={user.uid}
+          onClose={() => {
+            setProfileModalVisible(false);
+            setSelectedProfileUserId(null);
+          }}
+        />
+      )}
 
       {/* 🎉 Celebratory Reward Modal */}
       {rewardModalData && (
@@ -1220,6 +1409,165 @@ const styles = StyleSheet.create({
   cuiterBannerArrow: {
     color: "#eab308",
     fontSize: 18,
+    fontWeight: "800",
+  },
+
+  // Weekly Ranking Card Styles
+  rankingCard: {
+    backgroundColor: "#0f172a",
+    borderWidth: 1,
+    borderColor: "rgba(234, 179, 8, 0.3)",
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 20,
+  },
+  rankingHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
+  rankingBadge: {
+    backgroundColor: "rgba(234, 179, 8, 0.15)",
+    borderColor: "#eab308",
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  rankingBadgeText: {
+    color: "#facc15",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  rankingEditionText: {
+    color: "#94a3b8",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  rankingTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#f8fafc",
+  },
+  shareRankingBtn: {
+    backgroundColor: "rgba(234, 179, 8, 0.15)",
+    borderWidth: 1,
+    borderColor: "#eab308",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  shareRankingBtnText: {
+    color: "#facc15",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  emptyRankingText: {
+    color: "#94a3b8",
+    fontSize: 13,
+    textAlign: "center",
+    marginVertical: 14,
+    fontStyle: "italic",
+  },
+  rankingContent: {
+    marginTop: 4,
+  },
+  dashboardPodiumRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 8,
+    marginBottom: 12,
+  },
+  dashboardPodiumItem: {
+    flex: 1,
+    backgroundColor: "rgba(30, 41, 59, 0.6)",
+    borderWidth: 1.5,
+    borderRadius: 14,
+    padding: 10,
+    alignItems: "center",
+  },
+  dashboardPodiumItemMe: {
+    backgroundColor: "rgba(20, 184, 166, 0.15)",
+    borderColor: "#14b8a6",
+  },
+  podiumMedalIcon: {
+    fontSize: 18,
+    marginBottom: 4,
+  },
+  podiumUserName: {
+    color: "#f8fafc",
+    fontSize: 12,
+    fontWeight: "800",
+    marginTop: 4,
+  },
+  podiumPoints: {
+    color: "#facc15",
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  kingBadge: {
+    backgroundColor: "rgba(234, 179, 8, 0.2)",
+    borderRadius: 6,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    marginTop: 4,
+  },
+  kingBadgeText: {
+    color: "#fde047",
+    fontSize: 9,
+    fontWeight: "800",
+  },
+  podiumStreakText: {
+    color: "#f97316",
+    fontSize: 10,
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  rankingCompactRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(15, 23, 42, 0.8)",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.1)",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 6,
+  },
+  rankingCompactRowMe: {
+    backgroundColor: "rgba(20, 184, 166, 0.12)",
+    borderColor: "rgba(20, 184, 166, 0.4)",
+  },
+  rankingCompactRank: {
+    color: "#94a3b8",
+    fontSize: 12,
+    fontWeight: "800",
+    width: 26,
+  },
+  rankingCompactName: {
+    color: "#f1f5f9",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  rankingCompactPoints: {
+    color: "#eab308",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  viewFullRankingBtn: {
+    marginTop: 8,
+    paddingVertical: 8,
+    alignItems: "center",
+    backgroundColor: "rgba(234, 179, 8, 0.08)",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(234, 179, 8, 0.2)",
+  },
+  viewFullRankingBtnText: {
+    color: "#facc15",
+    fontSize: 12,
     fontWeight: "800",
   },
 });

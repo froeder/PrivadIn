@@ -38,6 +38,18 @@ export interface AppUser {
   cooldownUntil?: any;
 }
 
+export interface BonusTimeRange {
+  start: string; // HH:MM
+  end: string; // HH:MM
+  points: number;
+}
+
+export interface PoopLocation {
+  latitude: number;
+  longitude: number;
+  accuracy: number | null;
+}
+
 export interface AppSettings {
   cooldownMinutes: number;
   pointsPerLog?: number;
@@ -48,6 +60,7 @@ export interface AppSettings {
   termsOfUseText?: string;
   termsOfUseVersion?: number;
   competitionAnnouncement?: string;
+  bonusTimeRanges?: BonusTimeRange[];
 }
 
 export interface PoopLog {
@@ -63,6 +76,7 @@ export interface PoopLog {
   note?: string;
   isWeeklyActive?: boolean;
   competitionEdition?: number;
+  location?: PoopLocation | null;
 }
 
 export interface RankingGroup {

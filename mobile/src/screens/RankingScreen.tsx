@@ -15,6 +15,8 @@ import { formatPoopcoins } from "../services/poopcoinService";
 import UserProfileModal from "../components/UserProfileModal";
 import TransferPoopcoinsModal from "../components/TransferPoopcoinsModal";
 import UserAvatar from "../components/UserAvatar";
+import { shareWeeklyRanking } from "../utils/weeklyRankingShare";
+import { fetchAppSettings } from "../services/authService";
 
 interface RankingScreenProps {
   currentUserId?: string;
@@ -55,8 +57,29 @@ export default function RankingScreen({
   const [profileModalVisible, setProfileModalVisible] = useState(false);
   const [tipRecipientUser, setTipRecipientUser] = useState<AppUser | null>(null);
   const [transferModalVisible, setTransferModalVisible] = useState(false);
+  const [appSettings, setAppSettings] = useState<any>(null);
+  const [sharing, setSharing] = useState(false);
 
   const countdown = useMemo(() => getDaysUntilSunday(), []);
+
+  useEffect(() => {
+    fetchAppSettings().then(setAppSettings).catch(console.warn);
+  }, []);
+
+  const handleShareRanking = async () => {
+    if (sharing || leaders.length === 0) return;
+    setSharing(true);
+    try {
+      await shareWeeklyRanking({
+        users: leaders,
+        edition: appSettings?.edition || 1,
+        currentUserId,
+        announcement: appSettings?.competitionAnnouncement,
+      });
+    } finally {
+      setSharing(false);
+    }
+  };
 
   const fetchLeaders = async (selectedMode: RankingMode = mode) => {
     setError(null);
@@ -158,12 +181,24 @@ export default function RankingScreen({
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTitleRow}>
-          <View>
+          <View style={{ flex: 1, marginRight: 6 }}>
             <Text style={styles.title}>🏆 Hall da Fama</Text>
             <Text style={styles.subtitle}>Os maiores especialistas em cagada remunerada</Text>
           </View>
-          <View style={styles.headerBadge}>
-            <Text style={styles.headerBadgeText}>{leaders.length} no ranking</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <TouchableOpacity
+              style={styles.shareHeaderBtn}
+              onPress={handleShareRanking}
+              disabled={sharing || leaders.length === 0}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.shareHeaderBtnText}>
+                {sharing ? "⏳" : "📤 Compartilhar"}
+              </Text>
+            </TouchableOpacity>
+            <View style={styles.headerBadge}>
+              <Text style={styles.headerBadgeText}>{leaders.length} no ranking</Text>
+            </View>
           </View>
         </View>
 
@@ -709,6 +744,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#94a3b8",
     marginTop: 2,
+  },
+  shareHeaderBtn: {
+    backgroundColor: "rgba(234, 179, 8, 0.15)",
+    borderWidth: 1,
+    borderColor: "#eab308",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  shareHeaderBtnText: {
+    color: "#facc15",
+    fontSize: 11,
+    fontWeight: "800",
   },
   headerBadge: {
     backgroundColor: "rgba(234, 179, 8, 0.12)",

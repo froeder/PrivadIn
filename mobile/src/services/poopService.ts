@@ -14,8 +14,14 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { AppUser, PoopLog, WorkSchedule } from "../types";
+import { AppUser, PoopLog, WorkSchedule, BonusTimeRange, PoopLocation } from "../types";
 import { mintPoopcoinsForLog } from "./poopcoinService";
+import {
+  minutesOfDay,
+  isBetweenMinutes,
+  localTimeInTimezone,
+  resolveWorkSchedule,
+} from "../utils/workSchedule";
 
 export const logsRef = collection(db, "poop_logs");
 export const usersRef = collection(db, "users");
@@ -52,31 +58,60 @@ export function calculateNextStreak(lastLogAt: any, currentStreak: number = 0): 
   return 1;
 }
 
+export function resolvePointsPerLog(
+  settings: Record<string, unknown> | undefined,
+  localTime: string,
+  fallback: number = 2000
+): number {
+  let pointsPerLog = Math.max(1, Number(settings?.pointsPerLog ?? fallback));
+  const bonusRanges = Array.isArray(settings?.bonusTimeRanges)
+    ? (settings.bonusTimeRanges as BonusTimeRange[])
+    : [];
+  const currentMinutes = minutesOfDay(localTime);
+
+  for (const range of bonusRanges) {
+    const start = typeof range.start === "string" ? range.start : "00:00";
+    const end = typeof range.end === "string" ? range.end : "00:00";
+    const points = Number(range.points) || pointsPerLog;
+    if (isBetweenMinutes(currentMinutes, minutesOfDay(start), minutesOfDay(end))) {
+      pointsPerLog = Math.max(pointsPerLog, Math.trunc(points));
+    }
+  }
+
+  return pointsPerLog;
+}
+
 export async function registerPoopLog(
   user: AppUser,
   durationSeconds: number,
   earnedAmount: number,
-  note?: string
+  note?: string,
+  location?: PoopLocation | null
 ) {
-  // Load settings for edition, pointsPerLog and cooldown
+  // Load settings for edition, pointsPerLog, bonusTimeRanges and cooldown
   let cooldownMinutes = 15;
   let currentEdition = 1;
   let basePoints = 2000;
+  let settingsData: any = undefined;
   try {
     const settingsSnap = await getDoc(doc(db, "app_settings", "global"));
     if (settingsSnap.exists()) {
-      const data = settingsSnap.data();
-      if (typeof data.cooldownMinutes === "number") cooldownMinutes = data.cooldownMinutes;
-      if (typeof data.edition === "number") currentEdition = data.edition;
-      if (typeof data.pointsPerLog === "number") basePoints = data.pointsPerLog;
+      settingsData = settingsSnap.data();
+      if (typeof settingsData.cooldownMinutes === "number") cooldownMinutes = settingsData.cooldownMinutes;
+      if (typeof settingsData.edition === "number") currentEdition = settingsData.edition;
+      if (typeof settingsData.pointsPerLog === "number") basePoints = settingsData.pointsPerLog;
     }
   } catch (e) {
     console.warn("Could not fetch global app_settings in registerPoopLog:", e);
   }
 
-  // Calculate points: base points from edition settings + small bonus for duration
+  // Calculate points: base points with peak hours bonus + duration bonus
+  const schedule = resolveWorkSchedule(user.workSchedule);
+  const localTime = localTimeInTimezone(new Date(), schedule.timezone);
+  const resolvedBasePoints = resolvePointsPerLog(settingsData, localTime, basePoints);
+
   const durationBonus = Math.min(500, Math.floor(durationSeconds / 60) * 10);
-  const pointsEarned = basePoints + durationBonus;
+  const pointsEarned = resolvedBasePoints + durationBonus;
 
   const newStreak = calculateNextStreak(user.lastLogAt, user.currentDailyStreak || 0);
   const newBestStreak = Math.max(user.bestStreak || 0, newStreak);
@@ -97,6 +132,14 @@ export async function registerPoopLog(
     note: note || "Cagada remunerada pelo app mobile",
     createdAt: serverTimestamp(),
   };
+
+  if (location && typeof location.latitude === "number" && typeof location.longitude === "number") {
+    logData.location = {
+      latitude: location.latitude,
+      longitude: location.longitude,
+      accuracy: typeof location.accuracy === "number" ? location.accuracy : null,
+    };
+  }
 
   const docRef = await addDoc(logsRef, logData);
 
