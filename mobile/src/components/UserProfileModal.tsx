@@ -150,9 +150,23 @@ export default function UserProfileModal({
 
                   <View style={styles.statItem}>
                     <Text style={styles.statValue}>
+                      {formatPoopcoins(profileUser.weeklyPoints || 0)}
+                    </Text>
+                    <Text style={styles.statLabel}>⚡ Esta Semana</Text>
+                  </View>
+
+                  <View style={styles.statItem}>
+                    <Text style={styles.statValue}>
                       {profileUser.currentDailyStreak || 0} 🔥
                     </Text>
                     <Text style={styles.statLabel}>Dias Seguidos</Text>
+                  </View>
+
+                  <View style={styles.statItem}>
+                    <Text style={styles.statValue}>
+                      {profileUser.currentWeeklyStreak || 0} ⚡
+                    </Text>
+                    <Text style={styles.statLabel}>Semanas Seguidas</Text>
                   </View>
 
                   <View style={styles.statItem}>
@@ -170,6 +184,14 @@ export default function UserProfileModal({
                   </View>
                 </View>
               </View>
+
+              {/* Bio Section */}
+              {profileUser.bio ? (
+                <View style={styles.bioSection}>
+                  <Text style={styles.bioTitle}>Biografia</Text>
+                  <Text style={styles.bioText}>"{profileUser.bio}"</Text>
+                </View>
+              ) : null}
 
               {/* Action Button: Transfer Poopcoins (if not self) */}
               {!isSelf && onOpenTransfer && (
@@ -400,6 +422,28 @@ const styles = StyleSheet.create({
     color: "#94a3b8",
     marginTop: 4,
     fontWeight: "600",
+  },
+  bioSection: {
+    backgroundColor: "#1e293b",
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  bioTitle: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#94a3b8",
+    marginBottom: 6,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  bioText: {
+    fontSize: 13,
+    color: "#f1f5f9",
+    fontStyle: "italic",
+    lineHeight: 19,
   },
   transferButton: {
     flexDirection: "row",

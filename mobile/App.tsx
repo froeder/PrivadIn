@@ -107,7 +107,9 @@ function MainApp() {
             {currentTab === "ranking" && (
               <RankingScreen
                 currentUserId={appUser.uid}
+                currentUser={appUser}
                 onNavigateToGroups={() => setCurrentTab("groups")}
+                onRefreshUser={() => loadUserData(firebaseUser)}
               />
             )}
             {currentTab === "poopcoins" && (

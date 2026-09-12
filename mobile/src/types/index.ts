@@ -12,6 +12,7 @@ export interface AppUser {
   nickname?: string;
   email: string;
   avatar?: string;
+  bio?: string;
   role?: "player" | "admin";
   isActive?: boolean;
   totalPoints?: number;

@@ -147,19 +147,44 @@ export async function registerPoopLog(
   };
 }
 
-export async function getLeaderboard(top = 20): Promise<AppUser[]> {
+export async function getLeaderboard(
+  mode: "weekly" | "overall" = "weekly",
+  top = 50
+): Promise<AppUser[]> {
   try {
-    const q = query(usersRef, orderBy("totalPoints", "desc"), limit(top));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map((doc) => ({
-      uid: doc.id,
-      ...(doc.data() as any),
-    }));
+    const field = mode === "weekly" ? "weeklyPoints" : "totalPoints";
+    let snapshot;
+    try {
+      const q = query(usersRef, orderBy(field, "desc"), limit(top));
+      snapshot = await getDocs(q);
+    } catch (orderErr) {
+      console.warn(`Query with orderBy('${field}') failed, falling back to basic query:`, orderErr);
+      const q = query(usersRef, limit(top));
+      snapshot = await getDocs(q);
+    }
+
+    const users = snapshot.docs
+      .map((doc) => ({
+        uid: doc.id,
+        ...(doc.data() as any),
+      }))
+      .filter((u: AppUser) => u.isActive !== false);
+
+    // Sort in memory to guarantee correct ranking even with missing fields
+    users.sort((a, b) => {
+      const ptsA = (mode === "weekly" ? a.weeklyPoints : a.totalPoints) ?? 0;
+      const ptsB = (mode === "weekly" ? b.weeklyPoints : b.totalPoints) ?? 0;
+      if (ptsB !== ptsA) return ptsB - ptsA;
+      return (b.currentDailyStreak ?? 0) - (a.currentDailyStreak ?? 0);
+    });
+
+    return users;
   } catch (error) {
     console.error("Error fetching leaderboard:", error);
     return [];
   }
 }
+
 
 export async function getUserRecentLogs(userId: string, count = 10): Promise<PoopLog[]> {
   try {

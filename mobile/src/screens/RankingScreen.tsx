@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   StyleSheet,
   Text,
@@ -7,25 +7,45 @@ import {
   RefreshControl,
   ActivityIndicator,
   TouchableOpacity,
+  ScrollView,
 } from "react-native";
 import { AppUser } from "../types";
 import { getLeaderboard } from "../services/poopService";
+import { formatPoopcoins } from "../services/poopcoinService";
+import UserProfileModal from "../components/UserProfileModal";
+import TransferPoopcoinsModal from "../components/TransferPoopcoinsModal";
 
 interface RankingScreenProps {
   currentUserId?: string;
+  currentUser?: AppUser;
   onNavigateToGroups?: () => void;
+  onRefreshUser?: () => void;
 }
 
-export default function RankingScreen({ currentUserId, onNavigateToGroups }: RankingScreenProps) {
+type RankingMode = "weekly" | "overall";
+
+export default function RankingScreen({
+  currentUserId,
+  currentUser,
+  onNavigateToGroups,
+  onRefreshUser,
+}: RankingScreenProps) {
+  const [mode, setMode] = useState<RankingMode>("weekly");
   const [leaders, setLeaders] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchLeaders = async () => {
+  // Profile and Tip Modal States
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [profileModalVisible, setProfileModalVisible] = useState(false);
+  const [tipRecipientUser, setTipRecipientUser] = useState<AppUser | null>(null);
+  const [transferModalVisible, setTransferModalVisible] = useState(false);
+
+  const fetchLeaders = async (selectedMode: RankingMode = mode) => {
     setError(null);
     try {
-      const data = await getLeaderboard(30);
+      const data = await getLeaderboard(selectedMode, 50);
       setLeaders(data);
     } catch (err) {
       console.error(err);
@@ -37,22 +57,44 @@ export default function RankingScreen({ currentUserId, onNavigateToGroups }: Ran
   };
 
   useEffect(() => {
-    fetchLeaders();
-  }, []);
+    setLoading(true);
+    fetchLeaders(mode);
+  }, [mode]);
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchLeaders();
+    fetchLeaders(mode);
   };
 
-  const renderMedal = (index: number) => {
-    if (index === 0) return "🥇";
-    if (index === 1) return "🥈";
-    if (index === 2) return "🥉";
-    return `#${index + 1}`;
+  const handleOpenProfile = (user: AppUser) => {
+    setSelectedUserId(user.uid);
+    setProfileModalVisible(true);
   };
 
-  if (loading) {
+  const handleOpenTransfer = (recipient: AppUser) => {
+    setTipRecipientUser(recipient);
+    setTransferModalVisible(true);
+  };
+
+  const getPoints = (user: AppUser) => {
+    return (mode === "weekly" ? user.weeklyPoints : user.totalPoints) || 0;
+  };
+
+  // Split top 3 for podium and rest for list
+  const top1 = leaders[0] || null;
+  const top2 = leaders[1] || null;
+  const top3 = leaders[2] || null;
+  const runnersUp = leaders.slice(3);
+
+  // Current user position
+  const currentUserIndex = useMemo(() => {
+    if (!currentUserId) return -1;
+    return leaders.findIndex((u) => u.uid === currentUserId);
+  }, [leaders, currentUserId]);
+
+  const currentUserData = currentUserIndex >= 0 ? leaders[currentUserIndex] : null;
+
+  if (loading && !refreshing) {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#eab308" />
@@ -61,13 +103,13 @@ export default function RankingScreen({ currentUserId, onNavigateToGroups }: Ran
     );
   }
 
-  if (error) {
+  if (error && leaders.length === 0) {
     return (
       <View style={styles.centerContainer}>
         <Text style={styles.errorEmoji}>⚠️</Text>
         <Text style={styles.errorTitle}>Erro ao carregar</Text>
         <Text style={styles.errorSubtitle}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={fetchLeaders}>
+        <TouchableOpacity style={styles.retryButton} onPress={() => fetchLeaders(mode)}>
           <Text style={styles.retryButtonText}>Tentar Novamente</Text>
         </TouchableOpacity>
       </View>
@@ -76,6 +118,7 @@ export default function RankingScreen({ currentUserId, onNavigateToGroups }: Ran
 
   return (
     <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>🏆 Hall da Fama</Text>
         <Text style={styles.subtitle}>Os maiores especialistas em cagada remunerada</Text>
@@ -84,58 +127,292 @@ export default function RankingScreen({ currentUserId, onNavigateToGroups }: Ran
           <TouchableOpacity
             style={styles.leagueBanner}
             onPress={onNavigateToGroups}
+            activeOpacity={0.8}
           >
             <View style={styles.leagueBannerContent}>
               <Text style={styles.leagueBannerIcon}>🏢</Text>
               <View style={styles.leagueBannerTextCol}>
                 <Text style={styles.leagueBannerTitle}>Competição entre Equipes</Text>
-                <Text style={styles.leagueBannerDesc}>Ver e disputar ligas privadas da sua empresa</Text>
+                <Text style={styles.leagueBannerDesc}>Ver e disputar ligas privadas da sua firma</Text>
               </View>
             </View>
             <Text style={styles.leagueBannerArrow}>➔</Text>
           </TouchableOpacity>
         )}
+
+        {/* Mode Switcher Tabs */}
+        <View style={styles.tabSwitcher}>
+          <TouchableOpacity
+            style={[styles.tabButton, mode === "weekly" && styles.tabButtonActive]}
+            onPress={() => setMode("weekly")}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.tabButtonText, mode === "weekly" && styles.tabButtonTextActive]}>
+              ⚡ Semana Atual
+            </Text>
+            {mode === "weekly" && <View style={styles.activeDot} />}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tabButton, mode === "overall" && styles.tabButtonActive]}
+            onPress={() => setMode("overall")}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.tabButtonText, mode === "overall" && styles.tabButtonTextActive]}>
+              👑 Geral (Histórico)
+            </Text>
+            {mode === "overall" && <View style={styles.activeDot} />}
+          </TouchableOpacity>
+        </View>
+
+        {/* Mode Description Tag */}
+        <View style={styles.modeNoticeRow}>
+          <Text style={styles.modeNoticeText}>
+            {mode === "weekly"
+              ? "🔥 Rodada semanal vigente • Reset aos domingos"
+              : "⭐ Pontuação acumulada de toda a carreira"}
+          </Text>
+        </View>
       </View>
 
+      {/* Main Ranking List */}
       <FlatList
-        data={leaders}
+        data={runnersUp}
         keyExtractor={(item) => item.uid}
         contentContainerStyle={styles.listContent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#eab308" />
         }
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyEmoji}>🚽</Text>
-            <Text style={styles.emptyText}>Nenhum registro no ranking ainda.</Text>
+        ListHeaderComponent={
+          <View>
+            {/* Podium Section (Top 1, 2 e 3) */}
+            {leaders.length > 0 && (
+              <View style={styles.podiumSection}>
+                <Text style={styles.sectionHeaderTitle}>🎖️ PÓDIO DOS DESTAQUES</Text>
+
+                <View style={styles.podiumContainer}>
+                  {/* 2nd Place (Left) */}
+                  <TouchableOpacity
+                    style={[
+                      styles.podiumColumn,
+                      styles.podiumSecond,
+                      top2?.uid === currentUserId && styles.podiumSelf,
+                    ]}
+                    onPress={() => top2 && handleOpenProfile(top2)}
+                    activeOpacity={top2 ? 0.8 : 1}
+                    disabled={!top2}
+                  >
+                    <View style={[styles.podiumMedalBadge, styles.podiumMedalSilver]}>
+                      <Text style={styles.podiumMedalText}>🥈 2º</Text>
+                    </View>
+
+                    <View style={[styles.podiumAvatar, styles.avatarSilver]}>
+                      <Text style={styles.podiumAvatarText}>
+                        {top2?.equippedBadge || (top2?.name || "?").charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+
+                    <Text style={styles.podiumName} numberOfLines={1}>
+                      {top2 ? (top2.nickname?.trim() || top2.name) : "Vago"}
+                    </Text>
+
+                    {top2 && (
+                      <View style={styles.podiumPointsPill}>
+                        <Text style={styles.podiumPointsText}>{formatPoopcoins(getPoints(top2))}</Text>
+                        <Text style={styles.podiumPointsUnit}>pts</Text>
+                      </View>
+                    )}
+
+                    {top2 && (top2.currentDailyStreak || 0) > 0 && (
+                      <View style={styles.podiumStreakBadge}>
+                        <Text style={styles.podiumStreakText}>🔥 {top2.currentDailyStreak}d</Text>
+                      </View>
+                    )}
+
+                    {top2?.uid === currentUserId && (
+                      <View style={styles.selfPodiumChip}>
+                        <Text style={styles.selfPodiumChipText}>VOCÊ</Text>
+                      </View>
+                    )}
+
+                    <View style={[styles.podiumPillar, styles.pillarSilver]} />
+                  </TouchableOpacity>
+
+                  {/* 1st Place (Center - Elevated with Crown) */}
+                  <TouchableOpacity
+                    style={[
+                      styles.podiumColumn,
+                      styles.podiumFirst,
+                      top1?.uid === currentUserId && styles.podiumSelf,
+                    ]}
+                    onPress={() => top1 && handleOpenProfile(top1)}
+                    activeOpacity={top1 ? 0.8 : 1}
+                    disabled={!top1}
+                  >
+                    <Text style={styles.podiumCrown}>👑</Text>
+
+                    <View style={[styles.podiumMedalBadge, styles.podiumMedalGold]}>
+                      <Text style={styles.podiumMedalText}>🥇 1º</Text>
+                    </View>
+
+                    <View style={[styles.podiumAvatar, styles.avatarGold]}>
+                      <Text style={styles.podiumAvatarTextGold}>
+                        {top1?.equippedBadge || (top1?.name || "?").charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+
+                    <Text style={[styles.podiumName, styles.podiumNameGold]} numberOfLines={1}>
+                      {top1 ? (top1.nickname?.trim() || top1.name) : "Vago"}
+                    </Text>
+
+                    {top1 && (
+                      <View style={[styles.podiumPointsPill, styles.podiumPointsPillGold]}>
+                        <Text style={[styles.podiumPointsText, styles.podiumPointsTextGold]}>
+                          {formatPoopcoins(getPoints(top1))}
+                        </Text>
+                        <Text style={styles.podiumPointsUnit}>pts</Text>
+                      </View>
+                    )}
+
+                    {top1 && (top1.currentDailyStreak || 0) > 0 && (
+                      <View style={[styles.podiumStreakBadge, styles.podiumStreakBadgeGold]}>
+                        <Text style={styles.podiumStreakText}>🔥 {top1.currentDailyStreak}d</Text>
+                      </View>
+                    )}
+
+                    {top1?.uid === currentUserId && (
+                      <View style={styles.selfPodiumChip}>
+                        <Text style={styles.selfPodiumChipText}>VOCÊ</Text>
+                      </View>
+                    )}
+
+                    <View style={[styles.podiumPillar, styles.pillarGold]} />
+                  </TouchableOpacity>
+
+                  {/* 3rd Place (Right) */}
+                  <TouchableOpacity
+                    style={[
+                      styles.podiumColumn,
+                      styles.podiumThird,
+                      top3?.uid === currentUserId && styles.podiumSelf,
+                    ]}
+                    onPress={() => top3 && handleOpenProfile(top3)}
+                    activeOpacity={top3 ? 0.8 : 1}
+                    disabled={!top3}
+                  >
+                    <View style={[styles.podiumMedalBadge, styles.podiumMedalBronze]}>
+                      <Text style={styles.podiumMedalText}>🥉 3º</Text>
+                    </View>
+
+                    <View style={[styles.podiumAvatar, styles.avatarBronze]}>
+                      <Text style={styles.podiumAvatarText}>
+                        {top3?.equippedBadge || (top3?.name || "?").charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+
+                    <Text style={styles.podiumName} numberOfLines={1}>
+                      {top3 ? (top3.nickname?.trim() || top3.name) : "Vago"}
+                    </Text>
+
+                    {top3 && (
+                      <View style={styles.podiumPointsPill}>
+                        <Text style={styles.podiumPointsText}>{formatPoopcoins(getPoints(top3))}</Text>
+                        <Text style={styles.podiumPointsUnit}>pts</Text>
+                      </View>
+                    )}
+
+                    {top3 && (top3.currentDailyStreak || 0) > 0 && (
+                      <View style={styles.podiumStreakBadge}>
+                        <Text style={styles.podiumStreakText}>🔥 {top3.currentDailyStreak}d</Text>
+                      </View>
+                    )}
+
+                    {top3?.uid === currentUserId && (
+                      <View style={styles.selfPodiumChip}>
+                        <Text style={styles.selfPodiumChipText}>VOCÊ</Text>
+                      </View>
+                    )}
+
+                    <View style={[styles.podiumPillar, styles.pillarBronze]} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* Current User Status Banner (if not in top 3 or to highlight position) */}
+            {currentUserData && (
+              <View style={styles.currentUserCard}>
+                <View style={styles.currentUserLeft}>
+                  <View style={styles.currentUserPosBadge}>
+                    <Text style={styles.currentUserPosText}>#{currentUserIndex + 1}</Text>
+                  </View>
+                  <View style={styles.currentUserInfo}>
+                    <Text style={styles.currentUserLabel}>Sua Colocação Atual</Text>
+                    <View style={styles.currentUserMetaRow}>
+                      <Text style={styles.currentUserStreakText}>
+                        🔥 {currentUserData.currentDailyStreak || 0} dias
+                      </Text>
+                      {(currentUserData.currentWeeklyStreak || 0) > 0 && (
+                        <Text style={styles.currentUserWeeklyStreakText}>
+                          • ⚡ {currentUserData.currentWeeklyStreak} sem
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                </View>
+                <View style={styles.currentUserScore}>
+                  <Text style={styles.currentUserScoreValue}>
+                    {formatPoopcoins(getPoints(currentUserData))}
+                  </Text>
+                  <Text style={styles.currentUserScoreUnit}>pts</Text>
+                </View>
+              </View>
+            )}
+
+            {/* Header for the rest of the list */}
+            {runnersUp.length > 0 && (
+              <View style={styles.listHeaderRow}>
+                <Text style={styles.sectionHeaderTitle}>DEMAIS COMPETIDORES</Text>
+                <Text style={styles.listTapHint}>Toque em um colega para ver perfil</Text>
+              </View>
+            )}
           </View>
         }
+        ListEmptyComponent={
+          leaders.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyEmoji}>🚽</Text>
+              <Text style={styles.emptyText}>Nenhum registro no ranking ainda.</Text>
+            </View>
+          ) : null
+        }
         renderItem={({ item, index }) => {
+          const rank = index + 4;
           const isCurrentUser = currentUserId && item.uid === currentUserId;
+          const dailyStreak = item.currentDailyStreak || 0;
+          const weeklyStreak = item.currentWeeklyStreak || 0;
+          const points = getPoints(item);
+
           return (
-            <View
-              style={[
-                styles.leaderCard,
-                index === 0 && styles.leaderCardFirst,
-                index < 3 && styles.leaderCardTop3,
-                isCurrentUser && styles.leaderCardSelf,
-              ]}
+            <TouchableOpacity
+              style={[styles.leaderCard, isCurrentUser && styles.leaderCardSelf]}
+              onPress={() => handleOpenProfile(item)}
+              activeOpacity={0.7}
             >
               <View style={styles.positionBadge}>
-                <Text
-                  style={[
-                    styles.positionText,
-                    index < 3 && styles.positionTextMedal,
-                  ]}
-                >
-                  {renderMedal(index)}
+                <Text style={styles.positionText}>#{rank}</Text>
+              </View>
+
+              <View style={styles.cardAvatar}>
+                <Text style={styles.cardAvatarText}>
+                  {item.equippedBadge || (item.name || "?").charAt(0).toUpperCase()}
                 </Text>
               </View>
 
               <View style={styles.userInfo}>
                 <View style={styles.nameRow}>
                   <Text style={styles.userName} numberOfLines={1}>
-                    {item.name || "Cagador Anônimo"}
+                    {item.nickname?.trim() || item.name || "Cagador Anônimo"}
                   </Text>
                   {isCurrentUser && (
                     <View style={styles.selfBadge}>
@@ -143,21 +420,65 @@ export default function RankingScreen({ currentUserId, onNavigateToGroups }: Ran
                     </View>
                   )}
                 </View>
-                <View style={styles.userMeta}>
-                  <Text style={styles.userStreak}>
-                    🔥 {item.currentDailyStreak || 0} dias de sequência
+
+                {item.equippedTitle ? (
+                  <Text style={styles.userTitle} numberOfLines={1}>
+                    👑 {item.equippedTitle}
                   </Text>
+                ) : null}
+
+                {/* Streaks and Flames */}
+                <View style={styles.streakRow}>
+                  {dailyStreak > 0 ? (
+                    <View style={styles.flamePill}>
+                      <Text style={styles.flamePillText}>🔥 {dailyStreak}d</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.neutralStreakPill}>
+                      <Text style={styles.neutralStreakText}>🔥 0d</Text>
+                    </View>
+                  )}
+
+                  {weeklyStreak > 0 && (
+                    <View style={styles.zapPill}>
+                      <Text style={styles.zapPillText}>⚡ {weeklyStreak}sem</Text>
+                    </View>
+                  )}
                 </View>
               </View>
 
               <View style={styles.scoreContainer}>
-                <Text style={styles.scorePoints}>{item.totalPoints || 0}</Text>
+                <Text style={styles.scorePoints}>{formatPoopcoins(points)}</Text>
                 <Text style={styles.scoreLabel}>pts</Text>
+                <Text style={styles.cardArrow}>›</Text>
               </View>
-            </View>
+            </TouchableOpacity>
           );
         }}
       />
+
+      {/* Colleague Public Profile Modal */}
+      <UserProfileModal
+        visible={profileModalVisible}
+        userId={selectedUserId}
+        currentUserId={currentUserId || ""}
+        onClose={() => setProfileModalVisible(false)}
+        onOpenTransfer={handleOpenTransfer}
+      />
+
+      {/* Tip / Transfer Poopcoins Modal */}
+      {currentUser && (
+        <TransferPoopcoinsModal
+          visible={transferModalVisible}
+          currentUser={currentUser}
+          initialRecipientUser={tipRecipientUser}
+          onClose={() => setTransferModalVisible(false)}
+          onSuccess={() => {
+            onRefreshUser?.();
+            fetchLeaders(mode);
+          }}
+        />
+      )}
     </View>
   );
 }
@@ -172,23 +493,27 @@ const styles = StyleSheet.create({
     backgroundColor: "#020617",
     justifyContent: "center",
     alignItems: "center",
+    padding: 24,
   },
   loadingText: {
     color: "#94a3b8",
     fontSize: 14,
     marginTop: 12,
+    fontWeight: "600",
   },
   header: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 18,
     paddingTop: 16,
-    paddingBottom: 12,
+    paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: "#1e293b",
+    backgroundColor: "#020617",
   },
   title: {
-    fontSize: 22,
-    fontWeight: "800",
+    fontSize: 24,
+    fontWeight: "900",
     color: "#f8fafc",
+    letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 13,
@@ -203,41 +528,363 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(234, 179, 8, 0.25)",
     borderRadius: 14,
-    padding: 12,
-    marginTop: 12,
+    padding: 10,
+    marginTop: 10,
   },
   leagueBannerContent: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
     flex: 1,
   },
   leagueBannerIcon: {
-    fontSize: 22,
+    fontSize: 20,
   },
   leagueBannerTextCol: {
     flex: 1,
   },
   leagueBannerTitle: {
     color: "#f8fafc",
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "800",
   },
   leagueBannerDesc: {
     color: "#94a3b8",
-    fontSize: 11,
+    fontSize: 10,
     marginTop: 1,
   },
   leagueBannerArrow: {
     color: "#eab308",
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "900",
-    marginLeft: 8,
+    marginLeft: 6,
+  },
+  tabSwitcher: {
+    flexDirection: "row",
+    backgroundColor: "#0f172a",
+    borderRadius: 14,
+    padding: 4,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
+    flexDirection: "row",
+    gap: 6,
+  },
+  tabButtonActive: {
+    backgroundColor: "#eab308",
+    shadowColor: "#eab308",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  tabButtonText: {
+    color: "#94a3b8",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  tabButtonTextActive: {
+    color: "#020617",
+    fontWeight: "900",
+  },
+  activeDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: "#020617",
+  },
+  modeNoticeRow: {
+    marginTop: 8,
+    alignItems: "center",
+  },
+  modeNoticeText: {
+    fontSize: 11,
+    color: "#64748b",
+    fontWeight: "600",
   },
   listContent: {
-    padding: 20,
+    padding: 16,
     paddingBottom: 40,
   },
+  sectionHeaderTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#94a3b8",
+    letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+  listHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 18,
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  listTapHint: {
+    fontSize: 10,
+    color: "#64748b",
+    fontWeight: "600",
+  },
+
+  /* PODIUM STYLES */
+  podiumSection: {
+    marginTop: 6,
+    marginBottom: 16,
+  },
+  podiumContainer: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "center",
+    gap: 8,
+    paddingTop: 12,
+  },
+  podiumColumn: {
+    flex: 1,
+    alignItems: "center",
+    backgroundColor: "#0f172a",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    paddingTop: 14,
+    paddingHorizontal: 6,
+    position: "relative",
+  },
+  podiumSelf: {
+    borderColor: "#38bdf8",
+    backgroundColor: "rgba(56, 189, 248, 0.08)",
+  },
+  podiumFirst: {
+    borderColor: "#eab308",
+    backgroundColor: "rgba(234, 179, 8, 0.07)",
+    paddingTop: 18,
+    zIndex: 2,
+  },
+  podiumSecond: {
+    borderColor: "#64748b",
+    backgroundColor: "rgba(148, 163, 184, 0.05)",
+  },
+  podiumThird: {
+    borderColor: "#b45309",
+    backgroundColor: "rgba(180, 83, 9, 0.05)",
+  },
+  podiumCrown: {
+    fontSize: 22,
+    position: "absolute",
+    top: -12,
+  },
+  podiumMedalBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginBottom: 6,
+  },
+  podiumMedalGold: {
+    backgroundColor: "#eab308",
+  },
+  podiumMedalSilver: {
+    backgroundColor: "#64748b",
+  },
+  podiumMedalBronze: {
+    backgroundColor: "#b45309",
+  },
+  podiumMedalText: {
+    fontSize: 11,
+    fontWeight: "900",
+    color: "#020617",
+  },
+  podiumAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#1e293b",
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 6,
+  },
+  avatarGold: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    borderColor: "#eab308",
+    backgroundColor: "rgba(234, 179, 8, 0.2)",
+  },
+  avatarSilver: {
+    borderColor: "#94a3b8",
+  },
+  avatarBronze: {
+    borderColor: "#cd7f32",
+  },
+  podiumAvatarText: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: "#f8fafc",
+  },
+  podiumAvatarTextGold: {
+    fontSize: 24,
+    fontWeight: "900",
+    color: "#facc15",
+  },
+  podiumName: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#f8fafc",
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  podiumNameGold: {
+    fontSize: 13,
+    color: "#facc15",
+  },
+  podiumPointsPill: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 2,
+    backgroundColor: "#1e293b",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginBottom: 4,
+  },
+  podiumPointsPillGold: {
+    backgroundColor: "rgba(234, 179, 8, 0.2)",
+    borderWidth: 1,
+    borderColor: "rgba(234, 179, 8, 0.4)",
+  },
+  podiumPointsText: {
+    fontSize: 12,
+    fontWeight: "900",
+    color: "#f8fafc",
+  },
+  podiumPointsTextGold: {
+    color: "#facc15",
+  },
+  podiumPointsUnit: {
+    fontSize: 9,
+    color: "#94a3b8",
+    fontWeight: "600",
+  },
+  podiumStreakBadge: {
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginBottom: 6,
+  },
+  podiumStreakBadgeGold: {
+    backgroundColor: "rgba(245, 158, 11, 0.25)",
+  },
+  podiumStreakText: {
+    fontSize: 10,
+    color: "#f59e0b",
+    fontWeight: "800",
+  },
+  selfPodiumChip: {
+    backgroundColor: "#0284c7",
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+    marginBottom: 4,
+  },
+  selfPodiumChipText: {
+    color: "#ffffff",
+    fontSize: 8,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
+  podiumPillar: {
+    width: "100%",
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+  },
+  pillarGold: {
+    height: 18,
+    backgroundColor: "#eab308",
+  },
+  pillarSilver: {
+    height: 12,
+    backgroundColor: "#64748b",
+  },
+  pillarBronze: {
+    height: 8,
+    backgroundColor: "#b45309",
+  },
+
+  /* CURRENT USER HIGHLIGHT CARD */
+  currentUserCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(56, 189, 248, 0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.4)",
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 8,
+  },
+  currentUserLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  currentUserPosBadge: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: "#0284c7",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  currentUserPosText: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "900",
+  },
+  currentUserInfo: {},
+  currentUserLabel: {
+    color: "#f8fafc",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  currentUserMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 2,
+  },
+  currentUserStreakText: {
+    color: "#f59e0b",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  currentUserWeeklyStreakText: {
+    color: "#38bdf8",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  currentUserScore: {
+    alignItems: "flex-end",
+  },
+  currentUserScoreValue: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#38bdf8",
+  },
+  currentUserScoreUnit: {
+    fontSize: 10,
+    color: "#94a3b8",
+    fontWeight: "700",
+  },
+
+  /* RUNNERS-UP LIST STYLES */
   leaderCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -245,94 +892,148 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#1e293b",
     borderRadius: 16,
-    padding: 14,
-    marginBottom: 10,
-  },
-  leaderCardTop3: {
-    borderColor: "#334155",
-  },
-  leaderCardFirst: {
-    borderColor: "#eab308",
-    backgroundColor: "rgba(234, 179, 8, 0.05)",
+    padding: 12,
+    marginBottom: 8,
   },
   leaderCardSelf: {
     borderColor: "#38bdf8",
-    backgroundColor: "rgba(56, 189, 248, 0.08)",
+    backgroundColor: "rgba(56, 189, 248, 0.06)",
+  },
+  positionBadge: {
+    width: 32,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  positionText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#64748b",
+  },
+  cardAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#1e293b",
+    borderWidth: 1,
+    borderColor: "#334155",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+    marginLeft: 4,
+  },
+  cardAvatarText: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#eab308",
+  },
+  userInfo: {
+    flex: 1,
+    marginRight: 8,
   },
   nameRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
   },
+  userName: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#f8fafc",
+    flexShrink: 1,
+  },
+  userTitle: {
+    fontSize: 11,
+    color: "#facc15",
+    fontWeight: "700",
+    marginTop: 1,
+  },
   selfBadge: {
     backgroundColor: "#0284c7",
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  selfBadgeText: {
+    color: "#ffffff",
+    fontSize: 8,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
+  streakRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 4,
+  },
+  flamePill: {
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
   },
-  selfBadgeText: {
-    color: "#ffffff",
-    fontSize: 9,
-    fontWeight: "900",
-    letterSpacing: 0.5,
-  },
-  positionBadge: {
-    width: 36,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 10,
-  },
-  positionText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#64748b",
-  },
-  positionTextMedal: {
-    fontSize: 20,
-  },
-  userInfo: {
-    flex: 1,
-    marginRight: 12,
-  },
-  userName: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#f8fafc",
-  },
-  userMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 2,
-  },
-  userStreak: {
-    fontSize: 12,
+  flamePillText: {
+    fontSize: 10,
     color: "#f59e0b",
+    fontWeight: "700",
+  },
+  neutralStreakPill: {
+    backgroundColor: "#1e293b",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  neutralStreakText: {
+    fontSize: 10,
+    color: "#64748b",
     fontWeight: "600",
+  },
+  zapPill: {
+    backgroundColor: "rgba(56, 189, 248, 0.15)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  zapPillText: {
+    fontSize: 10,
+    color: "#38bdf8",
+    fontWeight: "700",
   },
   scoreContainer: {
     alignItems: "flex-end",
+    justifyContent: "center",
+    minWidth: 60,
   },
   scorePoints: {
-    fontSize: 17,
-    fontWeight: "800",
+    fontSize: 16,
+    fontWeight: "900",
     color: "#eab308",
   },
   scoreLabel: {
-    fontSize: 10,
+    fontSize: 9,
     color: "#94a3b8",
     fontWeight: "600",
   },
+  cardArrow: {
+    color: "#475569",
+    fontSize: 16,
+    fontWeight: "900",
+    marginTop: -2,
+  },
+
+  /* EMPTY & ERROR STATES */
   emptyContainer: {
     alignItems: "center",
-    marginTop: 50,
+    marginTop: 40,
+    padding: 20,
   },
   emptyEmoji: {
-    fontSize: 48,
+    fontSize: 44,
     marginBottom: 12,
   },
   emptyText: {
     color: "#94a3b8",
     fontSize: 14,
+    fontWeight: "600",
   },
   errorEmoji: {
     fontSize: 40,

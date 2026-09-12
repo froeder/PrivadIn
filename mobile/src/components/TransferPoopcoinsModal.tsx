@@ -22,6 +22,7 @@ import {
 interface TransferPoopcoinsModalProps {
   visible: boolean;
   currentUser: AppUser;
+  initialRecipientUser?: AppUser | null;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -29,13 +30,14 @@ interface TransferPoopcoinsModalProps {
 export default function TransferPoopcoinsModal({
   visible,
   currentUser,
+  initialRecipientUser,
   onClose,
   onSuccess,
 }: TransferPoopcoinsModalProps) {
   const [activeUsers, setActiveUsers] = useState<AppUser[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedUser, setSelectedUser] = useState<AppUser | null>(null);
+  const [selectedUser, setSelectedUser] = useState<AppUser | null>(initialRecipientUser || null);
   const [manualUid, setManualUid] = useState("");
   const [amount, setAmount] = useState("5");
   const [reason, setReason] = useState("");
@@ -49,11 +51,12 @@ export default function TransferPoopcoinsModal({
       loadUsers();
       setAmount("5");
       setReason("");
-      setSelectedUser(null);
+      setSelectedUser(initialRecipientUser || null);
       setManualUid("");
       setManualMode(false);
     }
-  }, [visible]);
+  }, [visible, initialRecipientUser]);
+
 
   const loadUsers = async () => {
     setLoadingUsers(true);
