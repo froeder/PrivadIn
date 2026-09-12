@@ -13,6 +13,7 @@ import { AppUser, TabType } from "./src/types";
 import LoginScreen from "./src/screens/LoginScreen";
 import DashboardScreen from "./src/screens/DashboardScreen";
 import RankingScreen from "./src/screens/RankingScreen";
+import GroupsScreen from "./src/screens/GroupsScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
 
 function MainApp() {
@@ -93,7 +94,16 @@ function MainApp() {
               />
             )}
             {currentTab === "ranking" && (
-              <RankingScreen currentUserId={appUser.uid} />
+              <RankingScreen
+                currentUserId={appUser.uid}
+                onNavigateToGroups={() => setCurrentTab("groups")}
+              />
+            )}
+            {currentTab === "groups" && (
+              <GroupsScreen
+                user={appUser}
+                onRefreshUser={() => loadUserData(firebaseUser)}
+              />
             )}
             {currentTab === "profile" && (
               <ProfileScreen
@@ -137,6 +147,21 @@ function MainApp() {
                 ]}
               >
                 Ranking
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.tabItem, currentTab === "groups" && styles.tabItemActive]}
+              onPress={() => setCurrentTab("groups")}
+            >
+              <Text style={styles.tabIcon}>🏢</Text>
+              <Text
+                style={[
+                  styles.tabLabel,
+                  currentTab === "groups" && styles.tabLabelActive,
+                ]}
+              >
+                Ligas
               </Text>
             </TouchableOpacity>
 
@@ -209,7 +234,7 @@ const styles = StyleSheet.create({
   tabItem: {
     alignItems: "center",
     paddingVertical: 6,
-    paddingHorizontal: 20,
+    paddingHorizontal: 12,
     borderRadius: 12,
   },
   tabItemActive: {

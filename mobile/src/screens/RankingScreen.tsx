@@ -13,9 +13,10 @@ import { getLeaderboard } from "../services/poopService";
 
 interface RankingScreenProps {
   currentUserId?: string;
+  onNavigateToGroups?: () => void;
 }
 
-export default function RankingScreen({ currentUserId }: RankingScreenProps) {
+export default function RankingScreen({ currentUserId, onNavigateToGroups }: RankingScreenProps) {
   const [leaders, setLeaders] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -78,6 +79,22 @@ export default function RankingScreen({ currentUserId }: RankingScreenProps) {
       <View style={styles.header}>
         <Text style={styles.title}>🏆 Hall da Fama</Text>
         <Text style={styles.subtitle}>Os maiores especialistas em cagada remunerada</Text>
+
+        {onNavigateToGroups && (
+          <TouchableOpacity
+            style={styles.leagueBanner}
+            onPress={onNavigateToGroups}
+          >
+            <View style={styles.leagueBannerContent}>
+              <Text style={styles.leagueBannerIcon}>🏢</Text>
+              <View style={styles.leagueBannerTextCol}>
+                <Text style={styles.leagueBannerTitle}>Competição entre Equipes</Text>
+                <Text style={styles.leagueBannerDesc}>Ver e disputar ligas privadas da sua empresa</Text>
+              </View>
+            </View>
+            <Text style={styles.leagueBannerArrow}>➔</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <FlatList
@@ -177,6 +194,45 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#94a3b8",
     marginTop: 2,
+  },
+  leagueBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(234, 179, 8, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(234, 179, 8, 0.25)",
+    borderRadius: 14,
+    padding: 12,
+    marginTop: 12,
+  },
+  leagueBannerContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+  },
+  leagueBannerIcon: {
+    fontSize: 22,
+  },
+  leagueBannerTextCol: {
+    flex: 1,
+  },
+  leagueBannerTitle: {
+    color: "#f8fafc",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  leagueBannerDesc: {
+    color: "#94a3b8",
+    fontSize: 11,
+    marginTop: 1,
+  },
+  leagueBannerArrow: {
+    color: "#eab308",
+    fontSize: 14,
+    fontWeight: "900",
+    marginLeft: 8,
   },
   listContent: {
     padding: 20,

@@ -57,6 +57,20 @@ export interface PoopLog {
   competitionEdition?: number;
 }
 
-export type TabType = "timer" | "ranking" | "profile";
+export interface RankingGroup {
+  id: string;
+  name: string;
+  description: string;
+  ownerId: string;
+  memberIds: string[];
+  memberCount: number;
+  edition: number;
+  createdAt: any;
+  updatedAt?: any;
+  deletedAt?: any;
+  deletedBy?: string | null;
+}
+
+export type TabType = "timer" | "ranking" | "groups" | "profile";
 
 
