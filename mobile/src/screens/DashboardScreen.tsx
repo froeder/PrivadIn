@@ -249,9 +249,35 @@ export default function DashboardScreen({
     <ScrollView contentContainerStyle={styles.container}>
       {/* Top Profile Summary */}
       <View style={styles.topBar}>
-        <View>
-          <Text style={styles.greeting}>Olá, {user.name || "Cagador"} 👋</Text>
-          <Text style={styles.subgreeting}>Hora do expediente sagrado</Text>
+        <View style={{ flex: 1, marginRight: 10 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
+            <Text style={styles.greeting}>Olá, {user.name || "Cagador"} 👋</Text>
+            {user.equippedBadge && (
+              <Text style={{ fontSize: 16 }}>{user.equippedBadge}</Text>
+            )}
+          </View>
+          {user.equippedTitle ? (
+            <TouchableOpacity
+              onPress={onNavigateToPoopcoins}
+              activeOpacity={0.7}
+              style={{
+                alignSelf: "flex-start",
+                backgroundColor: "rgba(234, 179, 8, 0.15)",
+                borderWidth: 1,
+                borderColor: "rgba(234, 179, 8, 0.4)",
+                paddingHorizontal: 8,
+                paddingVertical: 2,
+                borderRadius: 6,
+                marginTop: 4,
+              }}
+            >
+              <Text style={{ color: "#facc15", fontSize: 11, fontWeight: "800" }}>
+                👑 {user.equippedTitle}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={styles.subgreeting}>Hora do expediente sagrado</Text>
+          )}
         </View>
         <View style={styles.streakBadge}>
           <Text style={styles.streakEmoji}>🔥</Text>

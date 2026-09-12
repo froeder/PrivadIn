@@ -97,11 +97,21 @@ export default function ProfileScreen({
       <View style={styles.profileHeader}>
         <View style={styles.avatarCircle}>
           <Text style={styles.avatarText}>
-            {(user.name || "C").charAt(0).toUpperCase()}
+            {user.equippedBadge ? user.equippedBadge : (user.name || "C").charAt(0).toUpperCase()}
           </Text>
         </View>
         <Text style={styles.userName}>{user.name || "Cagador Anônimo"}</Text>
         <Text style={styles.userEmail}>{user.email}</Text>
+
+        {user.equippedTitle && (
+          <TouchableOpacity
+            style={styles.profileTitleBadge}
+            onPress={onNavigateToPoopcoins}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.profileTitleText}>👑 {user.equippedTitle}</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Stats Grid */}
@@ -117,7 +127,7 @@ export default function ProfileScreen({
             <Text style={styles.gridLabel}>Dias Seguidos</Text>
           </View>
           <View style={styles.gridItem}>
-            <Text style={styles.gridValue}>{user.poopcoinBalance || 0} 💩</Text>
+            <Text style={styles.gridValue}>{user.poopcoinBalance || 0} 🪙</Text>
             <Text style={styles.gridLabel}>Poopcoins</Text>
           </View>
           <View style={styles.gridItem}>
@@ -224,6 +234,20 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#94a3b8",
     marginTop: 2,
+  },
+  profileTitleBadge: {
+    backgroundColor: "rgba(234, 179, 8, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(234, 179, 8, 0.4)",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 10,
+    marginTop: 8,
+  },
+  profileTitleText: {
+    color: "#facc15",
+    fontSize: 12,
+    fontWeight: "800",
   },
   card: {
     backgroundColor: "#0f172a",

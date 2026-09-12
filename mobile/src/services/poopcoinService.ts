@@ -11,6 +11,7 @@ import {
   Timestamp,
   where,
   increment,
+  updateDoc,
   Unsubscribe,
 } from "firebase/firestore";
 import { db } from "./firebase";
@@ -19,6 +20,7 @@ import {
   PoopcoinSupplySummary,
   PoopcoinTransaction,
   PoopcoinTransactionEntry,
+  ShopItem,
 } from "../types";
 import { canonicalJson, randomNonce, sha256Hex } from "./cryptoUtils";
 
@@ -326,4 +328,409 @@ export async function transferPoopcoins(
   });
 
   return { hash: resultingHash };
+}
+
+// ---------------------------------------------------------------------------
+// LOJA PRIVADIN (SHOP & RECOMPENSAS)
+// ---------------------------------------------------------------------------
+
+export const SHOP_CATALOG: ShopItem[] = [
+  // TÍTULOS
+  {
+    id: "title_lord_throne",
+    name: "Lorde do Trono",
+    description: "Dono absoluto da porcelana sagrada em horário de expediente corporativo.",
+    category: "title",
+    rarity: "raro",
+    price: 25,
+    icon: "👑",
+  },
+  {
+    id: "title_lightning_pooper",
+    name: "Cagador Relâmpago",
+    description: "Entra, executa com precisão militar e volta antes da daily começar.",
+    category: "title",
+    rarity: "comum",
+    price: 15,
+    icon: "⚡",
+  },
+  {
+    id: "title_coffee_flush",
+    name: "Café & Descarga",
+    description: "O combo biológico mais potente da produtividade moderna.",
+    category: "title",
+    rarity: "comum",
+    price: 10,
+    icon: "☕",
+  },
+  {
+    id: "title_triple_ply",
+    name: "Folha Dupla VIP",
+    description: "Apenas o papel higiênico mais macio para a alta nobreza do escritório.",
+    category: "title",
+    rarity: "raro",
+    price: 35,
+    icon: "🧻",
+  },
+  {
+    id: "title_paid_rest",
+    name: "Descanso Remunerado",
+    description: "Faturando centavos por segundo sentado com postura de executivo.",
+    category: "title",
+    rarity: "epico",
+    price: 50,
+    icon: "🛋️",
+  },
+  {
+    id: "title_emperor",
+    name: "Imperador do Trono",
+    description: "A maior autoridade sanitária de toda a empresa. Respeite o rei!",
+    category: "title",
+    rarity: "lendario",
+    price: 100,
+    icon: "💩",
+  },
+
+  // BADGES / MOLDURAS
+  {
+    id: "badge_gold_24k",
+    name: "Moldura Dourada 24k",
+    description: "O requinte do ouro maciço ao redor do seu avatar no perfil.",
+    category: "badge",
+    rarity: "epico",
+    price: 60,
+    icon: "🥇",
+  },
+  {
+    id: "badge_flame_pro",
+    name: "Chamas do Expediente",
+    description: "Para quem mantém acesa a chama sagrada do dever diário.",
+    category: "badge",
+    rarity: "raro",
+    price: 35,
+    icon: "🔥",
+  },
+  {
+    id: "badge_diamond_toilet",
+    name: "Privada de Diamante",
+    description: "Símbolo máximo de luxo sanitário gerado por minutos de trono.",
+    category: "badge",
+    rarity: "lendario",
+    price: 120,
+    icon: "💎",
+  },
+  {
+    id: "badge_stealth_ninja",
+    name: "Ninja Sanitário",
+    description: "Ninguém ouviu a porta, ninguém viu sair. Discrição lendária.",
+    category: "badge",
+    rarity: "raro",
+    price: 40,
+    icon: "🥷",
+  },
+
+  // PRIVILÉGIOS CORPORATIVOS FICTÍCIOS
+  {
+    id: "perk_coffee_break",
+    name: "Vale Café Gourmet",
+    description: "Direito moral de preparar um café especial sem olhar para o relógio.",
+    category: "perk",
+    rarity: "comum",
+    price: 10,
+    icon: "☕",
+    perkEffect: "Imunidade de pressa no café da copa",
+  },
+  {
+    id: "perk_meeting_immunity",
+    name: "Imunidade de Reunião Inútil",
+    description: "Álibi perfeito: 'Estava resolvendo um bloqueio interno de alta gravidade'.",
+    category: "perk",
+    rarity: "epico",
+    price: 75,
+    icon: "🔇",
+    perkEffect: "Álibi corporativo supremo",
+  },
+  {
+    id: "perk_radio_dj",
+    name: "DJ da Firma",
+    description: "O poder simbólico e incontestável de escolher a playlist da tarde.",
+    category: "perk",
+    rarity: "raro",
+    price: 45,
+    icon: "🎵",
+    perkEffect: "Voto de minerva na caixa de som",
+  },
+  {
+    id: "perk_friday_license",
+    name: "Licença Sextou às 16h",
+    description: "Permissão espiritual para fechar abas do navegador na sexta à tarde.",
+    category: "perk",
+    rarity: "lendario",
+    price: 150,
+    icon: "🍻",
+    perkEffect: "Vibe sextou ativada",
+  },
+];
+
+export async function buyShopItem(
+  user: AppUser,
+  item: ShopItem
+): Promise<{ hash: string }> {
+  const currentBalance = Number(user.poopcoinBalance ?? 0);
+  if (currentBalance < item.price) {
+    throw new Error(
+      `Saldo insuficiente. Você tem ${formatPoopcoins(currentBalance)} PC e o item custa ${formatPoopcoins(item.price)} PC.`
+    );
+  }
+
+  const alreadyOwned = user.unlockedItems?.includes(item.id);
+  if (alreadyOwned) {
+    throw new Error("Você já possui este item em seu inventário!");
+  }
+
+  let resultingHash = "";
+
+  await runTransaction(db, async (transaction) => {
+    const userRef = doc(db, "users", user.uid);
+    const [userSnap, headSnap] = await Promise.all([
+      transaction.get(userRef),
+      transaction.get(poopcoinChainHeadRef),
+    ]);
+
+    const userData = userSnap.data() as AppUser | undefined;
+    if (!userData || userData.isActive === false) {
+      throw new Error("Usuário inativo ou não encontrado.");
+    }
+
+    const liveBalance = Number(userData.poopcoinBalance ?? 0);
+    if (liveBalance < item.price) {
+      throw new Error(
+        `Saldo insuficiente. Seu saldo atual é de ${formatPoopcoins(liveBalance)} PC.`
+      );
+    }
+
+    const previousHash = String(headSnap.data()?.lastHash ?? GENESIS_HASH);
+    const previousSequence = Number(headSnap.data()?.lastSequence ?? 0);
+    const sequence = Math.max(0, Math.trunc(previousSequence)) + 1;
+    const createdAt = Timestamp.now();
+    const nonce = randomNonce();
+    const entries: PoopcoinTransactionEntry[] = [
+      { userId: user.uid, delta: -item.price },
+    ];
+    const affectedUserIds = [user.uid];
+    const role = (userData.role === "admin" ? "admin" : "player") as "player" | "admin";
+    const reason = `Loja: ${item.name}`;
+
+    const unsignedPayload = {
+      previousHash,
+      sequence,
+      createdAt,
+      type: "cuiter_spend",
+      entries,
+      affectedUserIds,
+      fromUserId: user.uid,
+      toUserId: null,
+      amount: item.price,
+      createdBy: user.uid,
+      createdByRole: role,
+      status: "active",
+      reversesTransactionHash: null,
+      linkedLogId: null,
+      linkedPostId: null,
+      reason,
+      nonce,
+    };
+
+    const hash = sha256Hex(canonicalJson(unsignedPayload));
+    resultingHash = hash;
+
+    const transactionData = {
+      hash,
+      previousHash,
+      sequence,
+      createdAt,
+      type: "cuiter_spend",
+      entries,
+      affectedUserIds,
+      fromUserId: user.uid,
+      toUserId: null,
+      amount: item.price,
+      createdBy: user.uid,
+      createdByRole: role,
+      status: "active",
+      reversesTransactionHash: null,
+      reversedByTransactionHash: null,
+      linkedLogId: null,
+      linkedPostId: null,
+      reason,
+      nonce,
+    };
+
+    // 1. Write transaction block
+    transaction.set(doc(db, "poopcoin_transactions", hash), transactionData);
+
+    // 2. Update head (burnedSupply up, circulatingSupply down)
+    const currentBurned = Number(headSnap.data()?.burnedSupply ?? 0);
+    const currentCirculating = Number(headSnap.data()?.circulatingSupply ?? 0);
+    transaction.set(
+      poopcoinChainHeadRef,
+      {
+        lastHash: hash,
+        lastSequence: sequence,
+        updatedAt: createdAt,
+        burnedSupply: currentBurned + item.price,
+        circulatingSupply: Math.max(0, currentCirculating - item.price),
+      },
+      { merge: true }
+    );
+
+    // 3. Update user document
+    const updatedUnlocked = Array.from(
+      new Set([...(userData.unlockedItems || []), item.id])
+    );
+    const userUpdates: any = {
+      poopcoinBalance: increment(-item.price),
+      unlockedItems: updatedUnlocked,
+    };
+    if (item.category === "title" && !userData.equippedTitle) {
+      userUpdates.equippedTitle = item.name;
+    }
+    if (item.category === "badge" && !userData.equippedBadge) {
+      userUpdates.equippedBadge = item.icon;
+    }
+
+    transaction.update(userRef, userUpdates);
+  });
+
+  return { hash: resultingHash };
+}
+
+export async function equipUserItem(
+  userId: string,
+  item: ShopItem,
+  equip: boolean
+) {
+  const userRef = doc(db, "users", userId);
+  if (item.category === "title") {
+    await updateDoc(userRef, {
+      equippedTitle: equip ? item.name : null,
+    });
+  } else if (item.category === "badge") {
+    await updateDoc(userRef, {
+      equippedBadge: equip ? item.icon : null,
+    });
+  }
+}
+
+export async function mintPoopcoinsForLog(
+  user: AppUser,
+  logId: string
+): Promise<{ poopcoinsEarned: number; transactionHash: string | null }> {
+  try {
+    const [settings, headSnap] = await Promise.all([
+      fetchPoopcoinSettings(),
+      getDoc(poopcoinChainHeadRef),
+    ]);
+
+    const amount = settings.poopcoinsPerLog || 1;
+    const headData = headSnap.data();
+    const summary = parsePoopcoinSupplySummary(headData);
+
+    // Check available supply
+    if (summary.availableSupply < amount) {
+      return { poopcoinsEarned: 0, transactionHash: null };
+    }
+
+    let resultingHash = "";
+
+    await runTransaction(db, async (transaction) => {
+      const userRef = doc(db, "users", user.uid);
+      const [userSnapshot, freshHeadSnapshot] = await Promise.all([
+        transaction.get(userRef),
+        transaction.get(poopcoinChainHeadRef),
+      ]);
+
+      const previousHash = String(freshHeadSnapshot.data()?.lastHash ?? GENESIS_HASH);
+      const previousSequence = Number(freshHeadSnapshot.data()?.lastSequence ?? 0);
+      const sequence = Math.max(0, Math.trunc(previousSequence)) + 1;
+      const createdAt = Timestamp.now();
+      const nonce = randomNonce();
+      const entries: PoopcoinTransactionEntry[] = [{ userId: user.uid, delta: amount }];
+      const affectedUserIds = [user.uid];
+      const role = (userSnapshot.data()?.role === "admin" ? "admin" : "player") as "player" | "admin";
+
+      const unsignedPayload = {
+        previousHash,
+        sequence,
+        createdAt,
+        type: "mint_log",
+        entries,
+        affectedUserIds,
+        fromUserId: null,
+        toUserId: user.uid,
+        amount,
+        createdBy: user.uid,
+        createdByRole: role,
+        status: "active",
+        reversesTransactionHash: null,
+        linkedLogId: logId,
+        linkedPostId: null,
+        reason: null,
+        nonce,
+      };
+
+      const hash = sha256Hex(canonicalJson(unsignedPayload));
+      resultingHash = hash;
+
+      const transactionData = {
+        hash,
+        previousHash,
+        sequence,
+        createdAt,
+        type: "mint_log",
+        entries,
+        affectedUserIds,
+        fromUserId: null,
+        toUserId: user.uid,
+        amount,
+        createdBy: user.uid,
+        createdByRole: role,
+        status: "active",
+        reversesTransactionHash: null,
+        reversedByTransactionHash: null,
+        linkedLogId: logId,
+        linkedPostId: null,
+        reason: null,
+        nonce,
+      };
+
+      // 1. Transaction block
+      transaction.set(doc(db, "poopcoin_transactions", hash), transactionData);
+
+      // 2. Update head
+      const currentMinted = Number(freshHeadSnapshot.data()?.mintedSupply ?? 0);
+      const currentCirculating = Number(freshHeadSnapshot.data()?.circulatingSupply ?? 0);
+      transaction.set(
+        poopcoinChainHeadRef,
+        {
+          lastHash: hash,
+          lastSequence: sequence,
+          updatedAt: createdAt,
+          mintedSupply: currentMinted + amount,
+          circulatingSupply: currentCirculating + amount,
+        },
+        { merge: true }
+      );
+
+      // 3. Update user poopcoin balance
+      transaction.update(userRef, {
+        poopcoinBalance: increment(amount),
+      });
+    });
+
+    return { poopcoinsEarned: amount, transactionHash: resultingHash };
+  } catch (error) {
+    console.error("Error minting poopcoins for log:", error);
+    return { poopcoinsEarned: 0, transactionHash: null };
+  }
 }

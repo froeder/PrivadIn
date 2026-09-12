@@ -14,6 +14,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { AppUser, PoopLog } from "../types";
+import { mintPoopcoinsForLog } from "./poopcoinService";
 
 export const logsRef = collection(db, "poop_logs");
 export const usersRef = collection(db, "users");
@@ -61,13 +62,13 @@ export async function registerPoopLog(
   const newBestStreak = Math.max(user.bestStreak || 0, newStreak);
 
   // 1. Add log
-  const logData = {
+  const logData: any = {
     userId: user.uid,
     userName: user.name || "Cagador Anônimo",
     durationSeconds,
     earnedAmount: Number(earnedAmount.toFixed(2)),
     points: pointsEarned,
-    poopcoinsEarned: 1,
+    poopcoinsEarned: 0,
     isWeeklyActive: true,
     note: note || "Cagada remunerada pelo app mobile",
     createdAt: serverTimestamp(),
@@ -75,18 +76,44 @@ export async function registerPoopLog(
 
   const docRef = await addDoc(logsRef, logData);
 
-  // 2. Update user points, streak, last log, poopcoins
+  // 2. Mint Poopcoins on the official blockchain ledger
+  let mintedCoins = 0;
+  let txHash: string | null = null;
+  try {
+    const mintResult = await mintPoopcoinsForLog(user, docRef.id);
+    mintedCoins = mintResult.poopcoinsEarned;
+    txHash = mintResult.transactionHash;
+    if (mintedCoins > 0 && txHash) {
+      await updateDoc(doc(logsRef, docRef.id), {
+        poopcoinsEarned: mintedCoins,
+        poopcoinTransactionHash: txHash,
+      });
+    }
+  } catch (err) {
+    console.error("Error minting poopcoin on log:", err);
+  }
+
+  // 3. Update user points, streak, last log (and fallback poopcoinBalance if minting failed)
   const userDoc = doc(db, "users", user.uid);
-  await updateDoc(userDoc, {
+  const userUpdates: any = {
     totalPoints: increment(pointsEarned),
     weeklyPoints: increment(pointsEarned),
-    poopcoinBalance: increment(1),
     currentDailyStreak: newStreak,
     bestStreak: newBestStreak,
     lastLogAt: serverTimestamp(),
-  });
+  };
+  if (mintedCoins === 0) {
+    // If supply not migrated or minting had an issue, fallback increment so user gets their coin
+    userUpdates.poopcoinBalance = increment(1);
+  }
+  await updateDoc(userDoc, userUpdates);
 
-  return { id: docRef.id, ...logData, newStreak };
+  return {
+    id: docRef.id,
+    ...logData,
+    poopcoinsEarned: Math.max(1, mintedCoins),
+    newStreak,
+  };
 }
 
 export async function getLeaderboard(top = 20): Promise<AppUser[]> {

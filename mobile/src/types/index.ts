@@ -27,6 +27,9 @@ export interface AppUser {
   acceptedTermsVersion?: number;
   ownedGroupId?: string | null;
   workSchedule?: WorkSchedule;
+  equippedTitle?: string;
+  equippedBadge?: string;
+  unlockedItems?: string[];
   createdAt?: any;
   lastLogAt?: any;
 }
@@ -119,5 +122,19 @@ export interface PoopcoinSupplySummary {
 }
 
 export type TabType = "timer" | "ranking" | "poopcoins" | "groups" | "profile";
+
+export type ShopItemCategory = "title" | "badge" | "perk";
+export type ShopItemRarity = "comum" | "raro" | "epico" | "lendario";
+
+export interface ShopItem {
+  id: string;
+  name: string;
+  description: string;
+  category: ShopItemCategory;
+  rarity: ShopItemRarity;
+  price: number;
+  icon: string;
+  perkEffect?: string;
+}
 
 
