@@ -14,6 +14,8 @@ import {
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { AppUser, RankingGroup } from "../types";
+import UserProfileModal from "../components/UserProfileModal";
+import TransferPoopcoinsModal from "../components/TransferPoopcoinsModal";
 import {
   createGroup,
   joinGroup,
@@ -63,6 +65,10 @@ export default function GroupsScreen({ user, onRefreshUser }: GroupsScreenProps)
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [joinModalVisible, setJoinModalVisible] = useState(false);
   const [copiedNotification, setCopiedNotification] = useState(false);
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
+  const [profileModalVisible, setProfileModalVisible] = useState(false);
+  const [transferModalVisible, setTransferModalVisible] = useState(false);
+  const [transferRecipient, setTransferRecipient] = useState<AppUser | null>(null);
 
   // Create form
   const [newName, setNewName] = useState("");
@@ -524,7 +530,7 @@ export default function GroupsScreen({ user, onRefreshUser }: GroupsScreenProps)
                   const isMemberOwner = selectedGroup && member.uid === selectedGroup.ownerId;
 
                   return (
-                    <View
+                    <TouchableOpacity
                       key={member.uid}
                       style={[
                         styles.leaderCard,
@@ -532,6 +538,11 @@ export default function GroupsScreen({ user, onRefreshUser }: GroupsScreenProps)
                         index < 3 && styles.leaderCardTop3,
                         isCurrentUser && styles.leaderCardSelf,
                       ]}
+                      onPress={() => {
+                        setSelectedMemberId(member.uid);
+                        setProfileModalVisible(true);
+                      }}
+                      activeOpacity={0.8}
                     >
                       <View style={styles.positionBadge}>
                         <Text
@@ -547,7 +558,7 @@ export default function GroupsScreen({ user, onRefreshUser }: GroupsScreenProps)
                       <View style={styles.userInfo}>
                         <View style={styles.nameRow}>
                           <Text style={styles.userName} numberOfLines={1}>
-                            {member.name || "Cagador Anônimo"}
+                            {member.nickname?.trim() || member.name || "Cagador Anônimo"}
                           </Text>
                           {isMemberOwner && (
                             <View style={styles.ownerBadge}>
@@ -574,13 +585,16 @@ export default function GroupsScreen({ user, onRefreshUser }: GroupsScreenProps)
                       {isAdmin && !isMemberOwner && (
                         <TouchableOpacity
                           style={styles.removeMemberBtn}
-                          onPress={() => handleRemoveMember(member)}
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            handleRemoveMember(member);
+                          }}
                           disabled={actionLoading}
                         >
                           <Text style={styles.removeMemberBtnText}>❌</Text>
                         </TouchableOpacity>
                       )}
-                    </View>
+                    </TouchableOpacity>
                   );
                 })
               )}
@@ -728,6 +742,32 @@ export default function GroupsScreen({ user, onRefreshUser }: GroupsScreenProps)
           </View>
         </View>
       </Modal>
+
+      {/* User Public Profile Modal */}
+      <UserProfileModal
+        visible={profileModalVisible}
+        userId={selectedMemberId}
+        currentUserId={user.uid}
+        onClose={() => setProfileModalVisible(false)}
+        onOpenTransfer={(recipient) => {
+          setTransferRecipient(recipient);
+          setTransferModalVisible(true);
+        }}
+      />
+
+      {/* Transfer Poopcoins Modal */}
+      <TransferPoopcoinsModal
+        visible={transferModalVisible}
+        currentUser={user}
+        initialRecipientUser={transferRecipient}
+        onClose={() => setTransferModalVisible(false)}
+        onSuccess={() => {
+          onRefreshUser?.();
+          if (selectedGroup) {
+            loadGroupMembers(selectedGroup);
+          }
+        }}
+      />
     </View>
   );
 }

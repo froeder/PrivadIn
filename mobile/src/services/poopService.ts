@@ -14,7 +14,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { AppUser, PoopLog } from "../types";
+import { AppUser, PoopLog, WorkSchedule } from "../types";
 import { mintPoopcoinsForLog } from "./poopcoinService";
 
 export const logsRef = collection(db, "poop_logs");
@@ -205,6 +205,8 @@ export async function getUserRecentLogs(userId: string, count = 10): Promise<Poo
   }
 }
 
+export const getUserLogs = getUserRecentLogs;
+
 export async function getUserAllLogs(userId: string): Promise<PoopLog[]> {
   try {
     let snapshot;
@@ -245,5 +247,45 @@ export async function updateUserSalary(userId: string, salary: number) {
   await updateDoc(doc(db, "users", userId), {
     salary,
     hourlyRate,
+  });
+}
+
+export async function updateUserProfileCustomization(
+  userId: string,
+  data: {
+    nickname?: string;
+    avatar?: string;
+    themeColor?: string;
+    bio?: string;
+  }
+) {
+  const updates: Record<string, any> = {};
+  if (data.nickname !== undefined) updates.nickname = data.nickname.trim();
+  if (data.avatar !== undefined) updates.avatar = data.avatar.trim();
+  if (data.themeColor !== undefined) updates.themeColor = data.themeColor.trim();
+  if (data.bio !== undefined) updates.bio = data.bio.trim();
+
+  await updateDoc(doc(db, "users", userId), updates);
+}
+
+export async function updateUserWorkSchedule(userId: string, schedule: WorkSchedule) {
+  await updateDoc(doc(db, "users", userId), {
+    workSchedule: {
+      horarioInicioExpediente: schedule.horarioInicioExpediente || "09:00",
+      horarioFimExpediente: schedule.horarioFimExpediente || "18:00",
+      horarioInicioAlmoco: schedule.horarioInicioAlmoco || "12:00",
+      horarioFimAlmoco: schedule.horarioFimAlmoco || "13:00",
+      timezone: schedule.timezone || "America/Sao_Paulo",
+    },
+  });
+}
+
+export async function updateUserFinancialSettings(
+  userId: string,
+  data: { salary: number; hourlyRate: number }
+) {
+  await updateDoc(doc(db, "users", userId), {
+    salary: data.salary,
+    hourlyRate: data.hourlyRate,
   });
 }

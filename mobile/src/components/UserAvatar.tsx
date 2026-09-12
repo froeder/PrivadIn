@@ -40,6 +40,8 @@ export default function UserAvatar({
 
   const initialLetter = (name || "?").trim().charAt(0).toUpperCase() || "?";
   const displayBadge = badge && badge.trim().length > 0 ? badge.trim() : null;
+  const isEmojiOrTextAvatar = avatar && !resolvedAvatarUri && avatar.trim().length > 0;
+  const displayText = displayBadge || (isEmojiOrTextAvatar ? avatar.trim() : initialLetter);
 
   const dynamicStyles = {
     width: size,
@@ -71,12 +73,12 @@ export default function UserAvatar({
         style={[
           styles.text,
           {
-            color: displayBadge ? undefined : textColor,
-            fontSize: displayBadge ? Math.round(size * 0.5) : calculatedFontSize,
+            color: displayBadge || isEmojiOrTextAvatar ? undefined : textColor,
+            fontSize: displayBadge || isEmojiOrTextAvatar ? Math.round(size * 0.5) : calculatedFontSize,
           },
         ]}
       >
-        {displayBadge || initialLetter}
+        {displayText}
       </Text>
     </View>
   );

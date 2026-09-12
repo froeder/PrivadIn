@@ -30,6 +30,7 @@ export interface AppUser {
   workSchedule?: WorkSchedule;
   equippedTitle?: string;
   equippedBadge?: string;
+  themeColor?: string;
   unlockedItems?: string[];
   createdAt?: any;
   firstLogAt?: any;
