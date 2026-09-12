@@ -13,21 +13,29 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppUser, PoopLog } from "../types";
 import { registerPoopLog, getUserRecentLogs } from "../services/poopService";
+import PoopcoinWalletCard from "../components/PoopcoinWalletCard";
+import TransferPoopcoinsModal from "../components/TransferPoopcoinsModal";
 
 interface DashboardScreenProps {
   user: AppUser;
   onRefreshUser: () => void;
+  onNavigateToPoopcoins?: () => void;
 }
 
 const ACTIVE_TIMER_STORAGE_KEY = "@privadin:active_timer";
 
-export default function DashboardScreen({ user, onRefreshUser }: DashboardScreenProps) {
+export default function DashboardScreen({
+  user,
+  onRefreshUser,
+  onNavigateToPoopcoins,
+}: DashboardScreenProps) {
   const [isActive, setIsActive] = useState(false);
   const [startTime, setStartTime] = useState<number | null>(null);
   const [seconds, setSeconds] = useState(0);
   const [saving, setSaving] = useState(false);
   const [recentLogs, setRecentLogs] = useState<PoopLog[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
+  const [transferModalVisible, setTransferModalVisible] = useState(false);
   const [lastFinishedBreak, setLastFinishedBreak] = useState<{
     duration: number;
     earned: number;
@@ -261,10 +269,16 @@ export default function DashboardScreen({ user, onRefreshUser }: DashboardScreen
           <Text style={styles.statLabel}>Taxa / Hora</Text>
           <Text style={styles.statValue}>R$ {hourlyRate.toFixed(2).replace(".", ",")}</Text>
         </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statLabel}>Poopcoins</Text>
-          <Text style={styles.statValue}>{user.poopcoinBalance || 0} 💩</Text>
-        </View>
+        <TouchableOpacity
+          style={[styles.statCard, { borderColor: "rgba(234, 179, 8, 0.4)", borderWidth: 1 }]}
+          onPress={onNavigateToPoopcoins || (() => setTransferModalVisible(true))}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.statLabel}>Poopcoins 🪙</Text>
+          <Text style={[styles.statValue, { color: "#eab308" }]}>
+            {user.poopcoinBalance || 0}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Live Earnings & Timer Card */}
@@ -327,6 +341,14 @@ export default function DashboardScreen({ user, onRefreshUser }: DashboardScreen
         </View>
       )}
 
+      {/* Poopcoin Wallet Card */}
+      <PoopcoinWalletCard
+        user={user}
+        compact={true}
+        onOpenTransfer={() => setTransferModalVisible(true)}
+        onViewLedger={onNavigateToPoopcoins}
+      />
+
       {/* Recent Logs Section */}
       <View style={styles.historyCard}>
         <View style={styles.historyHeader}>
@@ -368,6 +390,16 @@ export default function DashboardScreen({ user, onRefreshUser }: DashboardScreen
           "O chefe ganha em dólar e eu ganho em real. Por isso eu cago no horário comercial."
         </Text>
       </View>
+
+      {/* Transfer Modal */}
+      <TransferPoopcoinsModal
+        visible={transferModalVisible}
+        currentUser={user}
+        onClose={() => setTransferModalVisible(false)}
+        onSuccess={() => {
+          onRefreshUser();
+        }}
+      />
     </ScrollView>
   );
 }

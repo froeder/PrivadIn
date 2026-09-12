@@ -13,6 +13,7 @@ import { AppUser, TabType } from "./src/types";
 import LoginScreen from "./src/screens/LoginScreen";
 import DashboardScreen from "./src/screens/DashboardScreen";
 import RankingScreen from "./src/screens/RankingScreen";
+import PoopcoinsScreen from "./src/screens/PoopcoinsScreen";
 import GroupsScreen from "./src/screens/GroupsScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
 
@@ -91,12 +92,19 @@ function MainApp() {
               <DashboardScreen
                 user={appUser}
                 onRefreshUser={() => loadUserData(firebaseUser)}
+                onNavigateToPoopcoins={() => setCurrentTab("poopcoins")}
               />
             )}
             {currentTab === "ranking" && (
               <RankingScreen
                 currentUserId={appUser.uid}
                 onNavigateToGroups={() => setCurrentTab("groups")}
+              />
+            )}
+            {currentTab === "poopcoins" && (
+              <PoopcoinsScreen
+                user={appUser}
+                onRefreshUser={() => loadUserData(firebaseUser)}
               />
             )}
             {currentTab === "groups" && (
@@ -109,6 +117,7 @@ function MainApp() {
               <ProfileScreen
                 user={appUser}
                 onRefreshUser={() => loadUserData(firebaseUser)}
+                onNavigateToPoopcoins={() => setCurrentTab("poopcoins")}
               />
             )}
           </View>
@@ -147,6 +156,21 @@ function MainApp() {
                 ]}
               >
                 Ranking
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.tabItem, currentTab === "poopcoins" && styles.tabItemActive]}
+              onPress={() => setCurrentTab("poopcoins")}
+            >
+              <Text style={styles.tabIcon}>🪙</Text>
+              <Text
+                style={[
+                  styles.tabLabel,
+                  currentTab === "poopcoins" && styles.tabLabelActive,
+                ]}
+              >
+                Moedas
               </Text>
             </TouchableOpacity>
 

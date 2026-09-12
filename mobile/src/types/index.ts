@@ -71,6 +71,53 @@ export interface RankingGroup {
   deletedBy?: string | null;
 }
 
-export type TabType = "timer" | "ranking" | "groups" | "profile";
+export type PoopcoinTransactionType =
+  | "mint_log"
+  | "legacy_mint"
+  | "transfer"
+  | "cuiter_spend"
+  | "admin_adjustment"
+  | "reversal";
+
+export type PoopcoinTransactionStatus = "active" | "reversed";
+
+export interface PoopcoinTransactionEntry {
+  userId: string;
+  delta: number;
+}
+
+export interface PoopcoinTransaction {
+  id: string;
+  hash: string;
+  previousHash: string;
+  sequence: number;
+  createdAt: any;
+  type: PoopcoinTransactionType;
+  entries: PoopcoinTransactionEntry[];
+  affectedUserIds: string[];
+  fromUserId?: string | null;
+  toUserId?: string | null;
+  amount: number;
+  createdBy: string;
+  createdByRole?: string;
+  status: PoopcoinTransactionStatus;
+  reversesTransactionHash?: string | null;
+  reversedByTransactionHash?: string | null;
+  linkedLogId?: string | null;
+  linkedPostId?: string | null;
+  reason?: string | null;
+  nonce: string;
+}
+
+export interface PoopcoinSupplySummary {
+  totalSupply: number;
+  mintedSupply: number;
+  burnedSupply: number;
+  circulatingSupply: number;
+  availableSupply: number;
+  supplyMigratedAt?: any | null;
+}
+
+export type TabType = "timer" | "ranking" | "poopcoins" | "groups" | "profile";
 
 

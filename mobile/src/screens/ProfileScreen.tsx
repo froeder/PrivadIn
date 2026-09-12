@@ -12,10 +12,13 @@ import {
 import { AppUser } from "../types";
 import { signOutUser } from "../services/authService";
 import { updateUserSalary } from "../services/poopService";
+import PoopcoinWalletCard from "../components/PoopcoinWalletCard";
+import TransferPoopcoinsModal from "../components/TransferPoopcoinsModal";
 
 interface ProfileScreenProps {
   user: AppUser;
   onRefreshUser: () => void;
+  onNavigateToPoopcoins?: () => void;
 }
 
 function parseCurrencyInput(value: string): number {
@@ -42,11 +45,16 @@ function parseCurrencyInput(value: string): number {
   return parseFloat(cleaned);
 }
 
-export default function ProfileScreen({ user, onRefreshUser }: ProfileScreenProps) {
+export default function ProfileScreen({
+  user,
+  onRefreshUser,
+  onNavigateToPoopcoins,
+}: ProfileScreenProps) {
   const [salaryInput, setSalaryInput] = useState(
     user.salary ? String(user.salary) : "3000"
   );
   const [saving, setSaving] = useState(false);
+  const [transferModalVisible, setTransferModalVisible] = useState(false);
 
   const handleSaveSalary = async () => {
     const num = parseCurrencyInput(salaryInput);
@@ -119,6 +127,13 @@ export default function ProfileScreen({ user, onRefreshUser }: ProfileScreenProp
         </View>
       </View>
 
+      {/* Poopcoin Wallet Card */}
+      <PoopcoinWalletCard
+        user={user}
+        onOpenTransfer={() => setTransferModalVisible(true)}
+        onViewLedger={onNavigateToPoopcoins}
+      />
+
       {/* Salary Setting */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Configuração Salarial</Text>
@@ -161,6 +176,14 @@ export default function ProfileScreen({ user, onRefreshUser }: ProfileScreenProp
           <Text style={styles.logoutText}>Encerrar Sessão</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Transfer Modal */}
+      <TransferPoopcoinsModal
+        visible={transferModalVisible}
+        currentUser={user}
+        onClose={() => setTransferModalVisible(false)}
+        onSuccess={onRefreshUser}
+      />
     </ScrollView>
   );
 }
