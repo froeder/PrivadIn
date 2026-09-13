@@ -12,11 +12,12 @@ import {
   where,
   increment,
   updateDoc,
+  deleteDoc,
   deleteField,
   Unsubscribe,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { AppUser, CuiterPost, CuiterReactionType, PoopcoinTransactionEntry } from "../types";
+import { AppUser, CuiterComment, CuiterPost, CuiterReactionType, PoopcoinTransactionEntry } from "../types";
 import { canonicalJson, randomNonce, sha256Hex } from "./cryptoUtils";
 import {
   appSettingsRef,
@@ -88,6 +89,7 @@ export function subscribeCuiterFeed(
           createdAt: data.createdAt,
           poopcoinTransactionHash: data.poopcoinTransactionHash,
           reactions: data.reactions || {},
+          commentsCount: data.commentsCount || 0,
         };
       });
       callback(posts);
@@ -245,6 +247,7 @@ export async function createCuiterPost(
       createdAt,
       poopcoinTransactionHash: hash,
       reactions: {},
+      commentsCount: 0,
     });
   });
 
@@ -259,6 +262,7 @@ export async function createCuiterPost(
     createdAt: Timestamp.now(),
     poopcoinTransactionHash: resultingHash,
     reactions: {},
+    commentsCount: 0,
   };
 }
 
@@ -321,4 +325,104 @@ export async function fetchUserProfile(userId: string): Promise<AppUser | null> 
     console.error("Erro ao buscar perfil do usuário:", error);
     return null;
   }
+}
+
+export async function deleteCuiterPost(postId: string): Promise<void> {
+  // Apaga o documento principal do post
+  await deleteDoc(doc(db, "cuiter_posts", postId));
+}
+
+export function subscribeCuiterComments(
+  postId: string,
+  callback: (comments: CuiterComment[]) => void,
+  onError?: (err: Error) => void
+): Unsubscribe {
+  const commentsRef = collection(db, "cuiter_posts", postId, "comments");
+  const q = query(commentsRef, orderBy("createdAt", "asc"));
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const comments: CuiterComment[] = snapshot.docs.map((docSnap) => {
+        const data = docSnap.data();
+        return {
+          id: docSnap.id,
+          postId,
+          userId: data.userId || "",
+          userName: data.userName || "Cagador",
+          userNickname: data.userNickname,
+          userBadge: data.userBadge,
+          userTitle: data.userTitle,
+          message: data.message || "",
+          createdAt: data.createdAt,
+          replyToCommentId: data.replyToCommentId || null,
+          replyToUserName: data.replyToUserName || null,
+        };
+      });
+      callback(comments);
+    },
+    (error) => {
+      console.error("Erro no listener de comentários do Cuiter:", error);
+      onError?.(error);
+    }
+  );
+}
+
+export async function createCuiterComment(
+  postId: string,
+  user: AppUser,
+  message: string,
+  replyTo?: { commentId: string; userName: string } | null
+): Promise<CuiterComment> {
+  const trimmed = message.trim();
+  if (!trimmed) {
+    throw new Error("Escreva algo para responder.");
+  }
+  if (trimmed.length > CUITER_MAX_CHARS) {
+    throw new Error(`A resposta deve ter no máximo ${CUITER_MAX_CHARS} caracteres.`);
+  }
+
+  const postRef = doc(db, "cuiter_posts", postId);
+  const commentsRef = collection(db, "cuiter_posts", postId, "comments");
+  const newCommentRef = doc(commentsRef);
+  const createdAt = Timestamp.now();
+
+  const commentData: Omit<CuiterComment, "id"> = {
+    postId,
+    userId: user.uid,
+    userName: user.nickname?.trim() || user.name || "Cagador Anônimo",
+    userNickname: user.nickname?.trim() || "",
+    userBadge: user.equippedBadge || "",
+    userTitle: user.equippedTitle || "",
+    message: trimmed,
+    createdAt,
+    replyToCommentId: replyTo?.commentId || null,
+    replyToUserName: replyTo?.userName || null,
+  };
+
+  await runTransaction(db, async (transaction) => {
+    transaction.set(newCommentRef, commentData);
+    transaction.update(postRef, {
+      commentsCount: increment(1),
+    });
+  });
+
+  return {
+    id: newCommentRef.id,
+    ...commentData,
+  };
+}
+
+export async function deleteCuiterComment(
+  postId: string,
+  commentId: string
+): Promise<void> {
+  const postRef = doc(db, "cuiter_posts", postId);
+  const commentRef = doc(db, "cuiter_posts", postId, "comments", commentId);
+
+  await runTransaction(db, async (transaction) => {
+    transaction.delete(commentRef);
+    transaction.update(postRef, {
+      commentsCount: increment(-1),
+    });
+  });
 }

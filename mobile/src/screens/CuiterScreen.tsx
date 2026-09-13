@@ -25,6 +25,7 @@ import {
 import { formatPoopcoins } from "../services/poopcoinService";
 import UserProfileModal from "../components/UserProfileModal";
 import TransferPoopcoinsModal from "../components/TransferPoopcoinsModal";
+import CuiterThreadModal from "../components/CuiterThreadModal";
 
 interface CuiterScreenProps {
   user: AppUser;
@@ -54,6 +55,27 @@ export default function CuiterScreen({
 
   // Reaction processing state (to prevent rapid double-taps)
   const [reactingPostId, setReactingPostId] = useState<string | null>(null);
+
+  // Thread modal state
+  const [threadPost, setThreadPost] = useState<CuiterPost | null>(null);
+  const [threadModalVisible, setThreadModalVisible] = useState(false);
+
+  // Sync threadPost if posts feed updates
+  useEffect(() => {
+    if (threadPost) {
+      const updated = posts.find((p) => p.id === threadPost.id);
+      if (updated) {
+        setThreadPost(updated);
+      }
+    }
+  }, [posts]);
+
+
+
+  const handleOpenThread = (post: CuiterPost) => {
+    setThreadPost(post);
+    setThreadModalVisible(true);
+  };
 
   // Load post cost
   useEffect(() => {
@@ -298,6 +320,20 @@ export default function CuiterScreen({
               </Text>
             )}
           </TouchableOpacity>
+
+          {/* Comentários / Tópico */}
+          <TouchableOpacity
+            style={styles.commentButton}
+            onPress={() => handleOpenThread(item)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.commentEmoji}>💬</Text>
+            <Text style={styles.commentCount}>
+              {item.commentsCount && item.commentsCount > 0
+                ? item.commentsCount
+                : "Responder"}
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
     );
@@ -482,6 +518,19 @@ export default function CuiterScreen({
           onRefreshUser();
           handleRefresh();
         }}
+      />
+
+      {/* Cuiter Thread Modal */}
+      <CuiterThreadModal
+        visible={threadModalVisible}
+        post={threadPost}
+        currentUser={user}
+        onClose={() => {
+          setThreadModalVisible(false);
+          setThreadPost(null);
+        }}
+        onOpenAuthorProfile={handleOpenAuthorProfile}
+        onToggleReaction={handleToggleReaction}
       />
     </KeyboardAvoidingView>
   );
@@ -777,6 +826,26 @@ const styles = StyleSheet.create({
   postCostText: {
     fontSize: 11,
     color: "#eab308",
+    fontWeight: "700",
+  },
+  commentButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#1e293b",
+    borderWidth: 1,
+    borderColor: "#334155",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginLeft: "auto",
+  },
+  commentEmoji: {
+    fontSize: 14,
+  },
+  commentCount: {
+    fontSize: 12,
+    color: "#38bdf8",
     fontWeight: "700",
   },
   postMessage: {

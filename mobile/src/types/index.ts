@@ -202,6 +202,21 @@ export interface CuiterPost {
   createdAt: any;
   poopcoinTransactionHash?: string;
   reactions?: Record<string, CuiterReactionType>;
+  commentsCount?: number;
+}
+
+export interface CuiterComment {
+  id: string;
+  postId: string;
+  userId: string;
+  userName: string;
+  userNickname?: string;
+  userBadge?: string;
+  userTitle?: string;
+  message: string;
+  createdAt: any;
+  replyToCommentId?: string | null;
+  replyToUserName?: string | null;
 }
 
 export type ShopItemCategory = "title" | "badge" | "perk";
