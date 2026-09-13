@@ -58,6 +58,12 @@ service cloud.firestore {
         && getAfter(/databases/$(database)/documents/groups/$(request.resource.data.ownedGroupId)).data.ownerId == request.auth.uid;
     }
 
+    function canReleaseOwnedGroup(userId) {
+      return isOwner(userId)
+        && changedOnly(["ownedGroupId"])
+        && (!("ownedGroupId" in request.resource.data) || request.resource.data.ownedGroupId == null);
+    }
+
     function validGroupName(name) {
       return name is string && name.size() > 0 && name.size() <= 48;
     }
@@ -253,7 +259,7 @@ service cloud.firestore {
       // Permite criar se for o dono
       allow create: if isOwner(userId) && isPlayerRoleOnCreate();
       // Admin edita tudo. Dono edita o que quiser, desde que não trapaceie os pontos/status
-      allow update: if (isOwner(userId) && ownerKeepsProtectedUserFields()) || isAdmin() || canUpdatePoopcoinBalance(userId) || canClaimOwnedGroup(userId);
+      allow update: if (isOwner(userId) && ownerKeepsProtectedUserFields()) || isAdmin() || canUpdatePoopcoinBalance(userId) || canClaimOwnedGroup(userId) || canReleaseOwnedGroup(userId);
       allow delete: if isOwner(userId) || isAdmin();
     }
 

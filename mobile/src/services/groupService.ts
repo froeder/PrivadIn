@@ -190,6 +190,19 @@ export async function removeGroupMember(
   });
 }
 
+export async function deleteGroup(actor: AppUser, group: RankingGroup): Promise<void> {
+  if (actor.uid !== group.ownerId && actor.role !== "admin") {
+    throw new Error("Apenas o criador da liga ou um administrador pode excluí-la.");
+  }
+
+  await runTransaction(db, async (transaction) => {
+    transaction.delete(doc(db, "groups", group.id));
+    if (group.ownerId) {
+      transaction.update(doc(db, "users", group.ownerId), { ownedGroupId: null });
+    }
+  });
+}
+
 export async function getUserGroups(userId: string): Promise<RankingGroup[]> {
   try {
     const q = query(groupsRef, where("memberIds", "array-contains", userId));
@@ -215,7 +228,10 @@ export async function getUserGroups(userId: string): Promise<RankingGroup[]> {
   }
 }
 
-export async function getGroupMembers(memberIds: string[]): Promise<AppUser[]> {
+export async function getGroupMembers(
+  memberIds: string[],
+  mode: "weekly" | "overall" = "weekly"
+): Promise<AppUser[]> {
   if (!memberIds || memberIds.length === 0) return [];
 
   try {
@@ -232,8 +248,13 @@ export async function getGroupMembers(memberIds: string[]): Promise<AppUser[]> {
       });
     }
 
-    // Sort by totalPoints descending
-    return users.sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0));
+    // Sort by selected mode: weeklyPoints or totalPoints descending
+    return users.sort((a, b) => {
+      const ptsA = (mode === "weekly" ? a.weeklyPoints : a.totalPoints) ?? 0;
+      const ptsB = (mode === "weekly" ? b.weeklyPoints : b.totalPoints) ?? 0;
+      if (ptsB !== ptsA) return ptsB - ptsA;
+      return (b.currentDailyStreak ?? 0) - (a.currentDailyStreak ?? 0);
+    });
   } catch (err) {
     console.error("Erro ao buscar membros do grupo:", err);
     return [];

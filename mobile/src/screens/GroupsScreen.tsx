@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   StyleSheet,
   Text,
@@ -23,6 +23,7 @@ import {
   getGroupMembers,
   updateGroup,
   removeGroupMember,
+  deleteGroup,
   GROUP_NAME_MAX_LENGTH,
   GROUP_DESCRIPTION_MAX_LENGTH,
   normalizeGroupName,
@@ -82,6 +83,9 @@ export default function GroupsScreen({ user, onRefreshUser }: GroupsScreenProps)
   const [editDescription, setEditDescription] = useState("");
   const [isAdminSectionOpen, setIsAdminSectionOpen] = useState(false);
 
+  // Ranking view mode: weekly (default) or overall
+  const [rankingMode, setRankingMode] = useState<"weekly" | "overall">("weekly");
+
   const selectedGroup = groups.find((g) => g.id === selectedGroupId) || groups[0] || null;
   const isOwner = selectedGroup ? selectedGroup.ownerId === user.uid : false;
   const isAdmin = isOwner || user.role === "admin";
@@ -118,16 +122,19 @@ export default function GroupsScreen({ user, onRefreshUser }: GroupsScreenProps)
   );
 
   // Load members when selectedGroup changes
-  const loadGroupMembers = useCallback(async (group: RankingGroup) => {
-    try {
-      const groupMembers = await getGroupMembers(group.memberIds);
-      setMembers(groupMembers);
-      setEditName(group.name);
-      setEditDescription(group.description || "");
-    } catch (err) {
-      console.error("Erro ao carregar membros do grupo:", err);
-    }
-  }, []);
+  const loadGroupMembers = useCallback(
+    async (group: RankingGroup) => {
+      try {
+        const groupMembers = await getGroupMembers(group.memberIds, rankingMode);
+        setMembers(groupMembers);
+        setEditName(group.name);
+        setEditDescription(group.description || "");
+      } catch (err) {
+        console.error("Erro ao carregar membros do grupo:", err);
+      }
+    },
+    [rankingMode]
+  );
 
   useEffect(() => {
     loadGroups();
@@ -137,7 +144,17 @@ export default function GroupsScreen({ user, onRefreshUser }: GroupsScreenProps)
     if (selectedGroup) {
       loadGroupMembers(selectedGroup);
     }
-  }, [selectedGroup?.id, selectedGroup?.memberCount]);
+  }, [selectedGroup?.id, selectedGroup?.memberCount, rankingMode]);
+
+  // Sort members in real-time based on rankingMode
+  const sortedMembers = useMemo(() => {
+    return [...members].sort((a, b) => {
+      const ptsA = (rankingMode === "weekly" ? a.weeklyPoints : a.totalPoints) ?? 0;
+      const ptsB = (rankingMode === "weekly" ? b.weeklyPoints : b.totalPoints) ?? 0;
+      if (ptsB !== ptsA) return ptsB - ptsA;
+      return (b.currentDailyStreak ?? 0) - (a.currentDailyStreak ?? 0);
+    });
+  }, [members, rankingMode]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -277,6 +294,36 @@ export default function GroupsScreen({ user, onRefreshUser }: GroupsScreenProps)
               await loadGroups(selectedGroup.id);
             } catch (err: any) {
               Alert.alert("Erro", err.message || "Não foi possível remover o membro.");
+            } finally {
+              setActionLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Admin: Delete group
+  const handleDeleteGroup = () => {
+    if (!selectedGroup) return;
+
+    Alert.alert(
+      "Excluir Liga",
+      `Deseja realmente excluir permanentemente a liga "${selectedGroup.name}"? Esta ação removerá a liga e todos os seus membros.`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Sim, Excluir",
+          style: "destructive",
+          onPress: async () => {
+            setActionLoading(true);
+            try {
+              await deleteGroup(user, selectedGroup);
+              Alert.alert("Liga Excluída", `A liga "${selectedGroup.name}" foi excluída com sucesso.`);
+              if (onRefreshUser) onRefreshUser();
+              await loadGroups();
+            } catch (err: any) {
+              Alert.alert("Erro ao excluir", err.message || "Não foi possível excluir a liga.");
             } finally {
               setActionLoading(false);
             }
@@ -505,6 +552,27 @@ export default function GroupsScreen({ user, onRefreshUser }: GroupsScreenProps)
                         <Text style={styles.saveBtnText}>💾 Salvar Alterações</Text>
                       )}
                     </TouchableOpacity>
+
+                    {/* Danger Zone: Delete Group */}
+                    <View style={styles.dangerZoneDivider} />
+                    <Text style={styles.dangerZoneTitle}>Zona de Perigo</Text>
+                    <Text style={styles.dangerZoneDesc}>
+                      Excluir permanentemente esta liga e remover todos os participantes.
+                    </Text>
+                    <TouchableOpacity
+                      style={[
+                        styles.deleteGroupBtn,
+                        actionLoading && styles.btnDisabled,
+                      ]}
+                      onPress={handleDeleteGroup}
+                      disabled={actionLoading}
+                    >
+                      {actionLoading ? (
+                        <ActivityIndicator size="small" color="#ef4444" />
+                      ) : (
+                        <Text style={styles.deleteGroupBtnText}>🗑️ Excluir Liga</Text>
+                      )}
+                    </TouchableOpacity>
                   </View>
                 )}
               </View>
@@ -512,22 +580,67 @@ export default function GroupsScreen({ user, onRefreshUser }: GroupsScreenProps)
 
             {/* Internal League Ranking */}
             <View style={styles.rankingSection}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>🏆 Ranking Interno da Liga</Text>
-                <Text style={styles.sectionSubtitle}>
-                  Classificação exclusiva entre os {members.length} membros
-                </Text>
+              <View style={styles.sectionHeaderRow}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>🏆 Ranking Interno da Liga</Text>
+                  <Text style={styles.sectionSubtitle}>
+                    {rankingMode === "weekly"
+                      ? `Classificação semanal entre os ${members.length} membros`
+                      : `Classificação geral entre os ${members.length} membros`}
+                  </Text>
+                </View>
+
+                {/* Mode Toggle: Semanal vs Geral */}
+                <View style={styles.modeToggleContainer}>
+                  <TouchableOpacity
+                    style={[
+                      styles.modeToggleBtn,
+                      rankingMode === "weekly" && styles.modeToggleBtnActive,
+                    ]}
+                    onPress={() => setRankingMode("weekly")}
+                  >
+                    <Text
+                      style={[
+                        styles.modeToggleText,
+                        rankingMode === "weekly" && styles.modeToggleTextActive,
+                      ]}
+                    >
+                      Semanal
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.modeToggleBtn,
+                      rankingMode === "overall" && styles.modeToggleBtnActive,
+                    ]}
+                    onPress={() => setRankingMode("overall")}
+                  >
+                    <Text
+                      style={[
+                        styles.modeToggleText,
+                        rankingMode === "overall" && styles.modeToggleTextActive,
+                      ]}
+                    >
+                      Geral
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
 
-              {members.length === 0 ? (
+              {sortedMembers.length === 0 ? (
                 <View style={styles.emptyMembersBox}>
                   <ActivityIndicator size="small" color="#eab308" />
                   <Text style={styles.emptyMembersText}>Carregando membros do ranking...</Text>
                 </View>
               ) : (
-                members.map((member, index) => {
+                sortedMembers.map((member, index) => {
                   const isCurrentUser = member.uid === user.uid;
                   const isMemberOwner = selectedGroup && member.uid === selectedGroup.ownerId;
+                  const points =
+                    rankingMode === "weekly"
+                      ? member.weeklyPoints || 0
+                      : member.totalPoints || 0;
 
                   return (
                     <TouchableOpacity
@@ -577,8 +690,10 @@ export default function GroupsScreen({ user, onRefreshUser }: GroupsScreenProps)
                       </View>
 
                       <View style={styles.scoreContainer}>
-                        <Text style={styles.scorePoints}>{member.totalPoints || 0}</Text>
-                        <Text style={styles.scoreLabel}>pts</Text>
+                        <Text style={styles.scorePoints}>{points}</Text>
+                        <Text style={styles.scoreLabel}>
+                          {rankingMode === "weekly" ? "pts sem" : "pts tot"}
+                        </Text>
                       </View>
 
                       {/* Admin action: remove member button */}
@@ -1084,11 +1199,74 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     fontSize: 13,
   },
+  dangerZoneDivider: {
+    height: 1,
+    backgroundColor: "#1e293b",
+    marginVertical: 14,
+  },
+  dangerZoneTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#f87171",
+    marginBottom: 2,
+  },
+  dangerZoneDesc: {
+    fontSize: 11,
+    color: "#94a3b8",
+    marginBottom: 10,
+  },
+  deleteGroupBtn: {
+    backgroundColor: "rgba(239, 68, 68, 0.12)",
+    borderWidth: 1,
+    borderColor: "#ef4444",
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  deleteGroupBtnText: {
+    color: "#ef4444",
+    fontWeight: "800",
+    fontSize: 13,
+  },
   rankingSection: {
     marginTop: 8,
   },
-  sectionHeader: {
+  sectionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 12,
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  sectionHeader: {
+    flex: 1,
+    minWidth: 160,
+  },
+  modeToggleContainer: {
+    flexDirection: "row",
+    backgroundColor: "#020617",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    padding: 3,
+  },
+  modeToggleBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 7,
+  },
+  modeToggleBtnActive: {
+    backgroundColor: "#eab308",
+  },
+  modeToggleText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#94a3b8",
+  },
+  modeToggleTextActive: {
+    color: "#020617",
+    fontWeight: "800",
   },
   sectionTitle: {
     fontSize: 18,
