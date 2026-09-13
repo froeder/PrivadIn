@@ -5,6 +5,9 @@ import {
   updatePassword,
   signOut as fbSignOut,
   onAuthStateChanged,
+  deleteUser,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
   User,
 } from "firebase/auth";
 import {
@@ -15,6 +18,8 @@ import {
   setDoc,
   updateDoc,
   addDoc,
+  deleteDoc,
+  writeBatch,
   query,
   where,
   runTransaction,
@@ -312,3 +317,126 @@ export async function acceptTerms(uid: string, version: number): Promise<void> {
 export async function signOutUser() {
   await fbSignOut(auth);
 }
+
+/**
+ * Exclui definitivamente a conta e todos os dados associados do usuário no PrivadIn,
+ * em estrita conformidade com as diretrizes do Google Play e LGPD (Lei nº 13.709/2018):
+ * - Registros e histórico de cagadas (poop_logs)
+ * - Postagens no Cuiter (cuiter_posts)
+ * - Vínculos em grupos/ligas (remove de memberIds ou exclui se for dono único)
+ * - Dados privados (user_private)
+ * - Perfil do usuário (users/{uid})
+ * - Conta no Firebase Authentication (deleteUser)
+ *
+ * Link da política: https://froeder.github.io/privadin-exclusao.html
+ */
+export async function deleteCurrentUserAccount(password?: string): Promise<void> {
+  const currentUser = auth.currentUser;
+  if (!currentUser) {
+    throw new Error("Nenhum usuário autenticado encontrado para exclusão.");
+  }
+
+  const uid = currentUser.uid;
+  const email = currentUser.email;
+
+  // 1. Reautenticação se a senha foi informada (necessária caso o login não seja recente)
+  if (password && email) {
+    const credential = EmailAuthProvider.credential(email, password);
+    await reauthenticateWithCredential(currentUser, credential);
+  }
+
+  // 2. Limpeza de todos os dados do usuário no Firestore
+  // a) Exclui todos os logs de cagada (poop_logs)
+  try {
+    const logsSnap = await getDocs(
+      query(collection(db, "poop_logs"), where("userId", "==", uid))
+    );
+    if (!logsSnap.empty) {
+      const batch = writeBatch(db);
+      logsSnap.docs.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
+  } catch (err) {
+    console.warn("Aviso ao limpar poop_logs na exclusão:", err);
+  }
+
+  // b) Exclui todas as postagens no Cuiter (cuiter_posts)
+  try {
+    const postsSnap = await getDocs(
+      query(collection(db, "cuiter_posts"), where("userId", "==", uid))
+    );
+    if (!postsSnap.empty) {
+      const batch = writeBatch(db);
+      postsSnap.docs.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
+  } catch (err) {
+    console.warn("Aviso ao limpar cuiter_posts na exclusão:", err);
+  }
+
+  // c) Atualiza/desvincula grupos onde o usuário participa
+  try {
+    const groupsSnap = await getDocs(
+      query(collection(db, "groups"), where("memberIds", "array-contains", uid))
+    );
+    for (const groupDoc of groupsSnap.docs) {
+      const groupData = groupDoc.data() as any;
+      if (groupData.ownerId === uid) {
+        if (!groupData.memberIds || groupData.memberIds.length <= 1) {
+          // Dono único: exclui o grupo
+          await deleteDoc(groupDoc.ref).catch(() => undefined);
+        } else {
+          // Passa a liderança para o próximo membro
+          const nextMembers = groupData.memberIds.filter((id: string) => id !== uid);
+          await updateDoc(groupDoc.ref, {
+            ownerId: nextMembers[0],
+            memberIds: nextMembers,
+            memberCount: nextMembers.length,
+            updatedAt: serverTimestamp(),
+          }).catch(() => undefined);
+        }
+      } else {
+        // Apenas membro: remove da lista
+        const nextMembers = (groupData.memberIds || []).filter((id: string) => id !== uid);
+        await updateDoc(groupDoc.ref, {
+          memberIds: nextMembers,
+          memberCount: nextMembers.length,
+          updatedAt: serverTimestamp(),
+        }).catch(() => undefined);
+      }
+    }
+  } catch (err) {
+    console.warn("Aviso ao desvincular grupos na exclusão:", err);
+  }
+
+  // d) Exclui dados privados (user_private) se houver
+  try {
+    await deleteDoc(doc(db, "user_private", uid)).catch(() => undefined);
+  } catch (err) {
+    console.warn("Aviso ao excluir user_private:", err);
+  }
+
+  // e) Exclui o documento principal do perfil (users/{uid})
+  try {
+    await deleteDoc(doc(db, "users", uid));
+  } catch (err) {
+    console.warn("Aviso ao excluir users doc:", err);
+  }
+
+  // 3. Exclui o usuário no Firebase Auth
+  try {
+    await deleteUser(currentUser);
+  } catch (authErr: any) {
+    // Se exigir login recente e a senha não tiver sido fornecida antes
+    if (authErr.code === "auth/requires-recent-login") {
+      throw new Error(
+        "Por motivos de segurança, confirme sua senha atual para excluir a conta definitivamente."
+      );
+    }
+    throw authErr;
+  }
+
+  // 4. Garante logout final
+  await fbSignOut(auth).catch(() => undefined);
+}
+

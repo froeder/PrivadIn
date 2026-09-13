@@ -254,7 +254,7 @@ service cloud.firestore {
       allow create: if isOwner(userId) && isPlayerRoleOnCreate();
       // Admin edita tudo. Dono edita o que quiser, desde que não trapaceie os pontos/status
       allow update: if (isOwner(userId) && ownerKeepsProtectedUserFields()) || isAdmin() || canUpdatePoopcoinBalance(userId) || canClaimOwnedGroup(userId);
-      allow delete: if false;
+      allow delete: if isOwner(userId) || isAdmin();
     }
 
     // LOGS DO JOGO/BANHEIRO
@@ -291,7 +291,7 @@ service cloud.firestore {
       allow read: if signedIn();
       allow create: if canCreateGroup(groupId);
       allow update: if canManageGroup() || canJoinGroup();
-      allow delete: if isAdmin();
+      allow delete: if isAdmin() || (signedIn() && resource.data.ownerId == request.auth.uid);
     }
 
     // REQUISIÇÕES DE CADASTRO
@@ -316,7 +316,7 @@ service cloud.firestore {
       allow update: if signedIn() && (
         changedOnly(["reactions"]) || isAdmin()
       );
-      allow delete: if false;
+      allow delete: if (signedIn() && resource.data.userId == request.auth.uid) || isAdmin();
 
       match /reactions/{userId} {
         allow read: if signedIn();

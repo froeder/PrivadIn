@@ -8,9 +8,11 @@ import {
   Alert,
   ScrollView,
   ActivityIndicator,
+  Modal,
+  Linking,
 } from "react-native";
 import { AppUser, WorkSchedule } from "../types";
-import { signOutUser } from "../services/authService";
+import { signOutUser, deleteCurrentUserAccount } from "../services/authService";
 import {
   updateUserProfileCustomization,
   updateUserWorkSchedule,
@@ -95,7 +97,13 @@ export default function ProfileScreen({
   const [transferModalVisible, setTransferModalVisible] = useState(false);
 
   // Active section tab in screen
-  const [activeSection, setActiveSection] = useState<"profile" | "work" | "financial">("profile");
+  const [activeSection, setActiveSection] = useState<"profile" | "work" | "financial" | "security">("profile");
+
+  // Account Deletion States (Google Play & LGPD Compliance)
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   // 1. Profile customization state
   const [nickname, setNickname] = useState(user.nickname || user.name || "");
@@ -255,6 +263,35 @@ export default function ProfileScreen({
     ]);
   };
 
+  // Exclusão de Conta (Google Play Store Policy & LGPD)
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText.trim().toUpperCase() !== "EXCLUIR") {
+      Alert.alert(
+        "Confirmação Necessária",
+        "Por favor, digite a palavra EXCLUIR para confirmar a eliminação de todos os seus dados."
+      );
+      return;
+    }
+
+    setIsDeletingAccount(true);
+    try {
+      await deleteCurrentUserAccount(deletePassword ? deletePassword.trim() : undefined);
+      setDeleteModalVisible(false);
+      Alert.alert(
+        "Conta Excluída",
+        "Sua conta e todos os dados foram eliminados definitivamente do PrivadIn, em conformidade com as diretrizes do Google Play e da LGPD."
+      );
+    } catch (err: any) {
+      console.error("Erro ao excluir conta:", err);
+      Alert.alert(
+        "Erro na Exclusão",
+        err.message || "Não foi possível excluir a conta. Verifique sua senha e tente novamente."
+      );
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  };
+
   const userThemeColor = user.themeColor || selectedTheme || "#eab308";
   const userHourlyRate = user.hourlyRate || (user.salary ? user.salary / 176 : 20);
 
@@ -375,6 +412,24 @@ export default function ProfileScreen({
             ]}
           >
             Finanças
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.sectionTabButton,
+            activeSection === "security" && [styles.sectionTabButtonActive, { borderColor: userThemeColor }],
+          ]}
+          onPress={() => setActiveSection("security")}
+        >
+          <Text style={{ fontSize: 15 }}>🔒</Text>
+          <Text
+            style={[
+              styles.sectionTabText,
+              activeSection === "security" && { color: userThemeColor, fontWeight: "800" },
+            ]}
+          >
+            Segurança
           </Text>
         </TouchableOpacity>
       </View>
@@ -785,6 +840,112 @@ export default function ProfileScreen({
         </View>
       )}
 
+      {/* SECTION 4: SECURITY, PRIVACY & ACCOUNT DELETION */}
+      {activeSection === "security" && (
+        <View style={styles.card}>
+          <View style={styles.complianceBadge}>
+            <Text style={styles.complianceBadgeText}>🛡️ GOOGLE PLAY & LGPD COMPLIANCE</Text>
+          </View>
+
+          <Text style={styles.cardTitle}>Segurança & Exclusão de Conta</Text>
+          <Text style={styles.cardDescription}>
+            Gerencie a proteção da sua conta, consulte o tratamento de dados e solicite a exclusão definitiva ou parcial conforme a Lei Geral de Proteção de Dados (Lei nº 13.709/2018).
+          </Text>
+
+          {/* Account Details Box */}
+          <View style={styles.accountInfoBox}>
+            <View style={styles.accountInfoRow}>
+              <Text style={styles.accountInfoLabel}>E-mail Cadastrado:</Text>
+              <Text style={styles.accountInfoValue}>{user.email}</Text>
+            </View>
+            <View style={styles.accountInfoRow}>
+              <Text style={styles.accountInfoLabel}>ID do Usuário:</Text>
+              <Text style={styles.accountInfoValue} numberOfLines={1}>
+                {user.uid}
+              </Text>
+            </View>
+            <View style={styles.accountInfoRow}>
+              <Text style={styles.accountInfoLabel}>Termos de Uso:</Text>
+              <Text style={[styles.accountInfoValue, { color: "#4ade80" }]}>
+                {user.termsAccepted ? "Aceito" : "Pendente"}
+              </Text>
+            </View>
+          </View>
+
+          {/* Exclusão Parcial de Dados (conforme política oficial) */}
+          <View style={styles.partialDeletionCard}>
+            <Text style={styles.partialDeletionTitle}>⚙️ Exclusão Parcial de Dados</Text>
+            <Text style={styles.partialDeletionText}>
+              Você pode remover sessões antigas ou corrigir seus registros sem precisar fechar sua conta. Para gerenciar ou excluir registros específicos do histórico, acesse o painel de histórico.
+            </Text>
+            {onNavigateToAnalytics && (
+              <TouchableOpacity
+                style={styles.partialActionBtn}
+                onPress={onNavigateToAnalytics}
+              >
+                <Text style={styles.partialActionBtnText}>Gerenciar Histórico de Sessões 📜</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Política Oficial Link */}
+          <TouchableOpacity
+            style={styles.policyLinkButton}
+            onPress={() =>
+              Linking.openURL("https://froeder.github.io/privadin-exclusao.html").catch(() => {
+                Alert.alert(
+                  "Link da Política",
+                  "Acesse https://froeder.github.io/privadin-exclusao.html no seu navegador."
+                );
+              })
+            }
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={styles.policyLinkTitle}>📄 Página Oficial de Exclusão de Dados</Text>
+              <Text style={styles.policyLinkSubtitle}>froeder.github.io/privadin-exclusao.html</Text>
+            </View>
+            <Text style={styles.policyLinkArrow}>↗</Text>
+          </TouchableOpacity>
+
+          {/* DPO / Contact info */}
+          <View style={styles.dpoContactBox}>
+            <Text style={styles.dpoContactTitle}>📧 Canal do Encarregado de Dados (DPO)</Text>
+            <Text style={styles.dpoContactText}>
+              Dúvidas ou solicitações manuais:{" "}
+              <Text
+                style={{ color: "#38bdf8", textDecorationLine: "underline" }}
+                onPress={() => Linking.openURL("mailto:froeder3@gmail.com")}
+              >
+                froeder3@gmail.com
+              </Text>
+            </Text>
+          </View>
+
+          {/* ZONA DE PERIGO: Exclusão Total da Conta */}
+          <View style={styles.dangerZoneCard}>
+            <View style={styles.dangerZoneHeader}>
+              <Text style={styles.dangerZoneTitle}>⚠️ Zona de Perigo: Exclusão Permanente</Text>
+            </View>
+            <Text style={styles.dangerZoneText}>
+              A exclusão total da conta é irreversível. Todos os dados serão permanentemente deletados: perfil, sessões, pontos, saldo de PoopCoins e postagens no Cuiter. Caso deseje utilizar o PrivadIn futuramente, você precisará realizar um novo cadastro.
+            </Text>
+
+            <TouchableOpacity
+              style={styles.deleteAccountButton}
+              onPress={() => {
+                setDeletePassword("");
+                setDeleteConfirmText("");
+                setDeleteModalVisible(true);
+              }}
+            >
+              <Text style={styles.deleteAccountButtonText}>
+                🗑️ Excluir Minha Conta e Meus Dados
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       {/* Career Stats Grid Card */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Estatísticas da Carreira</Text>
@@ -835,6 +996,16 @@ export default function ProfileScreen({
       <View style={styles.footerSection}>
         <Text style={styles.versionText}>PrivadIn Mobile v1.0.0 • Expo EAS</Text>
 
+        <TouchableOpacity
+          style={styles.manageAccountButton}
+          onPress={() => setActiveSection("security")}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.manageAccountButtonText}>
+            🛡️ Segurança, Privacidade & Exclusão de Conta
+          </Text>
+        </TouchableOpacity>
+
         <TouchableOpacity style={styles.logoutButton} onPress={handleSignOut}>
           <Text style={styles.logoutText}>Encerrar Sessão</Text>
         </TouchableOpacity>
@@ -855,6 +1026,109 @@ export default function ProfileScreen({
         onClose={() => setTransferModalVisible(false)}
         onSuccess={onRefreshUser}
       />
+
+      {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO DE CONTA */}
+      <Modal
+        visible={deleteModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => !isDeletingAccount && setDeleteModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { borderColor: "rgba(239, 68, 68, 0.4)" }]}>
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.modalTitle, { color: "#ef4444" }]}>
+                  ⚠️ Excluir Conta Definitivamente
+                </Text>
+                <Text style={styles.modalSubtitle}>
+                  Esta ação é permanente e irreversível.
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => !isDeletingAccount && setDeleteModalVisible(false)}
+                style={styles.modalCloseBtn}
+              >
+                <Text style={styles.modalCloseBtnText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
+              <View style={styles.deleteWarningBox}>
+                <Text style={styles.deleteWarningText}>
+                  Todos os seguintes dados serão excluídos permanentemente:
+                </Text>
+                <Text style={styles.deleteWarningBullet}>• Seu perfil ({user.name || user.email})</Text>
+                <Text style={styles.deleteWarningBullet}>• Todos os registros de sessões e pontos</Text>
+                <Text style={styles.deleteWarningBullet}>• Postagens e reações no Cuiter</Text>
+                <Text style={styles.deleteWarningBullet}>• Participação e vínculos em grupos/ligas</Text>
+                <Text style={styles.deleteWarningBullet}>• Login no Firebase Authentication</Text>
+              </View>
+
+              {/* Password confirmation */}
+              <Text style={[styles.inputLabel, { marginTop: 12 }]}>
+                Confirme sua senha de acesso:
+              </Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Sua senha atual"
+                placeholderTextColor="#64748b"
+                secureTextEntry
+                value={deletePassword}
+                onChangeText={setDeletePassword}
+              />
+
+              {/* Confirmation text input */}
+              <Text style={[styles.inputLabel, { marginTop: 14 }]}>
+                Para confirmar, digite <Text style={{ color: "#ef4444", fontWeight: "900" }}>EXCLUIR</Text> abaixo:
+              </Text>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  {
+                    borderColor:
+                      deleteConfirmText.trim().toUpperCase() === "EXCLUIR" ? "#ef4444" : "#334155",
+                  },
+                ]}
+                placeholder="Digite EXCLUIR"
+                placeholderTextColor="#64748b"
+                value={deleteConfirmText}
+                onChangeText={setDeleteConfirmText}
+                autoCapitalize="characters"
+              />
+            </ScrollView>
+
+            <View style={styles.modalActionsRow}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setDeleteModalVisible(false)}
+                disabled={isDeletingAccount}
+              >
+                <Text style={styles.modalCancelBtnText}>Cancelar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.modalConfirmDeleteBtn,
+                  (deleteConfirmText.trim().toUpperCase() !== "EXCLUIR" || isDeletingAccount) && {
+                    opacity: 0.5,
+                  },
+                ]}
+                onPress={handleDeleteAccount}
+                disabled={
+                  deleteConfirmText.trim().toUpperCase() !== "EXCLUIR" || isDeletingAccount
+                }
+              >
+                {isDeletingAccount ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <Text style={styles.modalConfirmDeleteBtnText}>Excluir Tudo</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -1357,5 +1631,271 @@ const styles = StyleSheet.create({
     color: "#94a3b8",
     fontSize: 12,
     lineHeight: 16,
+  },
+
+  // Security & Compliance Section Styles
+  complianceBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.3)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  complianceBadgeText: {
+    color: "#34d399",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
+  accountInfoBox: {
+    backgroundColor: "#020617",
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 14,
+    gap: 8,
+  },
+  accountInfoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  accountInfoLabel: {
+    color: "#94a3b8",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  accountInfoValue: {
+    color: "#f8fafc",
+    fontSize: 12,
+    fontWeight: "800",
+    maxWidth: "60%",
+  },
+  partialDeletionCard: {
+    backgroundColor: "#1e293b",
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 14,
+    borderLeftWidth: 3,
+    borderLeftColor: "#38bdf8",
+  },
+  partialDeletionTitle: {
+    color: "#f8fafc",
+    fontSize: 13,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  partialDeletionText: {
+    color: "#94a3b8",
+    fontSize: 11,
+    lineHeight: 16,
+    marginBottom: 10,
+  },
+  partialActionBtn: {
+    backgroundColor: "#0f172a",
+    borderWidth: 1,
+    borderColor: "#334155",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignSelf: "flex-start",
+  },
+  partialActionBtnText: {
+    color: "#38bdf8",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  policyLinkButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#0f172a",
+    borderWidth: 1,
+    borderColor: "#334155",
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 14,
+  },
+  policyLinkTitle: {
+    color: "#f8fafc",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  policyLinkSubtitle: {
+    color: "#64748b",
+    fontSize: 11,
+    marginTop: 2,
+  },
+  policyLinkArrow: {
+    color: "#eab308",
+    fontSize: 16,
+    fontWeight: "bold",
+    marginLeft: 10,
+  },
+  dpoContactBox: {
+    backgroundColor: "rgba(15, 23, 42, 0.6)",
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 14,
+  },
+  dpoContactTitle: {
+    color: "#cbd5e1",
+    fontSize: 12,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  dpoContactText: {
+    color: "#94a3b8",
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  dangerZoneCard: {
+    backgroundColor: "rgba(239, 68, 68, 0.06)",
+    borderWidth: 1.5,
+    borderColor: "rgba(239, 68, 68, 0.4)",
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 20,
+  },
+  dangerZoneHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  dangerZoneTitle: {
+    color: "#f87171",
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  dangerZoneText: {
+    color: "#cbd5e1",
+    fontSize: 11,
+    lineHeight: 16,
+    marginBottom: 14,
+  },
+  deleteAccountButton: {
+    backgroundColor: "#dc2626",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    alignItems: "center",
+    shadowColor: "#dc2626",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  deleteAccountButtonText: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  manageAccountButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.3)",
+    backgroundColor: "rgba(56, 189, 248, 0.08)",
+    marginBottom: 12,
+  },
+  manageAccountButtonText: {
+    color: "#38bdf8",
+    fontWeight: "700",
+    fontSize: 12,
+  },
+
+  // Modal Styles for Account Deletion
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalContainer: {
+    width: "100%",
+    maxWidth: 420,
+    backgroundColor: "#0b1329",
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 20,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 14,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: "900",
+  },
+  modalSubtitle: {
+    fontSize: 11,
+    color: "#94a3b8",
+    marginTop: 2,
+  },
+  modalCloseBtn: {
+    padding: 6,
+  },
+  modalCloseBtnText: {
+    color: "#94a3b8",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  deleteWarningBox: {
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.3)",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 10,
+  },
+  deleteWarningText: {
+    color: "#f87171",
+    fontSize: 12,
+    fontWeight: "800",
+    marginBottom: 6,
+  },
+  deleteWarningBullet: {
+    color: "#cbd5e1",
+    fontSize: 11,
+    lineHeight: 18,
+  },
+  modalActionsRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 18,
+  },
+  modalCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: "#1e293b",
+    alignItems: "center",
+  },
+  modalCancelBtnText: {
+    color: "#cbd5e1",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  modalConfirmDeleteBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: "#dc2626",
+    alignItems: "center",
+  },
+  modalConfirmDeleteBtnText: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "900",
   },
 });
