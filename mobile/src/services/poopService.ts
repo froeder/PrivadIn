@@ -480,3 +480,30 @@ export async function editUserPoopLog(
   };
 }
 
+// ---------------------------------------------------------------------------
+// COMPATIBILIDADE PWA / SERVIÇOS UNIFICADOS
+// ---------------------------------------------------------------------------
+
+import {
+  removePoopLogAsAdmin,
+  resetWeeklyCompetition,
+  adjustUserPoints,
+} from "./adminService";
+
+/**
+ * Valida regras de negócio, streaks, bônus e registra a cagada (alias compatível com PWA).
+ */
+export const registerPoopWithValidation = registerPoopLog;
+
+/**
+ * Remove log de cagada e recalcula pontuações / moedas com registro de auditoria (alias compatível com PWA).
+ */
+export const removeLog = removePoopLogAsAdmin;
+
+/**
+ * Zera o ranking semanal incrementando a edição da liga (alias compatível com PWA).
+ */
+export const resetWeeklyRanking = resetWeeklyCompetition;
+
+export { adjustUserPoints };
+

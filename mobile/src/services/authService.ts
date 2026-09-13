@@ -28,6 +28,32 @@ import {
 import { auth, db } from "./firebase";
 import { AppSettings, AppUser } from "../types";
 
+export function getAuthErrorMessage(error: unknown): string {
+  if (!error) return "Ocorreu um erro desconhecido.";
+  const code = (error as any)?.code || "";
+  const msg = (error as any)?.message || String(error);
+
+  switch (code) {
+    case "auth/wrong-password":
+    case "auth/invalid-credential":
+      return "Senha incorreta ou credenciais inválidas.";
+    case "auth/user-not-found":
+      return "Usuário não encontrado com este e-mail.";
+    case "auth/weak-password":
+      return "A nova senha deve ter no mínimo 6 caracteres.";
+    case "auth/invalid-email":
+      return "Formato de e-mail inválido.";
+    case "auth/email-already-in-use":
+      return "Este e-mail já está cadastrado.";
+    case "auth/too-many-requests":
+      return "Muitas tentativas sem sucesso. Aguarde um momento e tente novamente.";
+    case "auth/requires-recent-login":
+      return "Por segurança, confirme sua senha atual novamente antes desta ação.";
+    default:
+      return msg;
+  }
+}
+
 export function listenAuthState(callback: (user: User | null) => void) {
   return onAuthStateChanged(auth, callback);
 }
@@ -160,18 +186,22 @@ export async function loginWithEmail(
   pass: string,
   groupCode?: string
 ): Promise<{ user: User; profile: AppUser }> {
-  const cred = await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), pass);
-  const profile = await ensureUserProfile(cred.user);
+  try {
+    const cred = await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), pass);
+    const profile = await ensureUserProfile(cred.user);
 
-  if (groupCode?.trim()) {
-    try {
-      await joinGroup(profile, groupCode.trim());
-    } catch (err: any) {
-      console.warn("Aviso ao vincular grupo:", err.message);
+    if (groupCode?.trim()) {
+      try {
+        await joinGroup(profile, groupCode.trim());
+      } catch (err: any) {
+        console.warn("Aviso ao vincular grupo:", err.message);
+      }
     }
-  }
 
-  return { user: cred.user, profile };
+    return { user: cred.user, profile };
+  } catch (error) {
+    throw new Error(getAuthErrorMessage(error));
+  }
 }
 
 export async function registerWithEmail(
@@ -238,7 +268,7 @@ export async function registerWithEmail(
         message: err.message || "Falha ao criar conta.",
       });
     }
-    throw err;
+    throw new Error(getAuthErrorMessage(err));
   }
 }
 
@@ -247,7 +277,11 @@ export async function sendPasswordReset(email: string): Promise<void> {
   if (!normalized) {
     throw new Error("Informe o seu e-mail.");
   }
-  await sendPasswordResetEmail(auth, normalized);
+  try {
+    await sendPasswordResetEmail(auth, normalized);
+  } catch (error) {
+    throw new Error(getAuthErrorMessage(error));
+  }
 }
 
 export async function changePasswordWithCredentials(
@@ -296,10 +330,31 @@ export async function changePasswordForCurrentUser(
     throw new Error("A nova senha não pode ser igual à senha atual.");
   }
 
-  const credential = EmailAuthProvider.credential(user.email, currentPass);
-  await reauthenticateWithCredential(user, credential);
-  await updatePassword(user, newPass);
+  try {
+    const credential = EmailAuthProvider.credential(user.email, currentPass);
+    await reauthenticateWithCredential(user, credential);
+    await updatePassword(user, newPass);
+  } catch (error) {
+    throw new Error(getAuthErrorMessage(error));
+  }
 }
+
+/**
+ * Reautentica o usuário no Firebase Auth com a senha atual.
+ */
+export async function reauthenticateUser(user: User, password: string): Promise<void> {
+  if (!user.email) {
+    throw new Error("Usuário não possui e-mail vinculado.");
+  }
+  try {
+    const credential = EmailAuthProvider.credential(user.email, password);
+    await reauthenticateWithCredential(user, credential);
+  } catch (error) {
+    throw new Error(getAuthErrorMessage(error));
+  }
+}
+
+export const changeUserPassword = changePasswordForCurrentUser;
 
 /**
  * Envia e-mail de redefinição de senha para o usuário atualmente autenticado.
@@ -311,6 +366,9 @@ export async function sendPasswordResetForCurrentUser(): Promise<void> {
   }
   await sendPasswordResetEmail(auth, user.email);
 }
+
+export const loginUser = loginWithEmail;
+export const logoutUser = signOutUser;
 
 
 export async function fetchAppSettings(): Promise<AppSettings> {

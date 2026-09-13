@@ -11,20 +11,50 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  Switch,
 } from "react-native";
-import { AppSettings, AppUser, AdminAuditLog, AdminAuditAction } from "../types";
+import {
+  AppSettings,
+  AppUser,
+  AdminAuditLog,
+  AdminAuditAction,
+  PoopLog,
+  RankingGroup,
+  RegistrationAttempt,
+  PoopcoinTransaction,
+  PoopcoinSupplySummary,
+  BonusTimeRange,
+} from "../types";
 import {
   listenAllUsers,
   listenAppSettings,
   listenAuditLogs,
+  listenAllPoopLogs,
+  listenAllGroups,
+  listenRegistrationAttempts,
   deactivateUser,
   reactivateUser,
   setUserRole,
   setUserCooldown,
+  adjustUserPoints,
+  removePoopLogAsAdmin,
+  deleteGroupAsAdmin,
   updateCompetitionSettings,
+  updateOverallRankingVisibility,
+  updateBonusTimeRanges,
+  updateTermsOfUse,
   resetWeeklyCompetition,
   formatAuditLogMessage,
 } from "../services/adminService";
+import {
+  listenPoopcoinChainHead,
+  listenPoopcoinTransactions,
+  adjustPoopcoins,
+  reversePoopcoinTransaction,
+  recalculatePoopcoinSupply,
+  migratePoopcoinsForLogs,
+  formatPoopcoins,
+} from "../services/poopcoinService";
 import { toRoman } from "../utils/roman";
 import UserAvatar from "../components/UserAvatar";
 import UserProfileModal from "../components/UserProfileModal";
@@ -35,10 +65,18 @@ interface AdminScreenProps {
   onRefreshUser?: () => void;
 }
 
-type AdminSection = "users" | "settings" | "reset" | "audit";
+type AdminSection =
+  | "users"
+  | "logs"
+  | "economy"
+  | "settings"
+  | "groups"
+  | "attempts"
+  | "reset"
+  | "audit";
 
 export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreenProps) {
-  // If not admin, block screen immediately
+  // Se não for admin, bloqueia a tela imediatamente
   const isAdmin = user.role === "admin";
 
   const [activeSection, setActiveSection] = useState<AdminSection>("users");
@@ -47,6 +85,11 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
   const [users, setUsers] = useState<AppUser[]>([]);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const [auditLogs, setAuditLogs] = useState<AdminAuditLog[]>([]);
+  const [poopLogs, setPoopLogs] = useState<PoopLog[]>([]);
+  const [groups, setGroups] = useState<RankingGroup[]>([]);
+  const [registrationAttempts, setRegistrationAttempts] = useState<RegistrationAttempt[]>([]);
+  const [poopcoinSupply, setPoopcoinSupply] = useState<PoopcoinSupplySummary | null>(null);
+  const [poopcoinTransactions, setPoopcoinTransactions] = useState<PoopcoinTransaction[]>([]);
   const [loadingData, setLoadingData] = useState(true);
 
   // User Management State
@@ -54,6 +97,17 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
   const [userFilter, setUserFilter] = useState<"all" | "active" | "banned" | "admin">("all");
   const [selectedUserForProfile, setSelectedUserForProfile] = useState<string | null>(null);
   const [processingUid, setProcessingUid] = useState<string | null>(null);
+
+  // Adjust Points Modal State
+  const [adjustPointsUser, setAdjustPointsUser] = useState<AppUser | null>(null);
+  const [customDeltaInput, setCustomDeltaInput] = useState("2000");
+  const [savingPoints, setSavingPoints] = useState(false);
+
+  // Adjust Poopcoins Modal State
+  const [adjustPoopcoinsUser, setAdjustPoopcoinsUser] = useState<AppUser | null>(null);
+  const [adjustPoopcoinsAmount, setAdjustPoopcoinsAmount] = useState("10");
+  const [adjustPoopcoinsReason, setAdjustPoopcoinsReason] = useState("");
+  const [savingPoopcoins, setSavingPoopcoins] = useState(false);
 
   // Custom Cooldown Modal State
   const [cooldownModalUser, setCooldownModalUser] = useState<AppUser | null>(null);
@@ -66,8 +120,27 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
   const [cuiterPostCostInput, setCuiterPostCostInput] = useState("5");
   const [poopcoinsPerLogInput, setPoopcoinsPerLogInput] = useState("1");
   const [announcementInput, setAnnouncementInput] = useState("");
+  const [overallRankingVisible, setOverallRankingVisible] = useState(false);
+  const [bonusRanges, setBonusRanges] = useState<BonusTimeRange[]>([]);
+  const [termsInput, setTermsInput] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
+  const [savingBonus, setSavingBonus] = useState(false);
+  const [savingTerms, setSavingTerms] = useState(false);
   const [settingsSuccessMsg, setSettingsSuccessMsg] = useState("");
+
+  // Poopcoin Economy State
+  const [reverseHashInput, setReverseHashInput] = useState("");
+  const [reverseReasonInput, setReverseReasonInput] = useState("");
+  const [reversingTx, setReversingTx] = useState(false);
+  const [recalculatingSupply, setRecalculatingSupply] = useState(false);
+  const [migratingCoins, setMigratingCoins] = useState(false);
+
+  // Search & Filter States
+  const [logSearchQuery, setLogSearchQuery] = useState("");
+  const [groupSearchQuery, setGroupSearchQuery] = useState("");
+  const [attemptFilter, setAttemptFilter] = useState<
+    "all" | "account_created" | "code_requested" | "invalid_code" | "failed"
+  >("all");
 
   // Weekly Reset Modal State
   const [resetModalVisible, setResetModalVisible] = useState(false);
@@ -103,16 +176,44 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
       setCuiterPostCostInput(String(settings.cuiterPostCost ?? 5));
       setPoopcoinsPerLogInput(String(settings.poopcoinsPerLog ?? 1));
       setAnnouncementInput(settings.competitionAnnouncement || "");
+      setOverallRankingVisible(Boolean(settings.overallRankingVisible));
+      setBonusRanges(settings.bonusTimeRanges || []);
+      setTermsInput(settings.termsOfUseText || "");
     });
 
     const unsubLogs = listenAuditLogs((logs) => {
       setAuditLogs(logs);
     });
 
+    const unsubPoopLogs = listenAllPoopLogs((logs) => {
+      setPoopLogs(logs);
+    });
+
+    const unsubGroups = listenAllGroups((groupList) => {
+      setGroups(groupList);
+    });
+
+    const unsubAttempts = listenRegistrationAttempts((attempts) => {
+      setRegistrationAttempts(attempts);
+    });
+
+    const unsubChain = listenPoopcoinChainHead((summary) => {
+      setPoopcoinSupply(summary);
+    });
+
+    const unsubTxs = listenPoopcoinTransactions((txs) => {
+      setPoopcoinTransactions(txs);
+    });
+
     return () => {
       unsubUsers();
       unsubSettings();
       unsubLogs();
+      unsubPoopLogs();
+      unsubGroups();
+      unsubAttempts();
+      unsubChain();
+      unsubTxs();
     };
   }, [isAdmin]);
 
@@ -120,7 +221,6 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
   const filteredUsers = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     return users.filter((u) => {
-      // 1. Text match
       const nameMatch = (u.name || "").toLowerCase().includes(query);
       const nickMatch = (u.nickname || "").toLowerCase().includes(query);
       const emailMatch = (u.email || "").toLowerCase().includes(query);
@@ -129,7 +229,6 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
 
       if (!matchesSearch) return false;
 
-      // 2. Status match
       if (userFilter === "active") return u.isActive !== false;
       if (userFilter === "banned") return u.isActive === false;
       if (userFilter === "admin") return u.role === "admin";
@@ -137,12 +236,41 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
     });
   }, [users, searchQuery, userFilter]);
 
+  // Filtered Poop Logs List
+  const filteredPoopLogs = useMemo(() => {
+    const query = logSearchQuery.trim().toLowerCase();
+    if (!query) return poopLogs;
+    return poopLogs.filter((log) => {
+      const author = (usersMap.get(log.userId)?.name || log.userName || "").toLowerCase();
+      const note = (log.note || "").toLowerCase();
+      return author.includes(query) || note.includes(query);
+    });
+  }, [poopLogs, logSearchQuery, usersMap]);
+
+  // Filtered Groups List
+  const filteredGroups = useMemo(() => {
+    const query = groupSearchQuery.trim().toLowerCase();
+    if (!query) return groups;
+    return groups.filter((g) => {
+      const name = (g.name || "").toLowerCase();
+      const desc = (g.description || "").toLowerCase();
+      const owner = (usersMap.get(g.ownerId)?.name || g.ownerId || "").toLowerCase();
+      return name.includes(query) || desc.includes(query) || owner.includes(query);
+    });
+  }, [groups, groupSearchQuery, usersMap]);
+
+  // Filtered Registration Attempts List
+  const filteredAttempts = useMemo(() => {
+    if (attemptFilter === "all") return registrationAttempts;
+    return registrationAttempts.filter((a) => a.status === attemptFilter);
+  }, [registrationAttempts, attemptFilter]);
+
   // Filtered Audit Logs
   const filteredAuditLogs = useMemo(() => {
     if (auditFilter === "all") return auditLogs;
     if (auditFilter === "users") {
       return auditLogs.filter((l) =>
-        ["deactivate_user", "reactivate_user", "promote_admin", "demote_admin"].includes(l.action)
+        ["deactivate_user", "reactivate_user", "promote_admin", "demote_admin", "adjust_points", "adjust_poopcoins"].includes(l.action)
       );
     }
     if (auditFilter === "rules") {
@@ -152,6 +280,7 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
           "update_points_per_log",
           "update_poopcoin_rules",
           "update_competition_announcement",
+          "update_terms_of_use",
         ].includes(l.action)
       );
     }
@@ -160,6 +289,11 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
     }
     return auditLogs;
   }, [auditLogs, auditFilter]);
+
+  // Contagem de logs pendentes de Poopcoin
+  const pendingLegacyCoinsCount = useMemo(() => {
+    return poopLogs.filter((l) => !l.poopcoinTransactionHash && l.poopcoinsEarned == null && l.userId).length;
+  }, [poopLogs]);
 
   // Handler: Toggle Ban / Reactivate
   const handleToggleUserBan = (targetUser: AppUser) => {
@@ -268,6 +402,98 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
     }
   };
 
+  // Handler: Adjust User Points
+  const handleApplyAdjustPoints = async (delta: number) => {
+    if (!adjustPointsUser) return;
+    setSavingPoints(true);
+    try {
+      await adjustUserPoints(user, adjustPointsUser, delta);
+      Alert.alert("Sucesso", `${delta > 0 ? `+${delta}` : delta} pontos aplicados para ${adjustPointsUser.name}.`);
+      setAdjustPointsUser(null);
+    } catch (err: any) {
+      Alert.alert("Erro", err.message || "Falha ao ajustar pontos.");
+    } finally {
+      setSavingPoints(false);
+    }
+  };
+
+  // Handler: Adjust User Poopcoins
+  const handleApplyAdjustPoopcoins = async () => {
+    if (!adjustPoopcoinsUser) return;
+    const amount = parseInt(adjustPoopcoinsAmount, 10);
+    const reason = adjustPoopcoinsReason.trim();
+
+    if (isNaN(amount) || amount === 0) {
+      Alert.alert("Valor Inválido", "Informe uma quantidade de PoopCoins diferente de zero.");
+      return;
+    }
+    if (!reason) {
+      Alert.alert("Motivo Obrigatório", "Informe a justificativa/motivo do ajuste administrativo.");
+      return;
+    }
+
+    setSavingPoopcoins(true);
+    try {
+      await adjustPoopcoins(user, adjustPoopcoinsUser, amount, reason);
+      Alert.alert(
+        "Sucesso",
+        `Ajuste de ${amount > 0 ? `+${amount}` : amount} PoopCoins registrado no Ledger para ${adjustPoopcoinsUser.name}.`
+      );
+      setAdjustPoopcoinsUser(null);
+      setAdjustPoopcoinsReason("");
+    } catch (err: any) {
+      Alert.alert("Erro", err.message || "Falha ao ajustar PoopCoins.");
+    } finally {
+      setSavingPoopcoins(false);
+    }
+  };
+
+  // Handler: Delete Poop Log as Admin
+  const handleDeletePoopLog = (log: PoopLog) => {
+    Alert.alert(
+      "Excluir Registro",
+      `Deseja realmente excluir este registro de cagada de ${log.userName || "um colaborador"}? Os pontos (${log.points || 0} pts) e as moedas recebidas serão estornados automaticamente.`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Excluir Registro",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await removePoopLogAsAdmin(user, log);
+              Alert.alert("Registro Excluído", "O log de cagada foi removido e os pontos estornados.");
+            } catch (err: any) {
+              Alert.alert("Erro", err.message || "Falha ao excluir registro.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Handler: Delete Group as Admin
+  const handleDeleteGroup = (group: RankingGroup) => {
+    Alert.alert(
+      "Excluir Grupo",
+      `Deseja excluir o grupo "${group.name}"? Esta ação remove a liga privada para todos os ${group.memberCount || 1} membros participantes.`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Excluir Grupo",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteGroupAsAdmin(user, group);
+              Alert.alert("Grupo Excluído", `O grupo "${group.name}" foi removido com sucesso.`);
+            } catch (err: any) {
+              Alert.alert("Erro", err.message || "Falha ao excluir grupo.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // Handler: Save Competition Settings
   const handleSaveSettings = async () => {
     const cd = parseInt(cooldownMinutesInput, 10);
@@ -311,6 +537,146 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
     }
   };
 
+  // Handler: Toggle Overall Ranking Visibility
+  const handleToggleOverallRanking = async (value: boolean) => {
+    try {
+      setOverallRankingVisible(value);
+      await updateOverallRankingVisibility(user, value);
+    } catch (err: any) {
+      setOverallRankingVisible(!value);
+      Alert.alert("Erro", err.message || "Falha ao alternar visibilidade do ranking geral.");
+    }
+  };
+
+  // Handler: Save Bonus Ranges
+  const handleSaveBonusRanges = async () => {
+    setSavingBonus(true);
+    try {
+      await updateBonusTimeRanges(user, bonusRanges);
+      Alert.alert("Sucesso", "Faixas de horário bônus salvas com sucesso!");
+    } catch (err: any) {
+      Alert.alert("Erro", err.message || "Falha ao salvar faixas bônus.");
+    } finally {
+      setSavingBonus(false);
+    }
+  };
+
+  // Handler: Save Terms of Use
+  const handleSaveTermsOfUse = async () => {
+    if (!termsInput.trim()) {
+      Alert.alert("Validação", "O texto dos Termos de Uso não pode ficar vazio.");
+      return;
+    }
+
+    Alert.alert(
+      "Publicar Nova Versão",
+      "Ao salvar, uma nova versão será gerada e todos os usuários serão obrigados a aceitá-la novamente antes de continuar usando o app. Deseja continuar?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Publicar",
+          style: "default",
+          onPress: async () => {
+            setSavingTerms(true);
+            try {
+              const nextVer = await updateTermsOfUse(user, termsInput);
+              Alert.alert("Sucesso", `Versão v${nextVer} dos Termos de Uso publicada com sucesso!`);
+            } catch (err: any) {
+              Alert.alert("Erro", err.message || "Falha ao atualizar Termos de Uso.");
+            } finally {
+              setSavingTerms(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Handler: Recalculate Poopcoin Supply
+  const handleRecalculateSupply = () => {
+    Alert.alert(
+      "Recalcular Suprimento",
+      "Esta ação audita a soma de saldos de todas as carteiras e sincroniza o supply emitido e circulante no Ledger da rede. Deseja executar?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Recalcular",
+          onPress: async () => {
+            setRecalculatingSupply(true);
+            try {
+              const summary = await recalculatePoopcoinSupply(user);
+              Alert.alert(
+                "Suprimento Recalculado",
+                `Suprimento auditado com sucesso!\n• Circulante: ${formatPoopcoins(summary.circulatingSupply)} PC\n• Disponível: ${formatPoopcoins(summary.availableSupply)} PC`
+              );
+            } catch (err: any) {
+              Alert.alert("Erro", err.message || "Falha ao recalcular suprimento.");
+            } finally {
+              setRecalculatingSupply(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Handler: Migrate Coins for Legacy Logs
+  const handleMigrateCoins = async () => {
+    setMigratingCoins(true);
+    try {
+      const processed = await migratePoopcoinsForLogs(user, poopLogs);
+      if (processed === 0) {
+        Alert.alert("Migração", "Nenhum registro antigo pendente para migrar moedas neste lote.");
+      } else {
+        Alert.alert("Sucesso", `Lote de ${processed} registro(s) antigos minerado e creditado com sucesso!`);
+      }
+    } catch (err: any) {
+      Alert.alert("Erro", err.message || "Falha ao migrar moedas.");
+    } finally {
+      setMigratingCoins(false);
+    }
+  };
+
+  // Handler: Reverse Transaction
+  const handleReverseTransaction = async () => {
+    const hash = reverseHashInput.trim();
+    const reason = reverseReasonInput.trim();
+
+    if (!hash) {
+      Alert.alert("Validação", "Cole o hash da transação que deseja reverter.");
+      return;
+    }
+    if (!reason) {
+      Alert.alert("Validação", "Informe o motivo comprovado da reversão.");
+      return;
+    }
+
+    Alert.alert(
+      "Confirmar Reversão",
+      `Deseja reverter a transação de hash:\n${hash.slice(0, 16)}...\n\nMotivo: "${reason}"\nOs saldos das contas envolvidas serão estornados no Ledger.`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Reverter",
+          style: "destructive",
+          onPress: async () => {
+            setReversingTx(true);
+            try {
+              await reversePoopcoinTransaction(user, hash, reason);
+              Alert.alert("Transação Revertida", "O bloco de estorno foi emitido no Ledger.");
+              setReverseHashInput("");
+              setReverseReasonInput("");
+            } catch (err: any) {
+              Alert.alert("Erro", err.message || "Falha ao reverter transação.");
+            } finally {
+              setReversingTx(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // Handler: Trigger Weekly Reset
   const handleTriggerWeeklyReset = async () => {
     if (resetConfirmText.trim().toUpperCase() !== "RESETAR") {
@@ -332,7 +698,7 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
     }
   };
 
-  // If user is not admin
+  // Se não for admin, bloqueia visualização
   if (!isAdmin) {
     return (
       <View style={styles.forbiddenContainer}>
@@ -364,72 +730,100 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
         <View style={styles.headerTitleRow}>
           <Text style={styles.title}>🛡️ Painel do Administrador</Text>
           <Text style={styles.subtitle}>
-            Gestão da plataforma, ajustes de competição, reset e auditoria.
+            Gestão da plataforma, economia, cagadas, competição, reset e auditoria.
           </Text>
         </View>
 
-        {/* Section Tabs */}
+        {/* Section Tabs Horizontais */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.sectionTabsContainer}
         >
+          {/* Usuários */}
           <TouchableOpacity
             style={[styles.sectionTab, activeSection === "users" && styles.sectionTabActive]}
             onPress={() => setActiveSection("users")}
           >
             <Text style={styles.sectionTabIcon}>👥</Text>
-            <Text
-              style={[
-                styles.sectionTabText,
-                activeSection === "users" && styles.sectionTabTextActive,
-              ]}
-            >
+            <Text style={[styles.sectionTabText, activeSection === "users" && styles.sectionTabTextActive]}>
               Usuários ({users.length})
             </Text>
           </TouchableOpacity>
 
+          {/* Cagadas */}
+          <TouchableOpacity
+            style={[styles.sectionTab, activeSection === "logs" && styles.sectionTabActive]}
+            onPress={() => setActiveSection("logs")}
+          >
+            <Text style={styles.sectionTabIcon}>🧻</Text>
+            <Text style={[styles.sectionTabText, activeSection === "logs" && styles.sectionTabTextActive]}>
+              Cagadas ({poopLogs.length})
+            </Text>
+          </TouchableOpacity>
+
+          {/* Economia Poopcoin */}
+          <TouchableOpacity
+            style={[styles.sectionTab, activeSection === "economy" && styles.sectionTabActive]}
+            onPress={() => setActiveSection("economy")}
+          >
+            <Text style={styles.sectionTabIcon}>🪙</Text>
+            <Text style={[styles.sectionTabText, activeSection === "economy" && styles.sectionTabTextActive]}>
+              Poopcoins
+            </Text>
+          </TouchableOpacity>
+
+          {/* Competição / Regras */}
           <TouchableOpacity
             style={[styles.sectionTab, activeSection === "settings" && styles.sectionTabActive]}
             onPress={() => setActiveSection("settings")}
           >
             <Text style={styles.sectionTabIcon}>⚙️</Text>
-            <Text
-              style={[
-                styles.sectionTabText,
-                activeSection === "settings" && styles.sectionTabTextActive,
-              ]}
-            >
+            <Text style={[styles.sectionTabText, activeSection === "settings" && styles.sectionTabTextActive]}>
               Competição
             </Text>
           </TouchableOpacity>
 
+          {/* Grupos */}
+          <TouchableOpacity
+            style={[styles.sectionTab, activeSection === "groups" && styles.sectionTabActive]}
+            onPress={() => setActiveSection("groups")}
+          >
+            <Text style={styles.sectionTabIcon}>🛡️</Text>
+            <Text style={[styles.sectionTabText, activeSection === "groups" && styles.sectionTabTextActive]}>
+              Grupos ({groups.length})
+            </Text>
+          </TouchableOpacity>
+
+          {/* Tentativas de Registro */}
+          <TouchableOpacity
+            style={[styles.sectionTab, activeSection === "attempts" && styles.sectionTabActive]}
+            onPress={() => setActiveSection("attempts")}
+          >
+            <Text style={styles.sectionTabIcon}>📋</Text>
+            <Text style={[styles.sectionTabText, activeSection === "attempts" && styles.sectionTabTextActive]}>
+              Cadastros ({registrationAttempts.length})
+            </Text>
+          </TouchableOpacity>
+
+          {/* Reset Semanal */}
           <TouchableOpacity
             style={[styles.sectionTab, activeSection === "reset" && styles.sectionTabActive]}
             onPress={() => setActiveSection("reset")}
           >
             <Text style={styles.sectionTabIcon}>🏆</Text>
-            <Text
-              style={[
-                styles.sectionTabText,
-                activeSection === "reset" && styles.sectionTabTextActive,
-              ]}
-            >
+            <Text style={[styles.sectionTabText, activeSection === "reset" && styles.sectionTabTextActive]}>
               Reset Semanal
             </Text>
           </TouchableOpacity>
 
+          {/* Auditoria */}
           <TouchableOpacity
             style={[styles.sectionTab, activeSection === "audit" && styles.sectionTabActive]}
             onPress={() => setActiveSection("audit")}
           >
             <Text style={styles.sectionTabIcon}>📜</Text>
-            <Text
-              style={[
-                styles.sectionTabText,
-                activeSection === "audit" && styles.sectionTabTextActive,
-              ]}
-            >
+            <Text style={[styles.sectionTabText, activeSection === "audit" && styles.sectionTabTextActive]}>
               Auditoria ({auditLogs.length})
             </Text>
           </TouchableOpacity>
@@ -666,6 +1060,29 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
                           </Text>
                         </TouchableOpacity>
 
+                        {/* Ajustar Pontos */}
+                        <TouchableOpacity
+                          style={[styles.userActionBtn, styles.userActionBtnNeutral]}
+                          onPress={() => {
+                            setAdjustPointsUser(item);
+                            setCustomDeltaInput("2000");
+                          }}
+                        >
+                          <Text style={styles.userActionBtnTextNeutral}>🎯 Pontos</Text>
+                        </TouchableOpacity>
+
+                        {/* Ajustar PoopCoins */}
+                        <TouchableOpacity
+                          style={[styles.userActionBtn, styles.userActionBtnGold]}
+                          onPress={() => {
+                            setAdjustPoopcoinsUser(item);
+                            setAdjustPoopcoinsAmount("10");
+                            setAdjustPoopcoinsReason("");
+                          }}
+                        >
+                          <Text style={styles.userActionBtnTextGold}>🪙 PoopCoins</Text>
+                        </TouchableOpacity>
+
                         {/* Set Cooldown */}
                         <TouchableOpacity
                           style={[styles.userActionBtn, styles.userActionBtnNeutral]}
@@ -692,7 +1109,297 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
             </View>
           )}
 
-          {/* ================= SECTION 2: AJUSTES DA COMPETIÇÃO ================= */}
+          {/* ================= SECTION 2: REGISTROS DE CAGADAS (POOP LOGS) ================= */}
+          {activeSection === "logs" && (
+            <View style={styles.sectionBody}>
+              <View style={styles.sectionHeaderCard}>
+                <Text style={styles.sectionHeaderEyebrow}>ORGANIZAÇÃO EM TEMPO REAL</Text>
+                <Text style={styles.sectionHeaderTitle}>Registros de Cagadas</Text>
+                <Text style={styles.sectionHeaderDesc}>
+                  Visualize todos os logs da empresa com opção de exclusão manual. A exclusão estorna
+                  automaticamente os pontos e moedas acumulados na cagada.
+                </Text>
+              </View>
+
+              {/* Search bar */}
+              <View style={styles.searchBox}>
+                <Text style={styles.searchIcon}>🔍</Text>
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Filtrar por nome do autor ou observação..."
+                  placeholderTextColor="#64748b"
+                  value={logSearchQuery}
+                  onChangeText={setLogSearchQuery}
+                />
+                {logSearchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setLogSearchQuery("")}>
+                    <Text style={styles.clearSearchText}>✕</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* Logs List */}
+              {filteredPoopLogs.length === 0 ? (
+                <View style={styles.emptyCard}>
+                  <Text style={styles.emptyIcon}>🧻</Text>
+                  <Text style={styles.emptyTitle}>Nenhum registro encontrado</Text>
+                  <Text style={styles.emptyText}>
+                    Os registros enviados pelos colaboradores aparecerão aqui em tempo real.
+                  </Text>
+                </View>
+              ) : (
+                filteredPoopLogs.map((log) => {
+                  const author = usersMap.get(log.userId) || { name: log.userName, email: "" };
+                  const durationMin = Math.floor((log.durationSeconds || 0) / 60);
+                  const durationSec = (log.durationSeconds || 0) % 60;
+                  const dateStr = log.createdAt?.toDate
+                    ? log.createdAt.toDate().toLocaleString("pt-BR")
+                    : log.createdAt?.seconds
+                    ? new Date(log.createdAt.seconds * 1000).toLocaleString("pt-BR")
+                    : "Recentemente";
+
+                  return (
+                    <View key={log.id} style={styles.logCard}>
+                      <View style={styles.logCardHeader}>
+                        <View style={styles.logAvatarCircle}>
+                          <Text style={{ fontSize: 20 }}>🧻</Text>
+                        </View>
+                        <View style={styles.logInfoCol}>
+                          <Text style={styles.logAuthorText}>
+                            {author.name || log.userName || "Colaborador"}
+                          </Text>
+                          <Text style={styles.logDateText}>{dateStr}</Text>
+                        </View>
+                        <TouchableOpacity
+                          style={styles.logDeleteBtn}
+                          onPress={() => handleDeletePoopLog(log)}
+                        >
+                          <Text style={styles.logDeleteBtnText}>🗑️ Excluir</Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* Log details metrics */}
+                      <View style={styles.logMetricsRow}>
+                        <View style={styles.logMetricCol}>
+                          <Text style={styles.logMetricLabel}>Duração</Text>
+                          <Text style={styles.logMetricVal}>
+                            {durationMin}m {durationSec}s
+                          </Text>
+                        </View>
+                        <View style={styles.logMetricDivider} />
+                        <View style={styles.logMetricCol}>
+                          <Text style={styles.logMetricLabel}>Rendimento</Text>
+                          <Text style={[styles.logMetricVal, { color: "#10b981" }]}>
+                            R$ {(log.earnedAmount || 0).toFixed(2)}
+                          </Text>
+                        </View>
+                        <View style={styles.logMetricDivider} />
+                        <View style={styles.logMetricCol}>
+                          <Text style={styles.logMetricLabel}>Pontos</Text>
+                          <Text style={[styles.logMetricVal, { color: "#38bdf8" }]}>
+                            +{(log.points || 0).toLocaleString()}
+                          </Text>
+                        </View>
+                        <View style={styles.logMetricDivider} />
+                        <View style={styles.logMetricCol}>
+                          <Text style={styles.logMetricLabel}>PoopCoins</Text>
+                          <Text style={[styles.logMetricVal, { color: "#eab308" }]}>
+                            +{(log.poopcoinsEarned ?? (log.poopcoinTransactionHash ? 1 : 0))} PC
+                          </Text>
+                        </View>
+                      </View>
+
+                      {log.note ? (
+                        <View style={styles.logNoteBox}>
+                          <Text style={styles.logNoteText}>💬 "{log.note}"</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                  );
+                })
+              )}
+            </View>
+          )}
+
+          {/* ================= SECTION 3: ECONOMIA POOPCOIN ================= */}
+          {activeSection === "economy" && (
+            <View style={styles.sectionBody}>
+              <View style={styles.sectionHeaderCard}>
+                <Text style={styles.sectionHeaderEyebrow}>ECONOMIA CRIPTO & LEDGER</Text>
+                <Text style={styles.sectionHeaderTitle}>Gestão de PoopCoins</Text>
+                <Text style={styles.sectionHeaderDesc}>
+                  Acompanhe o supply global, histórico da blockchain do trono, reverta transações
+                  indevidas e execute migrações e auditorias atômicas.
+                </Text>
+              </View>
+
+              {/* Supply Global Cards */}
+              <View style={styles.supplyCardsGrid}>
+                <View style={styles.supplyCard}>
+                  <Text style={styles.supplyCardLabel}>OFERTA TOTAL</Text>
+                  <Text style={styles.supplyCardVal}>
+                    {formatPoopcoins(poopcoinSupply?.totalSupply ?? 1000000)} PC
+                  </Text>
+                  <Text style={styles.supplyCardSub}>Limite fixo do protocolo</Text>
+                </View>
+
+                <View style={styles.supplyCard}>
+                  <Text style={styles.supplyCardLabel}>EMITIDAS</Text>
+                  <Text style={[styles.supplyCardVal, { color: "#eab308" }]}>
+                    {formatPoopcoins(poopcoinSupply?.mintedSupply ?? 0)} PC
+                  </Text>
+                  <Text style={styles.supplyCardSub}>Mineradas em cagadas</Text>
+                </View>
+
+                <View style={styles.supplyCard}>
+                  <Text style={styles.supplyCardLabel}>QUEIMADAS</Text>
+                  <Text style={[styles.supplyCardVal, { color: "#ef4444" }]}>
+                    {formatPoopcoins(poopcoinSupply?.burnedSupply ?? 0)} PC
+                  </Text>
+                  <Text style={styles.supplyCardSub}>Gastas no Cuiter/Loja</Text>
+                </View>
+
+                <View style={styles.supplyCard}>
+                  <Text style={styles.supplyCardLabel}>DISPONÍVEIS</Text>
+                  <Text style={[styles.supplyCardVal, { color: "#10b981" }]}>
+                    {formatPoopcoins(poopcoinSupply?.availableSupply ?? 0)} PC
+                  </Text>
+                  <Text style={styles.supplyCardSub}>Prontas para emissão</Text>
+                </View>
+              </View>
+
+              {/* Atomic Supply Actions */}
+              <View style={styles.cardBox}>
+                <Text style={styles.cardBoxTitle}>⚡ Ações de Auditoria do Suprimento</Text>
+
+                <View style={styles.actionRowItem}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.actionItemTitle}>🔄 Recálculo Atômico do Suprimento</Text>
+                    <Text style={styles.actionItemDesc}>
+                      Varre os saldos de todas as carteiras de usuários e sincroniza a ponta da
+                      corrente com a verdade contábil.
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.smallBtn, recalculatingSupply && styles.btnDisabled]}
+                    disabled={recalculatingSupply}
+                    onPress={handleRecalculateSupply}
+                  >
+                    {recalculatingSupply ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={styles.smallBtnText}>Recalcular</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+
+                <View style={[styles.actionRowItem, { borderTopWidth: 1, borderTopColor: "#334155" }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.actionItemTitle}>📦 Migração Retroativa de Moedas</Text>
+                    <Text style={styles.actionItemDesc}>
+                      Emite PoopCoins em lote (até 25) para registros legados que não geraram moedas.
+                      {"\n"}
+                      <Text style={{ color: "#eab308", fontWeight: "bold" }}>
+                        Pendentes: {pendingLegacyCoinsCount} registro(s)
+                      </Text>
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.smallBtnGold, migratingCoins && styles.btnDisabled]}
+                    disabled={migratingCoins}
+                    onPress={handleMigrateCoins}
+                  >
+                    {migratingCoins ? (
+                      <ActivityIndicator size="small" color="#000" />
+                    ) : (
+                      <Text style={styles.smallBtnGoldText}>Migrar Lote</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Reversão de Transações */}
+              <View style={styles.cardBox}>
+                <Text style={styles.cardBoxTitle}>🚨 Reversão de Transação no Ledger</Text>
+                <Text style={styles.cardBoxDesc}>
+                  Reverte de forma criptográfica uma transação indevida ou fraudulenta, estornando os
+                  valores de volta para as partes envolvidas.
+                </Text>
+
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Hash da Transação (SHA-256)</Text>
+                  <TextInput
+                    style={[styles.formInput, { fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }]}
+                    placeholder="Cole o hash de 64 caracteres..."
+                    placeholderTextColor="#64748b"
+                    value={reverseHashInput}
+                    onChangeText={setReverseHashInput}
+                    autoCapitalize="none"
+                  />
+                </View>
+
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Justificativa / Motivo da Reversão</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    placeholder="Ex: Fraude comprovada, erro operacional..."
+                    placeholderTextColor="#64748b"
+                    value={reverseReasonInput}
+                    onChangeText={setReverseReasonInput}
+                  />
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.dangerBtn, reversingTx && styles.btnDisabled]}
+                  disabled={reversingTx}
+                  onPress={handleReverseTransaction}
+                >
+                  {reversingTx ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.dangerBtnText}>🚨 Executar Reversão no Ledger</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              {/* Histórico Recente de Transações */}
+              <View style={styles.cardBox}>
+                <Text style={styles.cardBoxTitle}>📜 Histórico da Blockchain ({poopcoinTransactions.length})</Text>
+                {poopcoinTransactions.length === 0 ? (
+                  <Text style={styles.emptyText}>Nenhuma transação registrada no ledger ainda.</Text>
+                ) : (
+                  poopcoinTransactions.slice(0, 30).map((tx) => {
+                    const isReversed = tx.status === "reversed";
+                    return (
+                      <View key={tx.hash} style={[styles.txItem, isReversed && styles.txItemReversed]}>
+                        <View style={styles.txHeaderRow}>
+                          <View style={styles.txBadge}>
+                            <Text style={styles.txBadgeText}>#{tx.sequence}</Text>
+                          </View>
+                          <View style={[styles.txTypePill, isReversed && { backgroundColor: "#ef444433" }]}>
+                            <Text style={[styles.txTypeText, isReversed && { color: "#ef4444" }]}>
+                              {isReversed ? "REVERTIDA" : tx.type.toUpperCase()}
+                            </Text>
+                          </View>
+                          <Text style={styles.txAmountText}>
+                            {formatPoopcoins(tx.amount)} PC
+                          </Text>
+                        </View>
+                        <Text style={styles.txHashText} numberOfLines={1} ellipsizeMode="middle">
+                          Hash: {tx.hash}
+                        </Text>
+                        {tx.reason ? (
+                          <Text style={styles.txReasonText}>Motivo: {tx.reason}</Text>
+                        ) : null}
+                      </View>
+                    );
+                  })
+                )}
+              </View>
+            </View>
+          )}
+
+          {/* ================= SECTION 4: AJUSTES DA COMPETIÇÃO ================= */}
           {activeSection === "settings" && (
             <View style={styles.sectionBody}>
               <View style={styles.settingsHeaderCard}>
@@ -825,10 +1532,356 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
                   )}
                 </TouchableOpacity>
               </View>
+
+              {/* Toggle de Ranking Geral (All-Time) */}
+              <View style={styles.cardBox}>
+                <View style={styles.toggleRow}>
+                  <View style={{ flex: 1, paddingRight: 12 }}>
+                    <Text style={styles.cardBoxTitle}>🌐 Ranking Geral (All-Time)</Text>
+                    <Text style={styles.cardBoxDesc}>
+                      Exibe ou oculta a aba de Ranking Geral Vitalício para todos os colaboradores.
+                      {"\n"}
+                      Status atual:{" "}
+                      <Text style={{ color: overallRankingVisible ? "#10b981" : "#ef4444", fontWeight: "bold" }}>
+                        {overallRankingVisible ? "Visível" : "Oculto"}
+                      </Text>
+                    </Text>
+                  </View>
+                  <Switch
+                    value={overallRankingVisible}
+                    onValueChange={handleToggleOverallRanking}
+                    trackColor={{ false: "#334155", true: "#eab308" }}
+                    thumbColor={overallRankingVisible ? "#0f172a" : "#94a3b8"}
+                  />
+                </View>
+              </View>
+
+              {/* Faixas de Horário Bônus */}
+              <View style={styles.cardBox}>
+                <View style={styles.cardHeaderRow}>
+                  <View>
+                    <Text style={styles.cardBoxTitle}>⏰ Faixas de Horário de Pico Bônus</Text>
+                    <Text style={styles.cardBoxDesc}>
+                      Defina períodos com pontuação especial durante o expediente (HH:MM).
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.smallAddBtn}
+                    onPress={() => {
+                      setBonusRanges((cur) => [
+                        ...cur,
+                        { start: "12:00", end: "13:00", points: Number(pointsPerLogInput) || 2000 },
+                      ]);
+                    }}
+                  >
+                    <Text style={styles.smallAddBtnText}>+ Adicionar</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {bonusRanges.length === 0 ? (
+                  <Text style={styles.emptyText}>Nenhuma faixa bônus configurada.</Text>
+                ) : (
+                  bonusRanges.map((range, idx) => (
+                    <View key={idx} style={styles.bonusRangeRow}>
+                      <TextInput
+                        style={[styles.formInput, styles.bonusTimeInput]}
+                        value={range.start}
+                        placeholder="Início"
+                        placeholderTextColor="#64748b"
+                        onChangeText={(txt) =>
+                          setBonusRanges((cur) =>
+                            cur.map((v, i) => (i === idx ? { ...v, start: txt } : v))
+                          )
+                        }
+                      />
+                      <Text style={{ color: "#94a3b8", fontWeight: "bold" }}>até</Text>
+                      <TextInput
+                        style={[styles.formInput, styles.bonusTimeInput]}
+                        value={range.end}
+                        placeholder="Fim"
+                        placeholderTextColor="#64748b"
+                        onChangeText={(txt) =>
+                          setBonusRanges((cur) =>
+                            cur.map((v, i) => (i === idx ? { ...v, end: txt } : v))
+                          )
+                        }
+                      />
+                      <TextInput
+                        style={[styles.formInput, styles.bonusPointsInput]}
+                        keyboardType="number-pad"
+                        value={String(range.points)}
+                        placeholder="Pontos"
+                        placeholderTextColor="#64748b"
+                        onChangeText={(txt) =>
+                          setBonusRanges((cur) =>
+                            cur.map((v, i) => (i === idx ? { ...v, points: parseInt(txt, 10) || 0 } : v))
+                          )
+                        }
+                      />
+                      <TouchableOpacity
+                        style={styles.bonusRemoveBtn}
+                        onPress={() => setBonusRanges((cur) => cur.filter((_, i) => i !== idx))}
+                      >
+                        <Text style={styles.bonusRemoveBtnText}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))
+                )}
+
+                {bonusRanges.length > 0 && (
+                  <TouchableOpacity
+                    style={[styles.smallBtn, savingBonus && styles.btnDisabled, { marginTop: 12 }]}
+                    disabled={savingBonus}
+                    onPress={handleSaveBonusRanges}
+                  >
+                    {savingBonus ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={styles.smallBtnText}>💾 Salvar Faixas de Horário</Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* Editor de Termos de Uso */}
+              <View style={styles.cardBox}>
+                <Text style={styles.cardBoxTitle}>📜 Editor de Termos de Uso</Text>
+                <Text style={styles.cardBoxDesc}>
+                  Versão atual:{" "}
+                  <Text style={{ color: "#eab308", fontWeight: "bold" }}>
+                    v{appSettings?.termsOfUseVersion ?? 1}
+                  </Text>
+                  . Ao salvar uma nova versão, todos os usuários serão obrigados a aceitar os novos
+                  termos no aplicativo.
+                </Text>
+
+                <TextInput
+                  style={[styles.formInput, styles.termsTextArea]}
+                  multiline
+                  value={termsInput}
+                  onChangeText={setTermsInput}
+                  placeholder="Escreva os termos de uso da plataforma..."
+                  placeholderTextColor="#64748b"
+                />
+
+                <TouchableOpacity
+                  style={[styles.saveSettingsBtn, savingTerms && styles.btnDisabled, { marginTop: 12 }]}
+                  disabled={savingTerms}
+                  onPress={handleSaveTermsOfUse}
+                >
+                  {savingTerms ? (
+                    <ActivityIndicator size="small" color="#000" />
+                  ) : (
+                    <Text style={styles.saveSettingsBtnText}>
+                      📜 Publicar Nova Versão dos Termos (v{(appSettings?.termsOfUseVersion ?? 1) + 1})
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
           )}
 
-          {/* ================= SECTION 3: RESET SEMANAL ================= */}
+          {/* ================= SECTION 5: GESTÃO DE GRUPOS ================= */}
+          {activeSection === "groups" && (
+            <View style={styles.sectionBody}>
+              <View style={styles.sectionHeaderCard}>
+                <Text style={styles.sectionHeaderEyebrow}>COMUNIDADES & LIGAS</Text>
+                <Text style={styles.sectionHeaderTitle}>Grupos da Plataforma</Text>
+                <Text style={styles.sectionHeaderDesc}>
+                  Acompanhe todos os grupos privados criados pelos colaboradores com opção de moderação
+                  e exclusão definitiva.
+                </Text>
+              </View>
+
+              {/* Search Bar */}
+              <View style={styles.searchBox}>
+                <Text style={styles.searchIcon}>🔍</Text>
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Filtrar grupos por nome, descrição ou dono..."
+                  placeholderTextColor="#64748b"
+                  value={groupSearchQuery}
+                  onChangeText={setGroupSearchQuery}
+                />
+                {groupSearchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setGroupSearchQuery("")}>
+                    <Text style={styles.clearSearchText}>✕</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* Group List */}
+              {filteredGroups.length === 0 ? (
+                <View style={styles.emptyCard}>
+                  <Text style={styles.emptyIcon}>🛡️</Text>
+                  <Text style={styles.emptyTitle}>Nenhum grupo encontrado</Text>
+                  <Text style={styles.emptyText}>Nenhum grupo corresponde à busca realizada.</Text>
+                </View>
+              ) : (
+                filteredGroups.map((group) => {
+                  const owner = usersMap.get(group.ownerId);
+                  const dateStr = group.createdAt?.toDate
+                    ? group.createdAt.toDate().toLocaleDateString("pt-BR")
+                    : group.createdAt?.seconds
+                    ? new Date(group.createdAt.seconds * 1000).toLocaleDateString("pt-BR")
+                    : "Data desconhecida";
+
+                  return (
+                    <View key={group.id} style={styles.groupCard}>
+                      <View style={styles.groupCardHeader}>
+                        <View style={{ flex: 1 }}>
+                          <View style={styles.groupNameRow}>
+                            <Text style={styles.groupNameText}>{group.name}</Text>
+                            <View style={styles.groupMemberBadge}>
+                              <Text style={styles.groupMemberBadgeText}>
+                                👥 {group.memberCount || 1} membro(s)
+                              </Text>
+                            </View>
+                          </View>
+                          <Text style={styles.groupDescText}>{group.description || "Sem descrição."}</Text>
+                        </View>
+                        <TouchableOpacity
+                          style={styles.groupDeleteBtn}
+                          onPress={() => handleDeleteGroup(group)}
+                        >
+                          <Text style={styles.groupDeleteBtnText}>🗑️ Excluir</Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      <View style={styles.groupMetaRow}>
+                        <Text style={styles.groupMetaSnippet}>
+                          ID: <Text style={{ color: "#eab308", fontWeight: "bold" }}>{group.id}</Text>
+                        </Text>
+                        <Text style={styles.groupMetaSnippet}>
+                          Dono: {owner?.name || group.ownerId}
+                        </Text>
+                        <Text style={styles.groupMetaSnippet}>Criado em: {dateStr}</Text>
+                        <Text style={styles.groupMetaSnippet}>Ed. {toRoman(group.edition || 1)}</Text>
+                      </View>
+                    </View>
+                  );
+                })
+              )}
+            </View>
+          )}
+
+          {/* ================= SECTION 6: TENTATIVAS DE REGISTRO ================= */}
+          {activeSection === "attempts" && (
+            <View style={styles.sectionBody}>
+              <View style={styles.sectionHeaderCard}>
+                <Text style={styles.sectionHeaderEyebrow}>SEGURANÇA & ONBOARDING</Text>
+                <Text style={styles.sectionHeaderTitle}>Tentativas de Cadastro</Text>
+                <Text style={styles.sectionHeaderDesc}>
+                  Monitore tentativas de registro em tempo real, validação de códigos corporativos de
+                  aprovação e e-mails duplicados bloqueados.
+                </Text>
+              </View>
+
+              {/* Status Filters */}
+              <View style={styles.filterChipsRow}>
+                <TouchableOpacity
+                  style={[styles.chip, attemptFilter === "all" && styles.chipActive]}
+                  onPress={() => setAttemptFilter("all")}
+                >
+                  <Text style={[styles.chipText, attemptFilter === "all" && styles.chipTextActive]}>
+                    Todos ({registrationAttempts.length})
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.chip, attemptFilter === "account_created" && styles.chipActive]}
+                  onPress={() => setAttemptFilter("account_created")}
+                >
+                  <Text style={[styles.chipText, attemptFilter === "account_created" && styles.chipTextActive]}>
+                    🟢 Contas Criadas
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.chip, attemptFilter === "code_requested" && styles.chipActive]}
+                  onPress={() => setAttemptFilter("code_requested")}
+                >
+                  <Text style={[styles.chipText, attemptFilter === "code_requested" && styles.chipTextActive]}>
+                    🟡 Código Solicitado
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.chip, attemptFilter === "invalid_code" && styles.chipActive]}
+                  onPress={() => setAttemptFilter("invalid_code")}
+                >
+                  <Text style={[styles.chipText, attemptFilter === "invalid_code" && styles.chipTextActive]}>
+                    🔴 Código Inválido
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Attempts List */}
+              {filteredAttempts.length === 0 ? (
+                <View style={styles.emptyCard}>
+                  <Text style={styles.emptyIcon}>📋</Text>
+                  <Text style={styles.emptyTitle}>Nenhuma tentativa encontrada</Text>
+                  <Text style={styles.emptyText}>Novas tentativas de cadastro aparecerão aqui.</Text>
+                </View>
+              ) : (
+                filteredAttempts.map((att) => {
+                  const dateStr = att.createdAt?.toDate
+                    ? att.createdAt.toDate().toLocaleString("pt-BR")
+                    : att.createdAt?.seconds
+                    ? new Date(att.createdAt.seconds * 1000).toLocaleString("pt-BR")
+                    : "Recentemente";
+
+                  let statusBadgeColor = "#3b82f6";
+                  let statusText: string = att.status;
+
+                  if (att.status === "account_created") {
+                    statusBadgeColor = "#10b981";
+                    statusText = "CONTA CRIADA";
+                  } else if (att.status === "code_requested") {
+                    statusBadgeColor = "#eab308";
+                    statusText = "CÓDIGO SOLICITADO";
+                  } else if (att.status === "invalid_code") {
+                    statusBadgeColor = "#ef4444";
+                    statusText = "CÓDIGO INVÁLIDO";
+                  } else if (att.status === "failed") {
+                    statusBadgeColor = "#ef4444";
+                    statusText = "FALHA";
+                  }
+
+                  const codeUsed = att.groupCodeProvided || att.approvalCodeProvided;
+
+                  return (
+                    <View key={att.id} style={styles.attemptCard}>
+                      <View style={styles.attemptHeaderRow}>
+                        <View style={[styles.attemptBadge, { backgroundColor: `${statusBadgeColor}22` }]}>
+                          <Text style={[styles.attemptBadgeText, { color: statusBadgeColor }]}>
+                            {statusText}
+                          </Text>
+                        </View>
+                        <Text style={styles.attemptDateText}>{dateStr}</Text>
+                      </View>
+
+                      <Text style={styles.attemptEmailText}>{att.email}</Text>
+
+                      <View style={styles.attemptDetailsRow}>
+                        <Text style={styles.attemptSnippet}>
+                          Código Usado:{" "}
+                          <Text style={{ color: codeUsed ? "#eab308" : "#64748b", fontWeight: "bold" }}>
+                            {codeUsed || "Nenhum"}
+                          </Text>
+                        </Text>
+                        {att.message ? (
+                          <Text style={styles.attemptSnippet}>• {att.message}</Text>
+                        ) : null}
+                      </View>
+                    </View>
+                  );
+                })
+              )}
+            </View>
+          )}
+
+          {/* ================= SECTION 7: RESET SEMANAL ================= */}
           {activeSection === "reset" && (
             <View style={styles.sectionBody}>
               {/* Edition Overview Card */}
@@ -927,7 +1980,7 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
             </View>
           )}
 
-          {/* ================= SECTION 4: LOGS DE AUDITORIA ================= */}
+          {/* ================= SECTION 8: LOGS DE AUDITORIA ================= */}
           {activeSection === "audit" && (
             <View style={styles.sectionBody}>
               <View style={styles.auditHeaderCard}>
@@ -996,7 +2049,6 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
                     ? new Date(log.createdAt.seconds * 1000).toLocaleString("pt-BR")
                     : "Data desconhecida";
 
-                  // Category icon
                   let icon = "⚙️";
                   let badgeColor = "#64748b";
                   let actionText: string = log.action;
@@ -1021,18 +2073,26 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
                     icon = "⬇️";
                     badgeColor = "#f97316";
                     actionText = "REBAIXAMENTO";
-                  } else if (log.action === "update_cooldown") {
-                    icon = "⏱️";
-                    badgeColor = "#06b6d4";
-                    actionText = "AJUSTE COOLDOWN";
-                  } else if (log.action === "update_points_per_log") {
+                  } else if (log.action === "adjust_points") {
                     icon = "🎯";
                     badgeColor = "#3b82f6";
-                    actionText = "PONTOS BASE";
-                  } else if (log.action === "update_poopcoin_rules") {
+                    actionText = "AJUSTE PONTOS";
+                  } else if (log.action === "adjust_poopcoins") {
                     icon = "🪙";
                     badgeColor = "#eab308";
-                    actionText = "REGRAS POOPCOIN";
+                    actionText = "AJUSTE POOPCOINS";
+                  } else if (log.action === "remove_log") {
+                    icon = "🧻";
+                    badgeColor = "#ef4444";
+                    actionText = "EXCLUSÃO LOG";
+                  } else if (log.action === "delete_group") {
+                    icon = "🛡️";
+                    badgeColor = "#ef4444";
+                    actionText = "EXCLUSÃO GRUPO";
+                  } else if (log.action === "update_terms_of_use") {
+                    icon = "📜";
+                    badgeColor = "#10b981";
+                    actionText = "NOVA VERSÃO TERMOS";
                   }
 
                   return (
@@ -1048,7 +2108,6 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
 
                       <Text style={styles.auditMessageText}>{message}</Text>
 
-                      {/* Technical payload snippet if available */}
                       <View style={styles.auditMetaRow}>
                         <Text style={styles.auditAdminSnippet}>
                           Admin: {usersMap.get(log.adminId)?.name || log.adminName || log.adminId}
@@ -1058,9 +2117,9 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
                             Ed. {toRoman(log.edition)}
                           </Text>
                         )}
-                        {typeof log.cooldownMinutes === "number" && (
-                          <Text style={styles.auditEditionSnippet}>
-                            {log.cooldownMinutes} min
+                        {typeof log.delta === "number" && (
+                          <Text style={[styles.auditEditionSnippet, { color: log.delta > 0 ? "#10b981" : "#ef4444" }]}>
+                            {log.delta > 0 ? `+${log.delta}` : log.delta} pts
                           </Text>
                         )}
                       </View>
@@ -1072,6 +2131,175 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
           )}
         </ScrollView>
       )}
+
+      {/* ================= MODAL: AJUSTE DE PONTOS MANUAL ================= */}
+      <Modal
+        visible={!!adjustPointsUser}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAdjustPointsUser(null)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>🎯 Ajustar Pontos do Usuário</Text>
+            <Text style={styles.modalSubtitle}>
+              Ajuste manual da pontuação vitalícia e semanal de{" "}
+              <Text style={{ fontWeight: "700", color: "#eab308" }}>
+                {adjustPointsUser?.name || "este usuário"}
+              </Text>
+              .
+            </Text>
+
+            {/* Quick buttons */}
+            <Text style={styles.modalInputLabel}>Atalhos rápidos:</Text>
+            <View style={styles.quickButtonsGrid}>
+              <TouchableOpacity
+                style={[styles.quickBtn, { backgroundColor: "#10b98122", borderColor: "#10b981" }]}
+                onPress={() => handleApplyAdjustPoints(2000)}
+                disabled={savingPoints}
+              >
+                <Text style={[styles.quickBtnText, { color: "#10b981" }]}>+2.000 pts</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.quickBtn, { backgroundColor: "#10b98122", borderColor: "#10b981" }]}
+                onPress={() => handleApplyAdjustPoints(5000)}
+                disabled={savingPoints}
+              >
+                <Text style={[styles.quickBtnText, { color: "#10b981" }]}>+5.000 pts</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.quickBtn, { backgroundColor: "#ef444422", borderColor: "#ef4444" }]}
+                onPress={() => handleApplyAdjustPoints(-2000)}
+                disabled={savingPoints}
+              >
+                <Text style={[styles.quickBtnText, { color: "#ef4444" }]}>-2.000 pts</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.quickBtn, { backgroundColor: "#ef444422", borderColor: "#ef4444" }]}
+                onPress={() => handleApplyAdjustPoints(-5000)}
+                disabled={savingPoints}
+              >
+                <Text style={[styles.quickBtnText, { color: "#ef4444" }]}>-5.000 pts</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Custom Input */}
+            <View style={styles.modalInputGroup}>
+              <Text style={styles.modalInputLabel}>Ou digite um valor customizado (+ ou -):</Text>
+              <TextInput
+                style={styles.modalTextInput}
+                keyboardType="numeric"
+                value={customDeltaInput}
+                onChangeText={setCustomDeltaInput}
+                placeholder="Ex: 1500 ou -1500"
+                placeholderTextColor="#64748b"
+              />
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setAdjustPointsUser(null)}
+                disabled={savingPoints}
+              >
+                <Text style={styles.modalCancelBtnText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalConfirmBtn, savingPoints && styles.btnDisabled]}
+                onPress={() => {
+                  const val = parseInt(customDeltaInput, 10);
+                  if (!isNaN(val) && val !== 0) {
+                    handleApplyAdjustPoints(val);
+                  } else {
+                    Alert.alert("Erro", "Digite um valor inteiro diferente de zero.");
+                  }
+                }}
+                disabled={savingPoints}
+              >
+                {savingPoints ? (
+                  <ActivityIndicator size="small" color="#000" />
+                ) : (
+                  <Text style={styles.modalConfirmBtnText}>Aplicar Ajuste</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ================= MODAL: AJUSTE DE POOPCOINS ================= */}
+      <Modal
+        visible={!!adjustPoopcoinsUser}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAdjustPoopcoinsUser(null)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>🪙 Ajuste de PoopCoins</Text>
+            <Text style={styles.modalSubtitle}>
+              Crédito ou débito administrativo no saldo de{" "}
+              <Text style={{ fontWeight: "700", color: "#eab308" }}>
+                {adjustPoopcoinsUser?.name || "este usuário"}
+              </Text>
+              . Saldo atual: {(adjustPoopcoinsUser?.poopcoinBalance || 0).toLocaleString()} PC.
+            </Text>
+
+            <View style={styles.modalInputGroup}>
+              <Text style={styles.modalInputLabel}>Quantidade (+ para crédito, - para débito):</Text>
+              <TextInput
+                style={styles.modalTextInput}
+                keyboardType="numeric"
+                value={adjustPoopcoinsAmount}
+                onChangeText={setAdjustPoopcoinsAmount}
+                placeholder="Ex: 10 ou -10"
+                placeholderTextColor="#64748b"
+              />
+            </View>
+
+            <View style={styles.modalInputGroup}>
+              <Text style={styles.modalInputLabel}>Motivo / Justificativa (Obrigatório):</Text>
+              <TextInput
+                style={styles.modalTextInput}
+                value={adjustPoopcoinsReason}
+                onChangeText={setAdjustPoopcoinsReason}
+                placeholder="Ex: Bônus por destaque, estorno de postagem..."
+                placeholderTextColor="#64748b"
+              />
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setAdjustPoopcoinsUser(null)}
+                disabled={savingPoopcoins}
+              >
+                <Text style={styles.modalCancelBtnText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalConfirmBtn, savingPoopcoins && styles.btnDisabled]}
+                onPress={handleApplyAdjustPoopcoins}
+                disabled={savingPoopcoins}
+              >
+                {savingPoopcoins ? (
+                  <ActivityIndicator size="small" color="#000" />
+                ) : (
+                  <Text style={styles.modalConfirmBtnText}>Registrar no Ledger</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* ================= MODAL: AJUSTE DE COOLDOWN INDIVIDUAL ================= */}
       <Modal
@@ -1396,6 +2624,32 @@ const styles = StyleSheet.create({
     gap: 16,
   },
 
+  // Section Header Card
+  sectionHeaderCard: {
+    backgroundColor: "#1e293b",
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#334155",
+    gap: 4,
+  },
+  sectionHeaderEyebrow: {
+    fontSize: 11,
+    fontWeight: "bold",
+    color: "#eab308",
+    letterSpacing: 1,
+  },
+  sectionHeaderTitle: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#f8fafc",
+  },
+  sectionHeaderDesc: {
+    fontSize: 13,
+    color: "#94a3b8",
+    lineHeight: 18,
+  },
+
   // Search Box
   searchBox: {
     flexDirection: "row",
@@ -1500,15 +2754,15 @@ const styles = StyleSheet.create({
   },
   userInfoCol: {
     flex: 1,
-    gap: 2,
+    gap: 3,
   },
   userNameRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 8,
   },
   userNameText: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "bold",
     color: "#f8fafc",
     flexShrink: 1,
@@ -1520,7 +2774,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   youBadgeText: {
-    color: "#60a5fa",
+    color: "#38bdf8",
     fontSize: 10,
     fontWeight: "bold",
   },
@@ -1531,28 +2785,28 @@ const styles = StyleSheet.create({
   pillsRow: {
     flexDirection: "row",
     gap: 6,
-    marginTop: 4,
+    marginTop: 2,
   },
   pill: {
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 8,
+    borderRadius: 6,
   },
   pillAdmin: {
     backgroundColor: "#eab30822",
   },
   pillPlayer: {
-    backgroundColor: "#33415555",
-  },
-  pillBanned: {
-    backgroundColor: "#ef444422",
+    backgroundColor: "#334155",
   },
   pillActive: {
     backgroundColor: "#10b98122",
   },
+  pillBanned: {
+    backgroundColor: "#ef444422",
+  },
   pillText: {
     fontSize: 11,
-    fontWeight: "700",
+    fontWeight: "bold",
   },
   pillTextAdmin: {
     color: "#eab308",
@@ -1560,44 +2814,44 @@ const styles = StyleSheet.create({
   pillTextPlayer: {
     color: "#94a3b8",
   },
-  pillTextBanned: {
-    color: "#ef4444",
-  },
   pillTextActive: {
     color: "#10b981",
+  },
+  pillTextBanned: {
+    color: "#ef4444",
   },
 
   // Stats snippet
   userStatsSnippet: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
     backgroundColor: "#0f172a",
-    borderRadius: 10,
-    paddingHorizontal: 12,
+    borderRadius: 12,
     paddingVertical: 8,
+    paddingHorizontal: 12,
+    alignItems: "center",
   },
   snippetCol: {
     flex: 1,
     alignItems: "center",
+  },
+  snippetLabel: {
+    fontSize: 10,
+    color: "#64748b",
+    fontWeight: "600",
+  },
+  snippetVal: {
+    fontSize: 13,
+    fontWeight: "bold",
+    color: "#f8fafc",
+    marginTop: 2,
   },
   snippetDivider: {
     width: 1,
     height: 24,
     backgroundColor: "#1e293b",
   },
-  snippetLabel: {
-    fontSize: 10,
-    color: "#64748b",
-    marginBottom: 2,
-  },
-  snippetVal: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: "#f8fafc",
-  },
 
-  // Actions row
+  // User Actions Row
   userActionsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -1605,66 +2859,490 @@ const styles = StyleSheet.create({
   },
   userActionBtn: {
     paddingHorizontal: 10,
-    paddingVertical: 7,
+    paddingVertical: 6,
     borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  userActionBtnText: {
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  userActionBtnSuccess: {
-    backgroundColor: "#10b98122",
     borderWidth: 1,
-    borderColor: "#10b981",
-  },
-  userActionBtnTextSuccess: {
-    color: "#10b981",
+    justifyContent: "center",
+    alignItems: "center",
   },
   userActionBtnDanger: {
-    backgroundColor: "#ef444422",
-    borderWidth: 1,
-    borderColor: "#ef4444",
+    borderColor: "#ef444455",
+    backgroundColor: "#ef444415",
+  },
+  userActionBtnSuccess: {
+    borderColor: "#10b98155",
+    backgroundColor: "#10b98115",
+  },
+  userActionBtnWarning: {
+    borderColor: "#f9731655",
+    backgroundColor: "#f9731615",
+  },
+  userActionBtnPurple: {
+    borderColor: "#a855f755",
+    backgroundColor: "#a855f715",
+  },
+  userActionBtnNeutral: {
+    borderColor: "#475569",
+    backgroundColor: "#334155",
+  },
+  userActionBtnGold: {
+    borderColor: "#eab30855",
+    backgroundColor: "#eab30815",
+  },
+  userActionBtnOutline: {
+    borderColor: "#3b82f655",
+    backgroundColor: "transparent",
+  },
+  userActionBtnText: {
+    fontSize: 11,
+    fontWeight: "bold",
   },
   userActionBtnTextDanger: {
     color: "#ef4444",
   },
-  userActionBtnWarning: {
-    backgroundColor: "#f59e0b22",
-    borderWidth: 1,
-    borderColor: "#f59e0b",
+  userActionBtnTextSuccess: {
+    color: "#10b981",
   },
   userActionBtnTextWarning: {
-    color: "#f59e0b",
-  },
-  userActionBtnPurple: {
-    backgroundColor: "#8b5cf622",
-    borderWidth: 1,
-    borderColor: "#8b5cf6",
+    color: "#f97316",
   },
   userActionBtnTextPurple: {
-    color: "#a78bfa",
-  },
-  userActionBtnNeutral: {
-    backgroundColor: "#334155",
+    color: "#c084fc",
   },
   userActionBtnTextNeutral: {
     color: "#f8fafc",
-    fontSize: 12,
-    fontWeight: "700",
+    fontSize: 11,
+    fontWeight: "bold",
   },
-  userActionBtnOutline: {
-    borderWidth: 1,
-    borderColor: "#475569",
+  userActionBtnTextGold: {
+    color: "#eab308",
+    fontSize: 11,
+    fontWeight: "bold",
   },
   userActionBtnTextOutline: {
-    color: "#94a3b8",
-    fontSize: 12,
-    fontWeight: "600",
+    color: "#38bdf8",
+    fontSize: 11,
+    fontWeight: "bold",
   },
   btnDisabled: {
-    opacity: 0.4,
+    opacity: 0.5,
+  },
+
+  // Log Card
+  logCard: {
+    backgroundColor: "#1e293b",
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#334155",
+    gap: 10,
+  },
+  logCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  logAvatarCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: "#334155",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  logInfoCol: {
+    flex: 1,
+  },
+  logAuthorText: {
+    fontSize: 15,
+    fontWeight: "bold",
+    color: "#f8fafc",
+  },
+  logDateText: {
+    fontSize: 11,
+    color: "#64748b",
+  },
+  logDeleteBtn: {
+    backgroundColor: "#ef444422",
+    borderWidth: 1,
+    borderColor: "#ef4444",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  logDeleteBtnText: {
+    color: "#ef4444",
+    fontSize: 11,
+    fontWeight: "bold",
+  },
+  logMetricsRow: {
+    flexDirection: "row",
+    backgroundColor: "#0f172a",
+    borderRadius: 12,
+    padding: 8,
+    alignItems: "center",
+  },
+  logMetricCol: {
+    flex: 1,
+    alignItems: "center",
+  },
+  logMetricLabel: {
+    fontSize: 10,
+    color: "#64748b",
+  },
+  logMetricVal: {
+    fontSize: 12,
+    fontWeight: "bold",
+    color: "#f8fafc",
+    marginTop: 2,
+  },
+  logMetricDivider: {
+    width: 1,
+    height: 20,
+    backgroundColor: "#1e293b",
+  },
+  logNoteBox: {
+    backgroundColor: "#0f172a88",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  logNoteText: {
+    fontSize: 12,
+    color: "#cbd5e1",
+    fontStyle: "italic",
+  },
+
+  // Supply Cards Grid
+  supplyCardsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  supplyCard: {
+    flex: 1,
+    minWidth: 150,
+    backgroundColor: "#1e293b",
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#334155",
+    gap: 4,
+  },
+  supplyCardLabel: {
+    fontSize: 10,
+    fontWeight: "bold",
+    color: "#94a3b8",
+    letterSpacing: 1,
+  },
+  supplyCardVal: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: "#f8fafc",
+  },
+  supplyCardSub: {
+    fontSize: 11,
+    color: "#64748b",
+  },
+
+  // Card Box (general reusable)
+  cardBox: {
+    backgroundColor: "#1e293b",
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#334155",
+    gap: 12,
+  },
+  cardBoxTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#f8fafc",
+  },
+  cardBoxDesc: {
+    fontSize: 12,
+    color: "#94a3b8",
+    lineHeight: 18,
+  },
+  cardHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  actionRowItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+    gap: 12,
+  },
+  actionItemTitle: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#f8fafc",
+  },
+  actionItemDesc: {
+    fontSize: 12,
+    color: "#94a3b8",
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  smallBtn: {
+    backgroundColor: "#3b82f6",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  smallBtnText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+  smallBtnGold: {
+    backgroundColor: "#eab308",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  smallBtnGoldText: {
+    color: "#0f172a",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  smallAddBtn: {
+    backgroundColor: "#eab30822",
+    borderWidth: 1,
+    borderColor: "#eab308",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  smallAddBtnText: {
+    color: "#eab308",
+    fontSize: 11,
+    fontWeight: "bold",
+  },
+  dangerBtn: {
+    backgroundColor: "#ef4444",
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  dangerBtnText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "bold",
+  },
+
+  // Blockchain Tx Item
+  txItem: {
+    backgroundColor: "#0f172a",
+    borderRadius: 12,
+    padding: 10,
+    gap: 4,
+  },
+  txItemReversed: {
+    borderColor: "#ef444455",
+    borderWidth: 1,
+  },
+  txHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  txBadge: {
+    backgroundColor: "#334155",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  txBadgeText: {
+    color: "#eab308",
+    fontSize: 10,
+    fontWeight: "bold",
+  },
+  txTypePill: {
+    backgroundColor: "#1e293b",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  txTypeText: {
+    color: "#94a3b8",
+    fontSize: 10,
+    fontWeight: "bold",
+  },
+  txAmountText: {
+    fontSize: 13,
+    fontWeight: "bold",
+    color: "#eab308",
+    marginLeft: "auto",
+  },
+  txHashText: {
+    fontSize: 11,
+    color: "#64748b",
+    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
+  },
+  txReasonText: {
+    fontSize: 11,
+    color: "#94a3b8",
+    fontStyle: "italic",
+  },
+
+  // Toggle Row
+  toggleRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+
+  // Bonus Range Row
+  bonusRangeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginVertical: 4,
+  },
+  bonusTimeInput: {
+    flex: 1,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    fontSize: 13,
+  },
+  bonusPointsInput: {
+    width: 80,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    fontSize: 13,
+  },
+  bonusRemoveBtn: {
+    backgroundColor: "#ef444422",
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  bonusRemoveBtnText: {
+    color: "#ef4444",
+    fontWeight: "bold",
+    fontSize: 14,
+  },
+
+  // Terms of Use
+  termsTextArea: {
+    minHeight: 120,
+    textAlignVertical: "top",
+  },
+
+  // Group Card
+  groupCard: {
+    backgroundColor: "#1e293b",
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#334155",
+    gap: 10,
+  },
+  groupCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  groupNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  groupNameText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#f8fafc",
+  },
+  groupMemberBadge: {
+    backgroundColor: "#0f172a",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  groupMemberBadgeText: {
+    color: "#94a3b8",
+    fontSize: 11,
+    fontWeight: "bold",
+  },
+  groupDescText: {
+    fontSize: 12,
+    color: "#94a3b8",
+    marginTop: 2,
+  },
+  groupDeleteBtn: {
+    backgroundColor: "#ef444422",
+    borderWidth: 1,
+    borderColor: "#ef4444",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  groupDeleteBtnText: {
+    color: "#ef4444",
+    fontSize: 11,
+    fontWeight: "bold",
+  },
+  groupMetaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#0f172a",
+    paddingTop: 8,
+  },
+  groupMetaSnippet: {
+    fontSize: 11,
+    color: "#64748b",
+  },
+
+  // Attempt Card
+  attemptCard: {
+    backgroundColor: "#1e293b",
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#334155",
+    gap: 6,
+  },
+  attemptHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  attemptBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  attemptBadgeText: {
+    fontSize: 10,
+    fontWeight: "bold",
+  },
+  attemptDateText: {
+    fontSize: 11,
+    color: "#64748b",
+  },
+  attemptEmailText: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#f8fafc",
+  },
+  attemptDetailsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  attemptSnippet: {
+    fontSize: 11,
+    color: "#94a3b8",
   },
 
   // Settings Header Card
@@ -1674,19 +3352,18 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: "#334155",
+    gap: 4,
   },
   settingsHeaderEyebrow: {
     fontSize: 11,
-    fontWeight: "800",
+    fontWeight: "bold",
     color: "#eab308",
     letterSpacing: 1,
-    marginBottom: 4,
   },
   settingsHeaderTitle: {
     fontSize: 18,
-    fontWeight: "bold",
+    fontWeight: "900",
     color: "#f8fafc",
-    marginBottom: 4,
   },
   settingsHeaderDesc: {
     fontSize: 13,
@@ -1697,13 +3374,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#10b98122",
     borderWidth: 1,
     borderColor: "#10b981",
-    borderRadius: 12,
     padding: 12,
+    borderRadius: 12,
   },
   successBannerText: {
     color: "#10b981",
-    fontSize: 14,
     fontWeight: "bold",
+    fontSize: 13,
     textAlign: "center",
   },
 
@@ -1725,111 +3402,109 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   formLabel: {
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: 13,
+    fontWeight: "bold",
     color: "#f8fafc",
   },
   formHint: {
     fontSize: 11,
-    color: "#64748b",
-  },
-  formInput: {
-    backgroundColor: "#0f172a",
-    borderWidth: 1,
-    borderColor: "#334155",
-    borderRadius: 12,
-    color: "#f8fafc",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 15,
-  },
-  formInputArea: {
-    minHeight: 70,
-    textAlignVertical: "top",
+    color: "#94a3b8",
   },
   formSubhint: {
     fontSize: 11,
     color: "#64748b",
     lineHeight: 15,
   },
+  formInput: {
+    backgroundColor: "#0f172a",
+    borderWidth: 1,
+    borderColor: "#334155",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: "#f8fafc",
+    fontSize: 14,
+  },
+  formInputArea: {
+    minHeight: 70,
+    textAlignVertical: "top",
+  },
   saveSettingsBtn: {
     backgroundColor: "#eab308",
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: "center",
-    justifyContent: "center",
     marginTop: 8,
   },
   saveSettingsBtnText: {
     color: "#0f172a",
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "900",
   },
 
-  // Section 3: Reset Semanal
+  // Reset Semanal Cards
   editionHeroCard: {
     backgroundColor: "#1e293b",
-    borderRadius: 20,
+    borderRadius: 16,
     padding: 20,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#eab30855",
+    borderColor: "#eab30844",
+    gap: 8,
   },
   editionRomanBadge: {
     backgroundColor: "#eab30822",
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 20,
     borderWidth: 1,
     borderColor: "#eab308",
-    marginBottom: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   editionRomanText: {
     color: "#eab308",
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: "900",
     letterSpacing: 1,
   },
   editionHeroTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "900",
     color: "#f8fafc",
     textAlign: "center",
-    marginBottom: 6,
   },
   editionHeroSubtitle: {
     fontSize: 13,
     color: "#94a3b8",
     textAlign: "center",
     lineHeight: 18,
-    marginBottom: 16,
   },
   editionDetailsRow: {
     flexDirection: "row",
     backgroundColor: "#0f172a",
     borderRadius: 12,
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingHorizontal: 16,
     width: "100%",
+    marginTop: 8,
   },
   editionDetailCol: {
     flex: 1,
     alignItems: "center",
   },
-  editionDetailDivider: {
-    width: 1,
-    height: "100%",
-    backgroundColor: "#334155",
-  },
   editionDetailLabel: {
-    fontSize: 11,
+    fontSize: 10,
     color: "#64748b",
-    marginBottom: 2,
   },
   editionDetailVal: {
     fontSize: 14,
-    fontWeight: "800",
-    color: "#f8fafc",
+    fontWeight: "bold",
+    color: "#eab308",
+    marginTop: 2,
+  },
+  editionDetailDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: "#1e293b",
   },
 
   resetImpactCard: {
@@ -1838,13 +3513,12 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: "#334155",
-    gap: 10,
+    gap: 12,
   },
   resetImpactTitle: {
     fontSize: 15,
-    fontWeight: "800",
+    fontWeight: "bold",
     color: "#f8fafc",
-    marginBottom: 4,
   },
   impactItem: {
     flexDirection: "row",
@@ -1867,70 +3541,62 @@ const styles = StyleSheet.create({
   },
   warningCallout: {
     flexDirection: "row",
-    gap: 12,
-    backgroundColor: "#ef444418",
+    backgroundColor: "#ef444415",
     borderWidth: 1,
-    borderColor: "#ef444455",
-    borderRadius: 14,
+    borderColor: "#ef444444",
+    borderRadius: 16,
     padding: 14,
-    alignItems: "center",
+    gap: 10,
   },
   warningIcon: {
-    fontSize: 28,
+    fontSize: 22,
   },
   warningTextCol: {
     flex: 1,
   },
   warningTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "bold",
     color: "#ef4444",
-    marginBottom: 2,
   },
   warningDesc: {
     fontSize: 12,
-    color: "#fca5a5",
+    color: "#94a3b8",
+    marginTop: 2,
     lineHeight: 16,
   },
   triggerResetBtn: {
     backgroundColor: "#ef4444",
-    paddingVertical: 16,
-    borderRadius: 14,
+    paddingVertical: 14,
+    borderRadius: 12,
     alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#ef4444",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    marginTop: 4,
   },
   triggerResetBtnText: {
     color: "#fff",
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "900",
-    letterSpacing: 0.3,
   },
 
-  // Section 4: Audit Logs
+  // Audit Logs
   auditHeaderCard: {
     backgroundColor: "#1e293b",
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
     borderColor: "#334155",
+    gap: 4,
   },
   auditHeaderEyebrow: {
     fontSize: 11,
-    fontWeight: "800",
-    color: "#06b6d4",
+    fontWeight: "bold",
+    color: "#eab308",
     letterSpacing: 1,
-    marginBottom: 4,
   },
   auditHeaderTitle: {
     fontSize: 18,
-    fontWeight: "bold",
+    fontWeight: "900",
     color: "#f8fafc",
-    marginBottom: 4,
   },
   auditHeaderDesc: {
     fontSize: 13,
@@ -1939,7 +3605,7 @@ const styles = StyleSheet.create({
   },
   auditCard: {
     backgroundColor: "#1e293b",
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 14,
     borderWidth: 1,
     borderColor: "#334155",
@@ -1957,39 +3623,39 @@ const styles = StyleSheet.create({
   },
   auditBadgeText: {
     fontSize: 11,
-    fontWeight: "800",
+    fontWeight: "bold",
   },
   auditDateText: {
     fontSize: 11,
     color: "#64748b",
   },
   auditMessageText: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#f8fafc",
-    lineHeight: 20,
-    fontWeight: "500",
+    lineHeight: 18,
   },
   auditMetaRow: {
     flexDirection: "row",
-    gap: 12,
+    alignItems: "center",
+    gap: 10,
     borderTopWidth: 1,
     borderTopColor: "#0f172a",
-    paddingTop: 6,
+    paddingTop: 8,
   },
   auditAdminSnippet: {
     fontSize: 11,
-    color: "#64748b",
+    color: "#94a3b8",
   },
   auditEditionSnippet: {
     fontSize: 11,
     color: "#eab308",
-    fontWeight: "700",
+    fontWeight: "bold",
   },
 
-  // Modals
+  // Modals Common
   modalOverlay: {
     flex: 1,
-    backgroundColor: "#000000aa",
+    backgroundColor: "rgba(0, 0, 0, 0.75)",
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
@@ -2016,7 +3682,7 @@ const styles = StyleSheet.create({
   },
   modalInputGroup: {
     gap: 6,
-    marginVertical: 6,
+    marginVertical: 4,
   },
   modalInputLabel: {
     fontSize: 13,
@@ -2060,6 +3726,26 @@ const styles = StyleSheet.create({
     color: "#0f172a",
     fontSize: 13,
     fontWeight: "900",
+  },
+
+  // Quick buttons grid
+  quickButtonsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginVertical: 4,
+  },
+  quickBtn: {
+    flex: 1,
+    minWidth: "45%",
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: "center",
+  },
+  quickBtnText: {
+    fontSize: 12,
+    fontWeight: "bold",
   },
 
   // Reset Modal Special

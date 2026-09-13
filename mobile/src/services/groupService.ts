@@ -153,6 +153,11 @@ export async function joinGroup(user: AppUser, groupCode: string): Promise<strin
   return code;
 }
 
+/**
+ * Entra em um grupo pelo código compartilhado (alias compatível com PWA).
+ */
+export const joinGroupByCode = joinGroup;
+
 export async function updateGroup(
   actor: AppUser,
   group: RankingGroup,
@@ -183,6 +188,22 @@ export async function removeGroupMember(
   }
 
   const nextMemberIds = group.memberIds.filter((id) => id !== memberId);
+  await updateDoc(doc(db, "groups", group.id), {
+    memberIds: nextMemberIds,
+    memberCount: nextMemberIds.length,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/**
+ * Remove o próprio usuário do grupo (sair da liga).
+ */
+export async function leaveGroup(user: AppUser, group: RankingGroup): Promise<void> {
+  if (user.uid === group.ownerId) {
+    throw new Error("O criador da liga não pode sair. Para encerrá-la, utilize a opção de exclusão.");
+  }
+
+  const nextMemberIds = group.memberIds.filter((id) => id !== user.uid);
   await updateDoc(doc(db, "groups", group.id), {
     memberIds: nextMemberIds,
     memberCount: nextMemberIds.length,

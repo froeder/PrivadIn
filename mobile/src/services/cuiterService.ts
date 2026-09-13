@@ -426,3 +426,31 @@ export async function deleteCuiterComment(
     });
   });
 }
+
+/**
+ * Alterna curtida rápida (like) em uma postagem do Cuiter.
+ */
+export async function toggleCuiterPostLike(postId: string, userId: string): Promise<void> {
+  await togglePostReaction(postId, userId, "like");
+}
+
+/**
+ * Adiciona comentário a uma postagem do Cuiter (alias compatível com PWA).
+ */
+export const addCuiterPostComment = createCuiterComment;
+
+/**
+ * Busca os posts recentes do feed do Cuiter em dose única.
+ */
+export async function fetchCuiterFeed(limitCount = 20): Promise<CuiterPost[]> {
+  const q = query(
+    cuiterPostsRef,
+    orderBy("createdAt", "desc"),
+    limit(limitCount)
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((docSnap) => ({
+    id: docSnap.id,
+    ...docSnap.data(),
+  })) as CuiterPost[];
+}

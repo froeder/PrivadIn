@@ -333,6 +333,64 @@ export async function transferPoopcoins(
   return { hash: resultingHash };
 }
 
+/**
+ * Executa o débito/gasto atômico de Poopcoins (ex: postar no Cuiter) com validação de saldo e registro em blockchain.
+ */
+export async function spendPoopcoins(
+  user: AppUser,
+  amount: number,
+  reason: string,
+  options?: { linkedPostId?: string; type?: PoopcoinTransactionType }
+): Promise<{ hash: string; remainingBalance: number }> {
+  const normalizedAmount = Math.max(1, Math.trunc(amount));
+  const normalizedReason = normalizePoopcoinReason(reason);
+  const type = options?.type || "cuiter_spend";
+
+  let txHash = "";
+  let finalBalance = 0;
+
+  await runTransaction(db, async (transaction) => {
+    const userRef = doc(db, "users", user.uid);
+    const userSnap = await transaction.get(userRef);
+    if (!userSnap.exists()) {
+      throw new Error("Usuário não encontrado.");
+    }
+
+    const userData = userSnap.data() as AppUser;
+    const currentBalance = Number(userData.poopcoinBalance ?? 0);
+
+    if (currentBalance < normalizedAmount) {
+      throw new Error(
+        `Saldo insuficiente de Poopcoins. Você possui ${formatPoopcoins(currentBalance)}, mas a operação custa ${formatPoopcoins(normalizedAmount)}.`
+      );
+    }
+
+    const tx = await appendPoopcoinTransaction(transaction, {
+      type,
+      entries: [{ userId: user.uid, delta: -normalizedAmount }],
+      amount: normalizedAmount,
+      createdBy: user.uid,
+      createdByRole: userData.role || "player",
+      fromUserId: user.uid,
+      linkedPostId: options?.linkedPostId ?? null,
+      reason: normalizedReason,
+      supplyEffect: {
+        burnedDelta: normalizedAmount,
+        circulatingDelta: -normalizedAmount,
+      },
+    });
+
+    txHash = tx.hash;
+    finalBalance = currentBalance - normalizedAmount;
+
+    transaction.update(userRef, {
+      poopcoinBalance: increment(-normalizedAmount),
+    });
+  });
+
+  return { hash: txHash, remainingBalance: finalBalance };
+}
+
 // ---------------------------------------------------------------------------
 // LOJA PRIVADIN (SHOP & RECOMPENSAS)
 // ---------------------------------------------------------------------------
