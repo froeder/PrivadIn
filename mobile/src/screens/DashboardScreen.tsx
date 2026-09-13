@@ -24,6 +24,7 @@ import TransferPoopcoinsModal from "../components/TransferPoopcoinsModal";
 import PoopRewardModal from "../components/PoopRewardModal";
 import UserProfileModal from "../components/UserProfileModal";
 import UserAvatar from "../components/UserAvatar";
+import ConfettiEffect from "../components/ConfettiEffect";
 
 interface DashboardScreenProps {
   user: AppUser;
@@ -64,6 +65,7 @@ export default function DashboardScreen({
 
   // Antifraud Cooldown State
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  const [showConfetti, setShowConfetti] = useState(false);
 
   // Work Schedule Status State
   const [scheduleStatus, setScheduleStatus] = useState<ScheduleStatus>(() =>
@@ -146,14 +148,26 @@ export default function DashboardScreen({
   useEffect(() => {
     const updateCooldown = () => {
       const cooldownMs = parseTimestampMs(user.cooldownUntil);
-      const remaining = Math.max(0, Math.ceil((cooldownMs - Date.now()) / 1000));
+      let remaining = Math.max(0, Math.ceil((cooldownMs - Date.now()) / 1000));
+
+      if (recentLogs.length > 0 && appSettings?.cooldownMinutes) {
+        const lastLogMs = parseTimestampMs(recentLogs[0]?.createdAt);
+        if (lastLogMs > 0) {
+          const logRemaining = Math.max(
+            0,
+            Math.ceil((lastLogMs + appSettings.cooldownMinutes * 60_000 - Date.now()) / 1000)
+          );
+          remaining = Math.max(remaining, logRemaining);
+        }
+      }
+
       setCooldownRemaining(remaining);
     };
 
     updateCooldown();
     const interval = setInterval(updateCooldown, 1000);
     return () => clearInterval(interval);
-  }, [user.cooldownUntil]);
+  }, [user.cooldownUntil, recentLogs, appSettings?.cooldownMinutes]);
 
   // Work schedule check interval
   useEffect(() => {
@@ -357,7 +371,8 @@ export default function DashboardScreen({
       const result = await registerPoopLog(user, finalSeconds, earned, undefined, location);
       await AsyncStorage.removeItem(ACTIVE_TIMER_STORAGE_KEY);
 
-      // Open celebration reward modal
+      // Open celebration reward modal & trigger festive confetti shower
+      setShowConfetti(true);
       setRewardModalData({
         visible: true,
         points: result.points,
@@ -422,31 +437,50 @@ export default function DashboardScreen({
 
   const isOnCooldown = !isActive && cooldownRemaining > 0;
 
-  return (
-    <ScrollView contentContainerStyle={styles.container}>
-      {/* 👑 Banner da Competição: Edição em Romanos + Comunicado do Admin */}
-      <View style={styles.competitionBanner}>
-        <View style={styles.competitionHeader}>
-          <View style={styles.competitionBadge}>
-            <Text style={styles.competitionBadgeText}>
-              👑 EDIÇÃO {toRoman(appSettings?.edition ?? 1)}
-            </Text>
-          </View>
-          <Text style={styles.competitionTagline}>Campeonato Oficial do Trono</Text>
-        </View>
+  const POOPCOIN_RULE_BANNER_MS = 24 * 60 * 60 * 1000;
+  const poopcoinRuleUpdatedAtMs = parseTimestampMs(appSettings?.poopcoinsPerLogUpdatedAt);
+  const showPoopcoinRuleBanner =
+    poopcoinRuleUpdatedAtMs > 0 &&
+    Date.now() - poopcoinRuleUpdatedAtMs < POOPCOIN_RULE_BANNER_MS;
 
-        {appSettings?.competitionAnnouncement ? (
-          <View style={styles.announcementCard}>
-            <View style={styles.announcementHeader}>
-              <Text style={styles.announcementIcon}>📢</Text>
-              <Text style={styles.announcementTitle}>Comunicado da Diretoria</Text>
+  return (
+    <View style={{ flex: 1, backgroundColor: "#020617" }}>
+      <ScrollView contentContainerStyle={styles.container}>
+        {/* 👑 Banner da Competição: Edição em Romanos + Comunicado do Admin */}
+        <View style={styles.competitionBanner}>
+          <View style={styles.competitionHeader}>
+            <View style={styles.competitionBadge}>
+              <Text style={styles.competitionBadgeText}>
+                👑 EDIÇÃO {toRoman(appSettings?.edition ?? 1)}
+              </Text>
             </View>
-            <Text style={styles.announcementBody}>
-              {appSettings.competitionAnnouncement}
-            </Text>
+            <Text style={styles.competitionTagline}>Campeonato Oficial do Trono</Text>
           </View>
-        ) : null}
-      </View>
+
+          {appSettings?.competitionAnnouncement ? (
+            <View style={styles.announcementCard}>
+              <View style={styles.announcementHeader}>
+                <Text style={styles.announcementIcon}>📢</Text>
+                <Text style={styles.announcementTitle}>Comunicado da Diretoria</Text>
+              </View>
+              <Text style={styles.announcementBody}>
+                {appSettings.competitionAnnouncement}
+              </Text>
+            </View>
+          ) : null}
+
+          {showPoopcoinRuleBanner ? (
+            <View style={styles.poopcoinRuleCard}>
+              <View style={styles.poopcoinRuleHeader}>
+                <Text style={styles.poopcoinRuleIcon}>🪙</Text>
+                <Text style={styles.poopcoinRuleTitle}>Regra PoopCoin Atualizada</Text>
+              </View>
+              <Text style={styles.poopcoinRuleBody}>
+                Cada registro validado agora gera {appSettings?.poopcoinsPerLog ?? 1} PC enquanto houver suprimento disponível.
+              </Text>
+            </View>
+          ) : null}
+        </View>
 
       {/* Top Profile Summary */}
       <View style={styles.topBar}>
@@ -896,7 +930,9 @@ export default function DashboardScreen({
           edition={rewardModalData.edition}
         />
       )}
-    </ScrollView>
+      </ScrollView>
+      <ConfettiEffect active={showConfetti} onEnd={() => setShowConfetti(false)} />
+    </View>
   );
 }
 
@@ -965,6 +1001,34 @@ const styles = StyleSheet.create({
     color: "#f1f5f9",
     fontSize: 13,
     lineHeight: 18,
+    fontWeight: "500",
+  },
+  poopcoinRuleCard: {
+    backgroundColor: "rgba(16, 185, 129, 0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.3)",
+    borderRadius: 12,
+    padding: 10,
+    marginTop: 8,
+  },
+  poopcoinRuleHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 4,
+  },
+  poopcoinRuleIcon: {
+    fontSize: 15,
+  },
+  poopcoinRuleTitle: {
+    color: "#34d399",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  poopcoinRuleBody: {
+    color: "#e2e8f0",
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: "500",
   },
 

@@ -61,6 +61,7 @@ export interface AppSettings {
   termsOfUseVersion?: number;
   competitionAnnouncement?: string;
   bonusTimeRanges?: BonusTimeRange[];
+  poopcoinsPerLogUpdatedAt?: any;
 }
 
 export interface PoopLog {

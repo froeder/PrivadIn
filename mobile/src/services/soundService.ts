@@ -1,7 +1,7 @@
 import { Platform } from "react-native";
-import { Audio } from "expo-av";
+import { createAudioPlayer, setAudioModeAsync, AudioPlayer } from "expo-audio";
 
-let soundObject: Audio.Sound | null = null;
+let soundPlayer: AudioPlayer | null = null;
 
 export async function playFlushSound(): Promise<void> {
   try {
@@ -34,33 +34,42 @@ export async function playFlushSound(): Promise<void> {
       }
     }
 
-    // Native audio playback via expo-av
+    // Native audio playback via expo-audio
     try {
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        interruptionMode: "mixWithOthers",
       });
 
-      if (soundObject) {
-        await soundObject.unloadAsync().catch(() => undefined);
-        soundObject = null;
+      if (soundPlayer) {
+        try {
+          soundPlayer.remove();
+        } catch {
+          // ignore
+        }
+        soundPlayer = null;
       }
 
       // Load and play flush.mp3
-      const { sound } = await Audio.Sound.createAsync(
-        require("../../assets/sounds/flush.mp3"),
-        { shouldPlay: true, volume: 1.0 }
-      );
-      soundObject = sound;
+      const player = createAudioPlayer(require("../../assets/sounds/flush.mp3"));
+      soundPlayer = player;
 
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && status.didJustFinish) {
-          sound.unloadAsync().catch(() => undefined);
+      player.addListener("playbackStatusUpdate", (status) => {
+        if (status.didJustFinish) {
+          try {
+            player.remove();
+          } catch {
+            // ignore
+          }
+          if (soundPlayer === player) {
+            soundPlayer = null;
+          }
         }
       });
+
+      player.play();
     } catch (nativeErr) {
-      console.warn("Could not play native flush sound with expo-av:", nativeErr);
+      console.warn("Could not play native flush sound with expo-audio:", nativeErr);
     }
   } catch (error) {
     console.warn("Error in playFlushSound:", error);

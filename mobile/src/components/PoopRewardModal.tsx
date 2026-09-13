@@ -8,6 +8,7 @@ import {
   Dimensions,
 } from "react-native";
 import { toRoman } from "../utils/roman";
+import ConfettiEffect from "./ConfettiEffect";
 
 interface PoopRewardModalProps {
   visible: boolean;
@@ -47,6 +48,7 @@ export default function PoopRewardModal({
       onRequestClose={onClose}
     >
       <View style={styles.backdrop}>
+        <ConfettiEffect active={visible} count={70} />
         <View style={styles.card}>
           {/* Header Icon */}
           <View style={styles.iconCircle}>
