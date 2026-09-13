@@ -144,3 +144,22 @@ export function dailyWorkMinutes(schedule: Required<WorkSchedule>): number {
   return Math.max(60, totalSpan - lunchSpan);
 }
 
+/**
+ * Valida se o horário atual é válido para registro no trono (durante expediente e fora do almoço).
+ * Lança RegisterPoopError caso esteja fora do expediente ou no almoço.
+ */
+export function assertActiveWorkTime(
+  schedule?: Partial<WorkSchedule> | null,
+  now: Date = new Date()
+): string {
+  const status = checkWorkScheduleStatus(schedule, now);
+  if (status.status === "outside") {
+    throw new Error(status.message);
+  }
+  if (status.status === "lunch") {
+    throw new Error(status.message);
+  }
+  return status.localTime;
+}
+
+

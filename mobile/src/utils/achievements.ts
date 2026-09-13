@@ -172,3 +172,21 @@ export function calculateAchievements(
 
   return badges;
 }
+
+/**
+ * Adapter para compatibilidade direta com a assinatura do PWA getAchievements(user, logs).
+ */
+export function getAchievements(
+  user?: AppUser | null,
+  logs: PoopLog[] = []
+): { id: string; name: string; description: string; icon: string; unlocked: boolean }[] {
+  const badges = calculateAchievements(user, logs);
+  return badges.map((b) => ({
+    id: b.id,
+    name: b.title,
+    description: b.description,
+    icon: b.icon,
+    unlocked: b.unlocked,
+  }));
+}
+
