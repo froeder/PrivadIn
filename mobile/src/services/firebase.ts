@@ -25,4 +25,20 @@ export const auth: Auth = (() => {
   }
 })();
 
-export const db = getFirestore(app);
+// Identifica se está em ambiente de desenvolvimento ou produção
+export const IS_DEV = typeof __DEV__ !== "undefined" ? __DEV__ : process.env.NODE_ENV !== "production";
+
+// Define o banco de dados: em Dev conecta no "dev-privadin", em Prod usa o "(default)"
+// Permite sobrescrever via variável de ambiente EXPO_PUBLIC_FIRESTORE_DATABASE_ID se necessário
+export const FIRESTORE_DATABASE_ID =
+  process.env.EXPO_PUBLIC_FIRESTORE_DATABASE_ID ||
+  (IS_DEV ? "dev-privadin" : "(default)");
+
+export const db =
+  FIRESTORE_DATABASE_ID && FIRESTORE_DATABASE_ID !== "(default)"
+    ? getFirestore(app, FIRESTORE_DATABASE_ID)
+    : getFirestore(app);
+
+console.log(
+  `[Firebase] Ambiente: ${IS_DEV ? "DEV (Homologação)" : "PROD (Produção)"} | Banco Firestore: ${FIRESTORE_DATABASE_ID}`
+);
