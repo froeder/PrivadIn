@@ -264,4 +264,12 @@ export interface ShopItem {
   perkEffect?: string;
 }
 
+export type AppTheme = "light" | "dark" | "system";
+
+export interface RankedUser extends AppUser {
+  rank: number;
+  weeklyRank: number;
+}
+
+
 
