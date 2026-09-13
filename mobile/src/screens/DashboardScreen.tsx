@@ -32,6 +32,7 @@ interface DashboardScreenProps {
   onNavigateToPoopcoins?: () => void;
   onNavigateToCuiter?: () => void;
   onNavigateToAnalytics?: () => void;
+  onNavigateToHistory?: () => void;
   onNavigateToRanking?: () => void;
 }
 
@@ -43,6 +44,7 @@ export default function DashboardScreen({
   onNavigateToPoopcoins,
   onNavigateToCuiter,
   onNavigateToAnalytics,
+  onNavigateToHistory,
   onNavigateToRanking,
 }: DashboardScreenProps) {
   const [isActive, setIsActive] = useState(false);
@@ -836,9 +838,9 @@ export default function DashboardScreen({
           <Text style={styles.historyTitle}>📜 Histórico Recente</Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             {loadingLogs && <ActivityIndicator size="small" color="#eab308" />}
-            {onNavigateToAnalytics && (
+            {(onNavigateToHistory || onNavigateToAnalytics) && (
               <TouchableOpacity
-                onPress={onNavigateToAnalytics}
+                onPress={onNavigateToHistory || onNavigateToAnalytics}
                 style={{
                   backgroundColor: "rgba(234, 179, 8, 0.12)",
                   borderWidth: 1,
@@ -849,7 +851,7 @@ export default function DashboardScreen({
                 }}
               >
                 <Text style={{ color: "#facc15", fontSize: 11, fontWeight: "800" }}>
-                  Ver Analytics 📊 ›
+                  Ver Histórico 📜 ›
                 </Text>
               </TouchableOpacity>
             )}
@@ -877,9 +879,17 @@ export default function DashboardScreen({
                 <Text style={styles.historyEarnedText}>
                   + R$ {(log.earnedAmount || 0).toFixed(2).replace(".", ",")}
                 </Text>
-                <Text style={styles.historyPoints}>
-                  +{log.points || 2000} pts
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4, justifyContent: "flex-end" }}>
+                  <Text style={styles.historyPoints}>
+                    +{log.points || 2000} pts
+                  </Text>
+                  {((typeof log.poopcoinsEarned === "number" && log.poopcoinsEarned > 0) ||
+                    Boolean(log.poopcoinTransactionHash)) && (
+                    <Text style={{ fontSize: 10, color: "#facc15", fontWeight: "800" }}>
+                      • 🪙+{log.poopcoinsEarned ?? 1}
+                    </Text>
+                  )}
+                </View>
               </View>
             </View>
           ))

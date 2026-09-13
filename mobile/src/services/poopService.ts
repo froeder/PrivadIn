@@ -12,6 +12,8 @@ import {
   limit,
   serverTimestamp,
   Timestamp,
+  writeBatch,
+  deleteDoc,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { AppUser, PoopLog, WorkSchedule, BonusTimeRange, PoopLocation } from "../types";
@@ -332,3 +334,112 @@ export async function updateUserFinancialSettings(
     hourlyRate: data.hourlyRate,
   });
 }
+
+/**
+ * Remove um registro de cagada próprio do usuário e recalcula
+ * automaticamente seus pontos acumulados (totalPoints, weeklyPoints)
+ * e saldo de PoopCoins.
+ */
+export async function deleteUserPoopLog(user: AppUser, log: PoopLog): Promise<void> {
+  if (!log.id) throw new Error("ID do registro inválido.");
+  if (log.userId !== user.uid) throw new Error("Você só pode excluir seus próprios registros.");
+
+  const pointsToRemove = typeof log.points === "number" ? log.points : 2000;
+  const poopcoinsToRemove =
+    typeof log.poopcoinsEarned === "number"
+      ? log.poopcoinsEarned
+      : log.poopcoinTransactionHash
+      ? 1
+      : 0;
+
+  const logRef = doc(db, "poop_logs", log.id);
+  const userRef = doc(db, "users", user.uid);
+
+  const batch = writeBatch(db);
+  batch.delete(logRef);
+
+  const userUpdates: Record<string, any> = {
+    totalPoints: increment(-pointsToRemove),
+  };
+  if (log.isWeeklyActive) {
+    userUpdates.weeklyPoints = increment(-pointsToRemove);
+  }
+  if (poopcoinsToRemove > 0) {
+    userUpdates.poopcoinBalance = increment(-poopcoinsToRemove);
+  }
+
+  batch.update(userRef, userUpdates);
+  await batch.commit();
+}
+
+/**
+ * Permite ao usuário corrigir dados de uma sessão própria (duração e observações),
+ * recalculando automaticamente:
+ * - O rendimento em R$ (baseado no hourlyRate)
+ * - Os pontos acumulados (bônus de duração proporcional)
+ * - Os totais de totalPoints e weeklyPoints do perfil do usuário
+ */
+export async function editUserPoopLog(
+  user: AppUser,
+  log: PoopLog,
+  updates: { durationSeconds: number; note?: string }
+): Promise<{ updatedLog: PoopLog; deltaPoints: number; deltaEarned: number }> {
+  if (!log.id) throw new Error("ID do registro inválido.");
+  if (log.userId !== user.uid) throw new Error("Você só pode editar seus próprios registros.");
+
+  const hourlyRate = user.hourlyRate || (user.salary ? user.salary / 176 : 20);
+  const newDurationSeconds = Math.max(1, Math.min(10800, Math.trunc(updates.durationSeconds)));
+  const newEarnedAmount = Number(((newDurationSeconds / 3600) * hourlyRate).toFixed(2));
+  const oldEarnedAmount = typeof log.earnedAmount === "number" ? log.earnedAmount : 0;
+  const deltaEarned = Number((newEarnedAmount - oldEarnedAmount).toFixed(2));
+
+  // Recálculo de pontos baseado no bônus de duração: Math.min(500, Math.floor(sec / 60) * 10)
+  const oldDuration = typeof log.durationSeconds === "number" ? log.durationSeconds : 600;
+  const oldBonus = Math.min(500, Math.floor(oldDuration / 60) * 10);
+  const newBonus = Math.min(500, Math.floor(newDurationSeconds / 60) * 10);
+  const bonusDelta = newBonus - oldBonus;
+
+  const oldPoints = typeof log.points === "number" ? log.points : 2000;
+  const newPoints = Math.max(1, oldPoints + bonusDelta);
+  const deltaPoints = newPoints - oldPoints;
+
+  const logRef = doc(db, "poop_logs", log.id);
+  const userRef = doc(db, "users", user.uid);
+
+  const batch = writeBatch(db);
+  const logUpdates: Record<string, any> = {
+    durationSeconds: newDurationSeconds,
+    earnedAmount: newEarnedAmount,
+    points: newPoints,
+    updatedAt: serverTimestamp(),
+  };
+  if (updates.note !== undefined) {
+    logUpdates.note = updates.note.trim();
+  }
+  batch.update(logRef, logUpdates);
+
+  if (deltaPoints !== 0) {
+    const userUpdates: Record<string, any> = {
+      totalPoints: increment(deltaPoints),
+    };
+    if (log.isWeeklyActive) {
+      userUpdates.weeklyPoints = increment(deltaPoints);
+    }
+    batch.update(userRef, userUpdates);
+  }
+
+  await batch.commit();
+
+  return {
+    updatedLog: {
+      ...log,
+      durationSeconds: newDurationSeconds,
+      earnedAmount: newEarnedAmount,
+      points: newPoints,
+      note: updates.note !== undefined ? updates.note.trim() : log.note,
+    },
+    deltaPoints,
+    deltaEarned,
+  };
+}
+

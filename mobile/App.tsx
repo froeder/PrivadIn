@@ -26,6 +26,7 @@ function MainApp() {
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentTab, setCurrentTab] = useState<TabType>("timer");
+  const [analyticsMode, setAnalyticsMode] = useState<"metrics" | "history">("metrics");
 
   const loadUserData = async (fbUser: any) => {
     if (!fbUser) {
@@ -97,7 +98,14 @@ function MainApp() {
                 onRefreshUser={() => loadUserData(firebaseUser)}
                 onNavigateToPoopcoins={() => setCurrentTab("poopcoins")}
                 onNavigateToCuiter={() => setCurrentTab("cuiter")}
-                onNavigateToAnalytics={() => setCurrentTab("analytics")}
+                onNavigateToAnalytics={() => {
+                  setAnalyticsMode("metrics");
+                  setCurrentTab("analytics");
+                }}
+                onNavigateToHistory={() => {
+                  setAnalyticsMode("history");
+                  setCurrentTab("analytics");
+                }}
                 onNavigateToRanking={() => setCurrentTab("ranking")}
               />
             )}
@@ -133,6 +141,7 @@ function MainApp() {
                 user={appUser}
                 onRefreshUser={() => loadUserData(firebaseUser)}
                 onBack={() => setCurrentTab("timer")}
+                initialMode={analyticsMode}
               />
             )}
             {currentTab === "profile" && (
@@ -140,7 +149,10 @@ function MainApp() {
                 user={appUser}
                 onRefreshUser={() => loadUserData(firebaseUser)}
                 onNavigateToPoopcoins={() => setCurrentTab("poopcoins")}
-                onNavigateToAnalytics={() => setCurrentTab("analytics")}
+                onNavigateToAnalytics={() => {
+                  setAnalyticsMode("metrics");
+                  setCurrentTab("analytics");
+                }}
                 onNavigateToAdmin={() => setCurrentTab("admin")}
               />
             )}

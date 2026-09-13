@@ -8,9 +8,17 @@ import {
   ActivityIndicator,
   RefreshControl,
   Dimensions,
+  Alert,
+  Modal,
+  TextInput,
+  Linking,
 } from "react-native";
 import { AppUser, PoopLog } from "../types";
-import { getUserAllLogs } from "../services/poopService";
+import {
+  getUserAllLogs,
+  deleteUserPoopLog,
+  editUserPoopLog,
+} from "../services/poopService";
 import {
   getHourlyDistribution,
   getWeekdayProfitability,
@@ -26,6 +34,7 @@ interface AnalyticsScreenProps {
   user: AppUser;
   onRefreshUser?: () => void;
   onBack?: () => void;
+  initialMode?: "metrics" | "history";
 }
 
 type ViewMode = "metrics" | "history";
@@ -37,14 +46,30 @@ export default function AnalyticsScreen({
   user,
   onRefreshUser,
   onBack,
+  initialMode = "metrics",
 }: AnalyticsScreenProps) {
-  const [mode, setMode] = useState<ViewMode>("metrics");
+  const [mode, setMode] = useState<ViewMode>(initialMode);
   const [logs, setLogs] = useState<PoopLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedHour, setSelectedHour] = useState<HourlyBucket | null>(null);
   const [selectedDay, setSelectedDay] = useState<WeekdayBucket | null>(null);
+
+  // Edit / Delete states
+  const [editingLog, setEditingLog] = useState<PoopLog | null>(null);
+  const [editingSessionNumber, setEditingSessionNumber] = useState<number | null>(null);
+  const [editMinutes, setEditMinutes] = useState<string>("10");
+  const [editSeconds, setEditSeconds] = useState<string>("0");
+  const [editNote, setEditNote] = useState<string>("");
+  const [isSavingEdit, setIsSavingEdit] = useState<boolean>(false);
+  const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialMode) {
+      setMode(initialMode);
+    }
+  }, [initialMode]);
 
   const hourlyRate = user.hourlyRate || (user.salary ? user.salary / 176 : 20);
 
@@ -127,6 +152,143 @@ export default function AnalyticsScreen({
 
   const formatCurrency = (val: number) => {
     return `R$ ${val.toFixed(2).replace(".", ",")}`;
+  };
+
+  // Preview calculations for the Edit Modal
+  const previewTotalSeconds = useMemo(() => {
+    const m = parseInt(editMinutes, 10) || 0;
+    const s = parseInt(editSeconds, 10) || 0;
+    return Math.max(1, Math.min(10800, m * 60 + s));
+  }, [editMinutes, editSeconds]);
+
+  const previewEarned = useMemo(() => {
+    return (previewTotalSeconds / 3600) * hourlyRate;
+  }, [previewTotalSeconds, hourlyRate]);
+
+  const previewPoints = useMemo(() => {
+    if (!editingLog) return 2000;
+    const oldDuration =
+      typeof editingLog.durationSeconds === "number"
+        ? editingLog.durationSeconds
+        : 600;
+    const oldBonus = Math.min(500, Math.floor(oldDuration / 60) * 10);
+    const newBonus = Math.min(500, Math.floor(previewTotalSeconds / 60) * 10);
+    const baseOldPoints =
+      typeof editingLog.points === "number" ? editingLog.points : 2000;
+    return Math.max(1, baseOldPoints - oldBonus + newBonus);
+  }, [editingLog, previewTotalSeconds]);
+
+  const previewDeltaPoints = useMemo(() => {
+    if (!editingLog) return 0;
+    const oldPoints =
+      typeof editingLog.points === "number" ? editingLog.points : 2000;
+    return previewPoints - oldPoints;
+  }, [editingLog, previewPoints]);
+
+  const openEditModal = (log: PoopLog, sessionNumber: number) => {
+    setEditingLog(log);
+    setEditingSessionNumber(sessionNumber);
+    const totalSec =
+      typeof log.durationSeconds === "number" && log.durationSeconds > 0
+        ? log.durationSeconds
+        : 600;
+    const mins = Math.floor(totalSec / 60);
+    const secs = totalSec % 60;
+    setEditMinutes(String(mins));
+    setEditSeconds(String(secs));
+    setEditNote(log.note || "");
+  };
+
+  const openCoordinatesInMap = (lat: number, lng: number) => {
+    const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+    Linking.openURL(url).catch(() => {
+      Alert.alert(
+        "📍 Coordenadas Geográficas",
+        `Latitude: ${lat.toFixed(6)}\nLongitude: ${lng.toFixed(6)}`
+      );
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingLog?.id) return;
+    setIsSavingEdit(true);
+    try {
+      const { updatedLog, deltaPoints } = await editUserPoopLog(
+        user,
+        editingLog,
+        {
+          durationSeconds: previewTotalSeconds,
+          note: editNote,
+        }
+      );
+
+      // Update local logs list immediately
+      setLogs((prev) =>
+        prev.map((item) => (item.id === updatedLog.id ? updatedLog : item))
+      );
+
+      // Refresh top level user stats
+      onRefreshUser?.();
+
+      setEditingLog(null);
+      Alert.alert(
+        "✅ Registro Atualizado",
+        `Sua sessão foi corrigida com sucesso!\nNovo rendimento: ${formatCurrency(
+          updatedLog.earnedAmount || 0
+        )}${
+          deltaPoints !== 0
+            ? ` (${deltaPoints > 0 ? `+${deltaPoints}` : deltaPoints} pts)`
+            : ""
+        }.`
+      );
+    } catch (err: any) {
+      console.error("Error updating log:", err);
+      Alert.alert("Erro", err?.message || "Não foi possível salvar as alterações.");
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const confirmDeleteLog = (log: PoopLog, sessionNumber: number) => {
+    if (!log.id) return;
+    const pts = typeof log.points === "number" ? log.points : 2000;
+    const pc =
+      typeof log.poopcoinsEarned === "number"
+        ? log.poopcoinsEarned
+        : log.poopcoinTransactionHash
+        ? 1
+        : 0;
+
+    Alert.alert(
+      "🗑️ Excluir Registro",
+      `Deseja realmente remover a Sessão #${sessionNumber}?\n\nSerão deduzidos:\n• -${pts.toLocaleString()} pontos\n${
+        pc > 0 ? `• -${pc} PoopCoin(s)\n` : ""
+      }• Rendimento faturado correspondente\n\nEssa ação é irreversível e recalculará todas as suas estatísticas.`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Sim, Excluir",
+          style: "destructive",
+          onPress: async () => {
+            setIsDeletingId(log.id!);
+            try {
+              await deleteUserPoopLog(user, log);
+              setLogs((prev) => prev.filter((item) => item.id !== log.id));
+              onRefreshUser?.();
+              Alert.alert(
+                "🗑️ Sucesso",
+                "Registro removido e estatísticas recalculadas com sucesso!"
+              );
+            } catch (err: any) {
+              console.error("Error deleting log:", err);
+              Alert.alert("Erro", err?.message || "Não foi possível excluir o registro.");
+            } finally {
+              setIsDeletingId(null);
+            }
+          },
+        },
+      ]
+    );
   };
 
   if (loading) {
@@ -544,49 +706,123 @@ export default function AnalyticsScreen({
                         key={log.id || String(index)}
                         style={styles.logCard}
                       >
-                        <View style={styles.logLeft}>
-                          <View style={styles.logIconBox}>
-                            <Text style={styles.logIcon}>🚽</Text>
-                          </View>
-                          <View style={styles.logDetails}>
-                            <View style={styles.logTitleRow}>
-                              <Text style={styles.logTitle}>
-                                Sessão #{sessionNumber}
+                        {/* Top Info Row */}
+                        <View style={styles.logCardHeader}>
+                          <View style={styles.logLeft}>
+                            <View style={styles.logIconBox}>
+                              <Text style={styles.logIcon}>🚽</Text>
+                            </View>
+                            <View style={styles.logDetails}>
+                              <View style={styles.logTitleRow}>
+                                <Text style={styles.logTitle}>
+                                  Sessão #{sessionNumber}
+                                </Text>
+                                {log.competitionEdition && (
+                                  <View style={styles.editionBadge}>
+                                    <Text style={styles.editionBadgeText}>
+                                      Ed. {toRoman(log.competitionEdition)}
+                                    </Text>
+                                  </View>
+                                )}
+                              </View>
+
+                              <Text style={styles.logDate}>
+                                📅 {formatLogDateTime(log.createdAt)}
                               </Text>
-                              {log.competitionEdition && (
-                                <View style={styles.editionBadge}>
-                                  <Text style={styles.editionBadgeText}>
-                                    Ed. {toRoman(log.competitionEdition)}
-                                  </Text>
-                                </View>
-                              )}
                             </View>
+                          </View>
 
-                            <Text style={styles.logDate}>
-                              📅 {formatLogDateTime(log.createdAt)}
+                          <View style={styles.logRight}>
+                            <Text style={styles.logEarnedText}>
+                              + {formatCurrency(earned)}
                             </Text>
-
-                            <View style={styles.logPillsRow}>
-                              <View style={styles.durationPill}>
-                                <Text style={styles.durationPillText}>
-                                  ⏱️ {formatLogDuration(log.durationSeconds)}
-                                </Text>
-                              </View>
-
-                              <View style={styles.pointsPill}>
-                                <Text style={styles.pointsPillText}>
-                                  +{log.points || 2000} pts
-                                </Text>
-                              </View>
-                            </View>
+                            <Text style={styles.logEarnedHint}>faturado</Text>
                           </View>
                         </View>
 
-                        <View style={styles.logRight}>
-                          <Text style={styles.logEarnedText}>
-                            + {formatCurrency(earned)}
-                          </Text>
-                          <Text style={styles.logEarnedHint}>faturado</Text>
+                        {/* Metadata Badges: Duration, Points, PoopCoins, Geo-Coordinates */}
+                        <View style={styles.logPillsWrap}>
+                          <View style={styles.durationPill}>
+                            <Text style={styles.durationPillText}>
+                              ⏱️ {formatLogDuration(log.durationSeconds)}
+                            </Text>
+                          </View>
+
+                          <View style={styles.pointsPill}>
+                            <Text style={styles.pointsPillText}>
+                              +{log.points || 2000} pts
+                            </Text>
+                          </View>
+
+                          {((typeof log.poopcoinsEarned === "number" &&
+                            log.poopcoinsEarned > 0) ||
+                            Boolean(log.poopcoinTransactionHash)) && (
+                            <View style={styles.poopcoinsPill}>
+                              <Text style={styles.poopcoinsPillText}>
+                                🪙 +{log.poopcoinsEarned ?? 1} PC
+                              </Text>
+                            </View>
+                          )}
+
+                          {log.location?.latitude != null &&
+                            log.location?.longitude != null && (
+                              <TouchableOpacity
+                                style={styles.locationPill}
+                                onPress={() =>
+                                  openCoordinatesInMap(
+                                    log.location!.latitude,
+                                    log.location!.longitude
+                                  )
+                                }
+                                activeOpacity={0.7}
+                              >
+                                <Text style={styles.locationPillText}>
+                                  📍 {log.location.latitude.toFixed(4)},{" "}
+                                  {log.location.longitude.toFixed(4)}
+                                  {log.location.accuracy != null
+                                    ? ` (±${Math.round(
+                                        log.location.accuracy
+                                      )}m)`
+                                    : ""}
+                                </Text>
+                              </TouchableOpacity>
+                            )}
+                        </View>
+
+                        {/* Note / Observação */}
+                        {Boolean(log.note) && (
+                          <View style={styles.noteBox}>
+                            <Text style={styles.noteText} numberOfLines={2}>
+                              💭 {log.note}
+                            </Text>
+                          </View>
+                        )}
+
+                        {/* Action Buttons: Edit & Delete */}
+                        <View style={styles.logActionsRow}>
+                          <TouchableOpacity
+                            style={styles.editBtn}
+                            onPress={() => openEditModal(log, sessionNumber)}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={styles.editBtnText}>✏️ Corrigir</Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={[
+                              styles.deleteBtn,
+                              isDeletingId === log.id && { opacity: 0.6 },
+                            ]}
+                            onPress={() => confirmDeleteLog(log, sessionNumber)}
+                            disabled={isDeletingId === log.id}
+                            activeOpacity={0.7}
+                          >
+                            {isDeletingId === log.id ? (
+                              <ActivityIndicator size="small" color="#ef4444" />
+                            ) : (
+                              <Text style={styles.deleteBtnText}>🗑️ Excluir</Text>
+                            )}
+                          </TouchableOpacity>
                         </View>
                       </View>
                     );
@@ -644,6 +880,168 @@ export default function AnalyticsScreen({
           </View>
         )}
       </ScrollView>
+
+      {/* MODAL DE EDIÇÃO E CORREÇÃO DE REGISTRO */}
+      <Modal
+        visible={editingLog !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => !isSavingEdit && setEditingLog(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>✏️ Corrigir Registro</Text>
+                <Text style={styles.modalSubtitle}>
+                  Sessão #{editingSessionNumber} •{" "}
+                  {editingLog && formatLogDateTime(editingLog.createdAt)}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => !isSavingEdit && setEditingLog(null)}
+                style={styles.modalCloseBtn}
+              >
+                <Text style={styles.modalCloseBtnText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
+              {/* Duração */}
+              <Text style={styles.inputLabel}>⏱️ Duração da Sessão</Text>
+              <View style={styles.timeInputsRow}>
+                <View style={styles.timeInputCol}>
+                  <Text style={styles.timeInputSublabel}>Minutos</Text>
+                  <TextInput
+                    style={styles.timeTextInput}
+                    keyboardType="number-pad"
+                    value={editMinutes}
+                    onChangeText={setEditMinutes}
+                    maxLength={3}
+                  />
+                </View>
+
+                <Text style={styles.timeColon}>:</Text>
+
+                <View style={styles.timeInputCol}>
+                  <Text style={styles.timeInputSublabel}>Segundos</Text>
+                  <TextInput
+                    style={styles.timeTextInput}
+                    keyboardType="number-pad"
+                    value={editSeconds}
+                    onChangeText={setEditSeconds}
+                    maxLength={2}
+                  />
+                </View>
+              </View>
+
+              {/* Quick chips */}
+              <View style={styles.quickChipsRow}>
+                {[5, 10, 15, 20, 30].map((mins) => (
+                  <TouchableOpacity
+                    key={mins}
+                    style={[
+                      styles.quickChip,
+                      editMinutes === String(mins) &&
+                        editSeconds === "0" &&
+                        styles.quickChipActive,
+                    ]}
+                    onPress={() => {
+                      setEditMinutes(String(mins));
+                      setEditSeconds("0");
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.quickChipText,
+                        editMinutes === String(mins) &&
+                          editSeconds === "0" &&
+                          styles.quickChipTextActive,
+                      ]}
+                    >
+                      {mins} min
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Observação / Nota */}
+              <Text style={[styles.inputLabel, { marginTop: 14 }]}>
+                💭 Observação / Motivo
+              </Text>
+              <TextInput
+                style={styles.noteTextInput}
+                placeholder="Ex: Pausa reflexiva pós-almoço..."
+                placeholderTextColor="#475569"
+                value={editNote}
+                onChangeText={setEditNote}
+                maxLength={120}
+                multiline
+              />
+
+              {/* Live Calculation Preview */}
+              <View style={styles.previewBox}>
+                <Text style={styles.previewBoxTitle}>📊 Recálculo Automático</Text>
+                <View style={styles.previewStatsRow}>
+                  <View style={styles.previewStatItem}>
+                    <Text style={styles.previewStatLabel}>Tempo Corrigido</Text>
+                    <Text style={styles.previewStatVal}>
+                      {formatLogDuration(previewTotalSeconds)}
+                    </Text>
+                  </View>
+
+                  <View style={styles.previewStatItem}>
+                    <Text style={styles.previewStatLabel}>Novo Faturado</Text>
+                    <Text style={[styles.previewStatVal, { color: "#4ade80" }]}>
+                      {formatCurrency(previewEarned)}
+                    </Text>
+                  </View>
+
+                  <View style={styles.previewStatItem}>
+                    <Text style={styles.previewStatLabel}>Pontos Totais</Text>
+                    <Text style={[styles.previewStatVal, { color: "#facc15" }]}>
+                      {previewPoints.toLocaleString()} pts
+                      {previewDeltaPoints !== 0 && (
+                        <Text
+                          style={{
+                            fontSize: 10,
+                            color: previewDeltaPoints > 0 ? "#4ade80" : "#ef4444",
+                          }}
+                        >
+                          {" "}({previewDeltaPoints > 0 ? `+${previewDeltaPoints}` : previewDeltaPoints})
+                        </Text>
+                      )}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </ScrollView>
+
+            {/* Modal Actions */}
+            <View style={styles.modalActionsRow}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setEditingLog(null)}
+                disabled={isSavingEdit}
+              >
+                <Text style={styles.modalCancelBtnText}>Cancelar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalSaveBtn, isSavingEdit && { opacity: 0.6 }]}
+                onPress={handleSaveEdit}
+                disabled={isSavingEdit}
+              >
+                {isSavingEdit ? (
+                  <ActivityIndicator size="small" color="#000" />
+                ) : (
+                  <Text style={styles.modalSaveBtnText}>Salvar Correção</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1117,14 +1515,17 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   logCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
     backgroundColor: "#0f172a",
     borderWidth: 1,
     borderColor: "#1e293b",
     borderRadius: 16,
     padding: 14,
+    gap: 10,
+  },
+  logCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   logLeft: {
     flexDirection: "row",
@@ -1174,16 +1575,16 @@ const styles = StyleSheet.create({
     color: "#64748b",
     marginTop: 2,
   },
-  logPillsRow: {
+  logPillsWrap: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: 6,
-    marginTop: 6,
   },
   durationPill: {
     backgroundColor: "#1e293b",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
     borderRadius: 6,
   },
   durationPillText: {
@@ -1192,14 +1593,90 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   pointsPill: {
-    backgroundColor: "rgba(234, 179, 8, 0.1)",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    backgroundColor: "rgba(234, 179, 8, 0.12)",
+    paddingHorizontal: 7,
+    paddingVertical: 3,
     borderRadius: 6,
   },
   pointsPillText: {
     color: "#eab308",
     fontSize: 10,
+    fontWeight: "800",
+  },
+  poopcoinsPill: {
+    backgroundColor: "rgba(234, 179, 8, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(234, 179, 8, 0.3)",
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+  },
+  poopcoinsPillText: {
+    color: "#facc15",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  locationPill: {
+    backgroundColor: "rgba(56, 189, 248, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.3)",
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+  },
+  locationPillText: {
+    color: "#38bdf8",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  noteBox: {
+    backgroundColor: "rgba(30, 41, 59, 0.5)",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+  },
+  noteText: {
+    color: "#94a3b8",
+    fontSize: 11,
+    fontStyle: "italic",
+  },
+  logActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(30, 41, 59, 0.7)",
+  },
+  editBtn: {
+    backgroundColor: "rgba(59, 130, 246, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(59, 130, 246, 0.3)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  editBtnText: {
+    color: "#60a5fa",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  deleteBtn: {
+    backgroundColor: "rgba(239, 68, 68, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.3)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    minWidth: 62,
+    alignItems: "center",
+  },
+  deleteBtnText: {
+    color: "#f87171",
+    fontSize: 11,
     fontWeight: "800",
   },
   logRight: {
@@ -1255,5 +1732,182 @@ const styles = StyleSheet.create({
     color: "#f8fafc",
     fontSize: 12,
     fontWeight: "800",
+  },
+
+  // Edit Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.78)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalContainer: {
+    width: "100%",
+    maxWidth: 420,
+    backgroundColor: "#0b1329",
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    borderRadius: 20,
+    padding: 20,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: "900",
+    color: "#f8fafc",
+  },
+  modalSubtitle: {
+    fontSize: 11,
+    color: "#64748b",
+    marginTop: 2,
+  },
+  modalCloseBtn: {
+    padding: 6,
+  },
+  modalCloseBtnText: {
+    color: "#94a3b8",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#cbd5e1",
+    marginBottom: 6,
+  },
+  timeInputsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  timeInputCol: {
+    flex: 1,
+  },
+  timeInputSublabel: {
+    fontSize: 10,
+    color: "#64748b",
+    marginBottom: 4,
+    textAlign: "center",
+  },
+  timeTextInput: {
+    backgroundColor: "#020617",
+    borderWidth: 1,
+    borderColor: "#334155",
+    borderRadius: 10,
+    padding: 10,
+    color: "#f8fafc",
+    fontSize: 16,
+    fontWeight: "bold",
+    textAlign: "center",
+  },
+  timeColon: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: "#94a3b8",
+    marginTop: 12,
+  },
+  quickChipsRow: {
+    flexDirection: "row",
+    gap: 6,
+    marginTop: 8,
+    flexWrap: "wrap",
+  },
+  quickChip: {
+    backgroundColor: "#1e293b",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  quickChipActive: {
+    backgroundColor: "rgba(234, 179, 8, 0.2)",
+    borderColor: "#eab308",
+  },
+  quickChipText: {
+    color: "#94a3b8",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  quickChipTextActive: {
+    color: "#facc15",
+    fontWeight: "800",
+  },
+  noteTextInput: {
+    backgroundColor: "#020617",
+    borderWidth: 1,
+    borderColor: "#334155",
+    borderRadius: 10,
+    padding: 10,
+    color: "#f8fafc",
+    fontSize: 13,
+    minHeight: 60,
+    textAlignVertical: "top",
+  },
+  previewBox: {
+    marginTop: 14,
+    backgroundColor: "rgba(15, 23, 42, 0.8)",
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    borderRadius: 12,
+    padding: 12,
+  },
+  previewBoxTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#94a3b8",
+    marginBottom: 8,
+  },
+  previewStatsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  previewStatItem: {
+    alignItems: "center",
+  },
+  previewStatLabel: {
+    fontSize: 9,
+    color: "#64748b",
+    marginBottom: 2,
+  },
+  previewStatVal: {
+    fontSize: 12,
+    fontWeight: "900",
+    color: "#f8fafc",
+  },
+  modalActionsRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 18,
+  },
+  modalCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: "#1e293b",
+    alignItems: "center",
+  },
+  modalCancelBtnText: {
+    color: "#cbd5e1",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  modalSaveBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: "#eab308",
+    alignItems: "center",
+  },
+  modalSaveBtnText: {
+    color: "#000",
+    fontSize: 13,
+    fontWeight: "900",
   },
 });
