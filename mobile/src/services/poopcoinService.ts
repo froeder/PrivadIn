@@ -17,12 +17,15 @@ import {
 import { db } from "./firebase";
 import {
   AppUser,
+  PoopLog,
   PoopcoinSupplySummary,
   PoopcoinTransaction,
   PoopcoinTransactionEntry,
+  PoopcoinTransactionType,
   ShopItem,
 } from "../types";
 import { canonicalJson, randomNonce, sha256Hex } from "./cryptoUtils";
+import { createAuditLogRecord } from "./adminService";
 
 export const poopcoinTransactionsRef = collection(db, "poopcoin_transactions");
 export const poopcoinChainHeadRef = doc(db, "poopcoin_chain", "head");
@@ -733,4 +736,490 @@ export async function mintPoopcoinsForLog(
     console.error("Error minting poopcoins for log:", error);
     return { poopcoinsEarned: 0, transactionHash: null };
   }
+}
+
+// ---------------------------------------------------------------------------
+// GESTÃO ADMINISTRATIVA DA ECONOMIA POOPCOIN
+// ---------------------------------------------------------------------------
+
+export type AppendPoopcoinInput = {
+  type: PoopcoinTransactionType;
+  entries: PoopcoinTransactionEntry[];
+  amount: number;
+  createdBy: string;
+  createdByRole?: string;
+  createdAt?: Timestamp;
+  fromUserId?: string | null;
+  toUserId?: string | null;
+  linkedLogId?: string | null;
+  linkedPostId?: string | null;
+  reversesTransactionHash?: string | null;
+  reason?: string | null;
+  supplyEffect?: PoopcoinSupplyEffect;
+};
+
+export type PoopcoinSupplyEffect = {
+  mintedDelta?: number;
+  burnedDelta?: number;
+  circulatingDelta?: number;
+  requireMigratedSupply?: boolean;
+};
+
+function resolveSupplyHeadUpdate(
+  headData: Record<string, unknown> | undefined,
+  effect?: PoopcoinSupplyEffect
+) {
+  if (!effect) return {};
+
+  const hasMigratedSupply = Boolean(headData?.supplyMigratedAt);
+  if (!hasMigratedSupply) {
+    if (effect.requireMigratedSupply) {
+      throw new Error("Recalcule o suprimento de PoopCoins antes de emitir novas moedas.");
+    }
+    return {};
+  }
+
+  const summary = parsePoopcoinSupplySummary(headData);
+  const mintedSupply = summary.mintedSupply + Math.trunc(effect.mintedDelta ?? 0);
+  const burnedSupply = summary.burnedSupply + Math.trunc(effect.burnedDelta ?? 0);
+  const circulatingSupply = summary.circulatingSupply + Math.trunc(effect.circulatingDelta ?? 0);
+
+  if (
+    mintedSupply < 0 ||
+    mintedSupply > summary.totalSupply ||
+    burnedSupply < 0 ||
+    circulatingSupply < 0
+  ) {
+    throw new Error("Suprimento de PoopCoins insuficiente para esta operação.");
+  }
+
+  return {
+    totalSupply: summary.totalSupply,
+    mintedSupply,
+    burnedSupply,
+    circulatingSupply,
+  };
+}
+
+function uniqueUserIds(entries: PoopcoinTransactionEntry[]): string[] {
+  return Array.from(new Set(entries.map((entry) => entry.userId))).sort();
+}
+
+function assertValidEntries(entries: PoopcoinTransactionEntry[]) {
+  if (entries.length === 0) {
+    throw new Error("Transação sem lançamentos.");
+  }
+
+  entries.forEach((entry) => {
+    if (!entry.userId || !Number.isInteger(entry.delta) || entry.delta === 0) {
+      throw new Error("Lançamento de Poopcoins inválido.");
+    }
+  });
+}
+
+function entriesDelta(entries: PoopcoinTransactionEntry[]): number {
+  return entries.reduce((sum, entry) => sum + entry.delta, 0);
+}
+
+function reversalSupplyEffect(original: any): PoopcoinSupplyEffect | undefined {
+  if (original.type === "mint_log" || original.type === "legacy_mint") {
+    return {
+      mintedDelta: -original.amount,
+      circulatingDelta: -original.amount,
+    };
+  }
+
+  if (original.type === "cuiter_spend") {
+    return {
+      burnedDelta: -original.amount,
+      circulatingDelta: original.amount,
+    };
+  }
+
+  if (original.type === "admin_adjustment") {
+    const delta = entriesDelta(original.entries);
+    if (delta > 0) {
+      return {
+        mintedDelta: -delta,
+        circulatingDelta: -delta,
+      };
+    }
+    if (delta < 0) {
+      return {
+        burnedDelta: delta,
+        circulatingDelta: -delta,
+      };
+    }
+  }
+
+  return undefined;
+}
+
+export async function appendPoopcoinTransaction(
+  transaction: any,
+  input: AppendPoopcoinInput
+): Promise<{ hash: string; data: any }> {
+  assertValidEntries(input.entries);
+
+  const headSnapshot = await transaction.get(poopcoinChainHeadRef);
+  const previousHash = String(headSnapshot.data()?.lastHash ?? GENESIS_HASH);
+  const previousSequence = Number(headSnapshot.data()?.lastSequence ?? 0);
+  const sequence = Math.max(0, Math.trunc(previousSequence)) + 1;
+  const createdAt = input.createdAt ?? Timestamp.now();
+  const nonce = randomNonce();
+  const reason = input.reason ? normalizePoopcoinReason(input.reason) : null;
+  const affectedUserIds = uniqueUserIds(input.entries);
+
+  const unsignedPayload = {
+    previousHash,
+    sequence,
+    createdAt,
+    type: input.type,
+    entries: input.entries,
+    affectedUserIds,
+    fromUserId: input.fromUserId ?? null,
+    toUserId: input.toUserId ?? null,
+    amount: input.amount,
+    createdBy: input.createdBy,
+    createdByRole: input.createdByRole || "admin",
+    status: "active",
+    reversesTransactionHash: input.reversesTransactionHash ?? null,
+    linkedLogId: input.linkedLogId ?? null,
+    linkedPostId: input.linkedPostId ?? null,
+    reason,
+    nonce,
+  };
+  const hash = sha256Hex(canonicalJson(unsignedPayload));
+  const transactionData = {
+    hash,
+    previousHash,
+    sequence,
+    createdAt,
+    type: input.type,
+    entries: input.entries,
+    affectedUserIds,
+    fromUserId: input.fromUserId ?? null,
+    toUserId: input.toUserId ?? null,
+    amount: input.amount,
+    createdBy: input.createdBy,
+    createdByRole: input.createdByRole || "admin",
+    status: "active",
+    reversesTransactionHash: input.reversesTransactionHash ?? null,
+    reversedByTransactionHash: null,
+    linkedLogId: input.linkedLogId ?? null,
+    linkedPostId: input.linkedPostId ?? null,
+    reason,
+    nonce,
+  };
+
+  transaction.set(doc(db, "poopcoin_transactions", hash), transactionData);
+  transaction.set(
+    poopcoinChainHeadRef,
+    {
+      lastHash: hash,
+      lastSequence: sequence,
+      updatedAt: createdAt,
+      ...resolveSupplyHeadUpdate(
+        headSnapshot.data() as Record<string, unknown> | undefined,
+        input.supplyEffect
+      ),
+    },
+    { merge: true }
+  );
+
+  return { hash, data: transactionData };
+}
+
+/**
+ * Ajuste administrativo manual de saldo de PoopCoins (crédito ou débito com motivo registrado no Ledger)
+ */
+export async function adjustPoopcoins(
+  admin: AppUser,
+  targetUser: AppUser,
+  amountValue: number,
+  reasonValue: string
+): Promise<void> {
+  const amount = Math.trunc(amountValue);
+  const reason = normalizePoopcoinReason(reasonValue);
+
+  if (!Number.isInteger(amount) || amount === 0) {
+    throw new Error("Informe um ajuste inteiro diferente de zero.");
+  }
+
+  if (Math.abs(amount) > MAX_TRANSFER_AMOUNT) {
+    throw new Error(`Informe um ajuste de até ${formatPoopcoins(MAX_TRANSFER_AMOUNT)} PoopCoins.`);
+  }
+
+  if (!reason) {
+    throw new Error("Informe o motivo do ajuste.");
+  }
+
+  await runTransaction(db, async (transaction) => {
+    const targetRef = doc(db, "users", targetUser.uid);
+    const targetSnapshot = await transaction.get(targetRef);
+
+    if (!targetSnapshot.exists()) {
+      throw new Error("Usuário alvo não encontrado.");
+    }
+
+    const { hash } = await appendPoopcoinTransaction(transaction, {
+      type: "admin_adjustment",
+      entries: [{ userId: targetUser.uid, delta: amount }],
+      amount: Math.abs(amount),
+      createdBy: admin.uid,
+      createdByRole: admin.role,
+      toUserId: amount > 0 ? targetUser.uid : null,
+      fromUserId: amount < 0 ? targetUser.uid : null,
+      reason,
+      supplyEffect:
+        amount > 0
+          ? {
+              mintedDelta: amount,
+              circulatingDelta: amount,
+              requireMigratedSupply: true,
+            }
+          : {
+              burnedDelta: Math.abs(amount),
+              circulatingDelta: amount,
+            },
+    });
+
+    transaction.update(targetRef, { poopcoinBalance: increment(amount) });
+    transaction.set(
+      doc(collection(db, "admin_audit_logs")),
+      createAuditLogRecord({
+        action: "adjust_poopcoins",
+        admin,
+        targetUser,
+        delta: amount,
+        poopcoins: amount,
+        poopcoinTransactionHash: hash,
+      })
+    );
+  });
+}
+
+/**
+ * Reversão de transação indevida por Hash
+ */
+export async function reversePoopcoinTransaction(
+  admin: AppUser,
+  transactionHash: string,
+  reasonValue: string
+): Promise<void> {
+  const normalizedHash = transactionHash.trim();
+  const reason = normalizePoopcoinReason(reasonValue);
+
+  if (!normalizedHash) {
+    throw new Error("Informe o hash da transação.");
+  }
+
+  if (!reason) {
+    throw new Error("Informe o motivo da reversão.");
+  }
+
+  await runTransaction(db, async (transaction) => {
+    const originalRef = doc(db, "poopcoin_transactions", normalizedHash);
+    const originalSnapshot = await transaction.get(originalRef);
+    const original = originalSnapshot.data() as PoopcoinTransaction | undefined;
+
+    if (!original) {
+      throw new Error("Transação não encontrada no Ledger.");
+    }
+
+    if (original.status === "reversed" || original.reversedByTransactionHash) {
+      throw new Error("Esta transação já foi revertida anteriormente.");
+    }
+
+    if (original.type === "reversal") {
+      throw new Error("Transações de reversão não podem ser revertidas.");
+    }
+
+    const inverseEntries = original.entries.map((entry) => ({
+      userId: entry.userId,
+      delta: -entry.delta,
+    }));
+
+    const { hash } = await appendPoopcoinTransaction(transaction, {
+      type: "reversal",
+      entries: inverseEntries,
+      amount: original.amount,
+      createdBy: admin.uid,
+      createdByRole: admin.role,
+      reversesTransactionHash: original.hash,
+      fromUserId: original.toUserId ?? null,
+      toUserId: original.fromUserId ?? null,
+      linkedLogId: original.linkedLogId ?? null,
+      linkedPostId: original.linkedPostId ?? null,
+      reason,
+      supplyEffect: reversalSupplyEffect(original),
+    });
+
+    inverseEntries.forEach((entry) => {
+      transaction.update(doc(db, "users", entry.userId), {
+        poopcoinBalance: increment(entry.delta),
+      });
+    });
+    transaction.update(originalRef, {
+      status: "reversed",
+      reversedByTransactionHash: hash,
+    });
+    transaction.set(
+      doc(collection(db, "admin_audit_logs")),
+      createAuditLogRecord({
+        action: "reverse_poopcoin_transaction",
+        admin,
+        delta: 0,
+        poopcoins: original.amount,
+        poopcoinTransactionHash: hash,
+      })
+    );
+  });
+}
+
+/**
+ * Recálculo atômico de todo o supply da plataforma
+ */
+export async function recalculatePoopcoinSupply(admin: AppUser): Promise<PoopcoinSupplySummary> {
+  const [usersSnapshot, latestTransactionSnapshot] = await Promise.all([
+    getDocs(collection(db, "users")),
+    getDocs(query(poopcoinTransactionsRef, orderBy("sequence", "desc"), limit(1))),
+  ]);
+  const latestTransaction = latestTransactionSnapshot.docs[0]?.data() as PoopcoinTransaction | undefined;
+  const walletSupply = usersSnapshot.docs.reduce((sum, userDoc) => {
+    const userData = userDoc.data() as Pick<AppUser, "poopcoinBalance">;
+    const balance = Number(userData.poopcoinBalance ?? 0);
+    return sum + (Number.isFinite(balance) ? Math.max(0, Math.trunc(balance)) : 0);
+  }, 0);
+  const now = Timestamp.now();
+  const circulatingSupply = Math.min(POOPCOIN_TOTAL_SUPPLY, walletSupply);
+  const normalizedSummary: PoopcoinSupplySummary = {
+    totalSupply: POOPCOIN_TOTAL_SUPPLY,
+    mintedSupply: circulatingSupply,
+    burnedSupply: 0,
+    circulatingSupply,
+    availableSupply: Math.max(0, POOPCOIN_TOTAL_SUPPLY - circulatingSupply),
+    supplyMigratedAt: now,
+  };
+
+  await runTransaction(db, async (transaction) => {
+    const headSnapshot = await transaction.get(poopcoinChainHeadRef);
+    const headData = headSnapshot.data();
+    const headSequence = Math.max(0, Math.trunc(Number(headData?.lastSequence ?? 0)));
+    const latestSequence = Math.max(0, Math.trunc(Number(latestTransaction?.sequence ?? 0)));
+    const lastHash =
+      latestTransaction && latestSequence > headSequence
+        ? latestTransaction.hash
+        : String(headData?.lastHash ?? latestTransaction?.hash ?? GENESIS_HASH);
+    transaction.set(
+      poopcoinChainHeadRef,
+      {
+        ...normalizedSummary,
+        lastHash,
+        lastSequence: Math.max(headSequence, latestSequence),
+        updatedAt: now,
+      },
+      { merge: true }
+    );
+    transaction.set(
+      doc(collection(db, "admin_audit_logs")),
+      createAuditLogRecord({
+        action: "recalculate_poopcoin_supply",
+        admin,
+        delta: normalizedSummary.mintedSupply,
+        poopcoins: normalizedSummary.mintedSupply,
+      })
+    );
+  });
+
+  return normalizedSummary;
+}
+
+/**
+ * Migração retroativa de moedas para registros antigos
+ */
+export async function migratePoopcoinsForLogs(admin: AppUser, logs: PoopLog[]): Promise<number> {
+  const settings = await fetchPoopcoinSettings();
+  const poopcoinsPerLog = settings.poopcoinsPerLog || 1;
+  const pendingLogs = logs
+    .filter((log) => !log.poopcoinTransactionHash && log.poopcoinsEarned == null && log.userId && log.id)
+    .slice(0, 25);
+  let processed = 0;
+  let minted = 0;
+
+  for (const log of pendingLogs) {
+    if (!log.id) continue;
+    let processedLog = false;
+    let mintedForLog = 0;
+
+    await runTransaction(db, async (transaction) => {
+      const logRef = doc(db, "poop_logs", log.id!);
+      const userRef = doc(db, "users", log.userId);
+      const [logSnapshot, userSnapshot, headSnapshot] = await Promise.all([
+        transaction.get(logRef),
+        transaction.get(userRef),
+        transaction.get(poopcoinChainHeadRef),
+      ]);
+      const latestLog = logSnapshot.data() as PoopLog | undefined;
+      const targetUser = userSnapshot.data() as AppUser | undefined;
+
+      if (!latestLog || latestLog.poopcoinTransactionHash || latestLog.poopcoinsEarned != null || !targetUser) {
+        return;
+      }
+
+      const summary = parsePoopcoinSupplySummary(headSnapshot.data() as Record<string, unknown> | undefined);
+      const poopcoinsEarned = summary.availableSupply >= poopcoinsPerLog ? poopcoinsPerLog : 0;
+
+      const poopcoinTransaction =
+        poopcoinsEarned > 0
+          ? await appendPoopcoinTransaction(transaction, {
+              type: "legacy_mint",
+              entries: [{ userId: log.userId, delta: poopcoinsEarned }],
+              amount: poopcoinsEarned,
+              createdBy: admin.uid,
+              createdByRole: admin.role,
+              toUserId: log.userId,
+              linkedLogId: log.id,
+              createdAt: latestLog.createdAt ?? Timestamp.now(),
+              reason: "Migração inicial de logs antigos.",
+              supplyEffect: {
+                mintedDelta: poopcoinsEarned,
+                circulatingDelta: poopcoinsEarned,
+                requireMigratedSupply: true,
+              },
+            })
+          : null;
+
+      transaction.update(logRef, {
+        poopcoinTransactionHash: poopcoinTransaction?.hash ?? null,
+        poopcoinsEarned,
+      });
+      transaction.update(userRef, {
+        ...(poopcoinsEarned > 0 ? { poopcoinBalance: increment(poopcoinsEarned) } : {}),
+      });
+      processedLog = true;
+      mintedForLog = poopcoinsEarned;
+    });
+
+    if (processedLog) {
+      processed += 1;
+      minted += mintedForLog;
+    }
+  }
+
+  if (processed > 0) {
+    await runTransaction(db, async (transaction) => {
+      transaction.set(
+        doc(collection(db, "admin_audit_logs")),
+        createAuditLogRecord({
+          action: "migrate_poopcoins",
+          admin,
+          delta: processed,
+          poopcoins: minted,
+        })
+      );
+    });
+  }
+
+  return processed;
 }

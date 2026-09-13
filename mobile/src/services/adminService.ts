@@ -9,10 +9,20 @@ import {
   limit,
   where,
   writeBatch,
+  increment,
   Timestamp,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { AdminAuditLog, AdminAuditAction, AppSettings, AppUser, RankingGroup } from "../types";
+import {
+  AdminAuditLog,
+  AdminAuditAction,
+  AppSettings,
+  AppUser,
+  RankingGroup,
+  BonusTimeRange,
+  PoopLog,
+  RegistrationAttempt,
+} from "../types";
 import { toRoman } from "../utils/roman";
 
 export const adminLogsRef = collection(db, "admin_audit_logs");
@@ -542,7 +552,297 @@ export function formatAuditLogMessage(
     case "recalculate_poopcoin_supply":
       return `${adminName} recalculou o suprimento total da rede PoopCoin.`;
 
+    case "update_terms_of_use":
+      return typeof log.edition === "number"
+        ? `${adminName} publicou uma nova versão (${log.edition}) dos Termos de Uso.`
+        : `${adminName} atualizou os Termos de Uso da plataforma.`;
+
+    case "delete_group":
+      return `${adminName} excluiu um grupo da organização.`;
+
     default:
       return `${adminName} executou uma ação administrativa (${log.action}).`;
   }
+}
+
+/**
+ * Ajusta manualmente pontos totais e semanais de um usuário
+ */
+export async function adjustUserPoints(
+  admin: AppUser,
+  targetUser: AppUser,
+  delta: number
+): Promise<void> {
+  if (delta === 0) return;
+
+  const userRef = doc(db, "users", targetUser.uid);
+  const batch = writeBatch(db);
+
+  const userUpdates: Record<string, any> = {
+    totalPoints: increment(delta),
+    weeklyPoints: increment(delta),
+  };
+  batch.update(userRef, userUpdates);
+
+  const auditRef = doc(adminLogsRef);
+  batch.set(
+    auditRef,
+    createAuditLogRecord({
+      action: "adjust_points",
+      admin,
+      targetUser,
+      delta,
+    })
+  );
+
+  await batch.commit();
+}
+
+/**
+ * Escuta todos os registros de cagadas da organização em tempo real
+ */
+export function listenAllPoopLogs(
+  callback: (logs: PoopLog[]) => void,
+  limitCount: number = 50
+): () => void {
+  const q = query(collection(db, "poop_logs"), orderBy("createdAt", "desc"), limit(limitCount));
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const logs: PoopLog[] = [];
+      snapshot.forEach((d) => {
+        logs.push({
+          id: d.id,
+          ...(d.data() as Omit<PoopLog, "id">),
+        });
+      });
+      callback(logs);
+    },
+    (err) => {
+      console.warn("Erro ao escutar poop_logs:", err);
+    }
+  );
+}
+
+/**
+ * Exclusão manual de registro de cagada por um administrador,
+ * estornando os pontos totais/semanais e poopcoins concedidos.
+ */
+export async function removePoopLogAsAdmin(admin: AppUser, log: PoopLog): Promise<void> {
+  if (!log.id) throw new Error("ID do registro inválido.");
+
+  const pointsToRemove = typeof log.points === "number" ? log.points : 2000;
+  const poopcoinsToRemove =
+    typeof log.poopcoinsEarned === "number"
+      ? log.poopcoinsEarned
+      : log.poopcoinTransactionHash
+      ? 1
+      : 0;
+
+  const logRef = doc(db, "poop_logs", log.id);
+  const userRef = doc(db, "users", log.userId);
+
+  const batch = writeBatch(db);
+  batch.delete(logRef);
+
+  const userUpdates: Record<string, any> = {
+    totalPoints: increment(-pointsToRemove),
+  };
+  if (log.isWeeklyActive) {
+    userUpdates.weeklyPoints = increment(-pointsToRemove);
+  }
+  if (poopcoinsToRemove > 0) {
+    userUpdates.poopcoinBalance = increment(-poopcoinsToRemove);
+  }
+  batch.update(userRef, userUpdates);
+
+  const auditRef = doc(adminLogsRef);
+  batch.set(
+    auditRef,
+    createAuditLogRecord({
+      action: "remove_log",
+      admin,
+      targetUser: { uid: log.userId, name: log.userName },
+      points: pointsToRemove,
+      removedLogId: log.id,
+      poopcoins: poopcoinsToRemove > 0 ? -poopcoinsToRemove : undefined,
+    })
+  );
+
+  await batch.commit();
+}
+
+/**
+ * Escuta todos os grupos/ligas criados na plataforma em tempo real
+ */
+export function listenAllGroups(callback: (groups: RankingGroup[]) => void): () => void {
+  const q = query(collection(db, "groups"), orderBy("createdAt", "desc"));
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const groups: RankingGroup[] = [];
+      snapshot.forEach((d) => {
+        groups.push({
+          id: d.id,
+          ...(d.data() as Omit<RankingGroup, "id">),
+        });
+      });
+      callback(groups);
+    },
+    (err) => {
+      console.warn("Erro ao escutar groups:", err);
+    }
+  );
+}
+
+/**
+ * Exclui um grupo e desvincula a posse do proprietário
+ */
+export async function deleteGroupAsAdmin(admin: AppUser, group: RankingGroup): Promise<void> {
+  const batch = writeBatch(db);
+  batch.delete(doc(db, "groups", group.id));
+  if (group.ownerId) {
+    batch.update(doc(db, "users", group.ownerId), { ownedGroupId: null });
+  }
+
+  const auditRef = doc(adminLogsRef);
+  batch.set(
+    auditRef,
+    createAuditLogRecord({
+      action: "delete_group",
+      admin,
+    })
+  );
+
+  await batch.commit();
+}
+
+/**
+ * Escuta tentativas de registro e requisições de cadastro em tempo real
+ */
+export function listenRegistrationAttempts(
+  callback: (attempts: RegistrationAttempt[]) => void,
+  limitCount: number = 50
+): () => void {
+  const q = query(
+    collection(db, "registration_attempts"),
+    orderBy("createdAt", "desc"),
+    limit(limitCount)
+  );
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const attempts: RegistrationAttempt[] = [];
+      snapshot.forEach((d) => {
+        attempts.push({
+          id: d.id,
+          ...(d.data() as Omit<RegistrationAttempt, "id">),
+        });
+      });
+      callback(attempts);
+    },
+    (err) => {
+      console.warn("Erro ao escutar registration_attempts:", err);
+    }
+  );
+}
+
+/**
+ * Toggle de exibição do Ranking Geral (All-Time)
+ */
+export async function updateOverallRankingVisibility(
+  admin: AppUser,
+  visible: boolean
+): Promise<void> {
+  const batch = writeBatch(db);
+  batch.set(
+    appSettingsDocRef,
+    {
+      overallRankingVisible: visible,
+      updatedAt: Timestamp.now(),
+      updatedBy: admin.uid,
+    },
+    { merge: true }
+  );
+
+  const auditRef = doc(adminLogsRef);
+  batch.set(
+    auditRef,
+    createAuditLogRecord({
+      action: "update_points_per_log",
+      admin,
+    })
+  );
+
+  await batch.commit();
+}
+
+/**
+ * Atualiza as faixas de horário bônus da competição
+ */
+export async function updateBonusTimeRanges(
+  admin: AppUser,
+  ranges: BonusTimeRange[]
+): Promise<void> {
+  const batch = writeBatch(db);
+  batch.set(
+    appSettingsDocRef,
+    {
+      bonusTimeRanges: ranges,
+      updatedAt: Timestamp.now(),
+      updatedBy: admin.uid,
+    },
+    { merge: true }
+  );
+
+  const auditRef = doc(adminLogsRef);
+  batch.set(
+    auditRef,
+    createAuditLogRecord({
+      action: "update_points_per_log",
+      admin,
+      pointsPerLog: Number(ranges[0]?.points ?? 0),
+    })
+  );
+
+  await batch.commit();
+}
+
+/**
+ * Atualiza o texto e incrementa a versão dos Termos de Uso da plataforma
+ */
+export async function updateTermsOfUse(
+  admin: AppUser,
+  termsText: string
+): Promise<number> {
+  const currentSnap = await getDoc(appSettingsDocRef);
+  const currentVersion = Number(currentSnap.data()?.termsOfUseVersion ?? 1);
+  const nextVersion = currentVersion + 1;
+
+  const batch = writeBatch(db);
+  batch.set(
+    appSettingsDocRef,
+    {
+      termsOfUseText: termsText.trim(),
+      termsOfUseVersion: nextVersion,
+      termsOfUseUpdatedAt: Timestamp.now(),
+      termsOfUseUpdatedBy: admin.uid,
+      updatedAt: Timestamp.now(),
+      updatedBy: admin.uid,
+    },
+    { merge: true }
+  );
+
+  const auditRef = doc(adminLogsRef);
+  batch.set(
+    auditRef,
+    createAuditLogRecord({
+      action: "update_terms_of_use",
+      admin,
+      edition: nextVersion,
+    })
+  );
+
+  await batch.commit();
+  return nextVersion;
 }

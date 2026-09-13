@@ -167,7 +167,38 @@ export type AdminAuditAction =
   | "adjust_poopcoins"
   | "reverse_poopcoin_transaction"
   | "migrate_poopcoins"
-  | "recalculate_poopcoin_supply";
+  | "recalculate_poopcoin_supply"
+  | "delete_group";
+
+export type RegistrationAttemptStatus =
+  | "code_requested"
+  | "invalid_code"
+  | "account_created"
+  | "failed";
+
+export interface RegistrationAttempt {
+  id: string;
+  email: string;
+  status: RegistrationAttemptStatus;
+  createdAt: any;
+  approvalCodeProvided?: string;
+  groupCodeProvided?: string;
+  requestId?: string;
+  message?: string;
+}
+
+export type RegistrationRequestStatus = "pending" | "used";
+
+export interface RegistrationRequest {
+  id: string;
+  email: string;
+  name: string;
+  approvalCode: string;
+  status: RegistrationRequestStatus;
+  createdAt: any;
+  usedAt?: any;
+  claimedBy?: string;
+}
 
 export interface AdminAuditLog {
   id: string;
