@@ -133,3 +133,14 @@ export function checkWorkScheduleStatus(
     badgeColor: "#ef4444",
   };
 }
+
+export function dailyWorkMinutes(schedule: Required<WorkSchedule>): number {
+  const start = minutesOfDay(schedule.horarioInicioExpediente);
+  const end = minutesOfDay(schedule.horarioFimExpediente);
+  const lunchStart = minutesOfDay(schedule.horarioInicioAlmoco);
+  const lunchEnd = minutesOfDay(schedule.horarioFimAlmoco);
+  const totalSpan = Math.max(0, end - start);
+  const lunchSpan = Math.max(0, lunchEnd - lunchStart);
+  return Math.max(60, totalSpan - lunchSpan);
+}
+

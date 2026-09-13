@@ -25,9 +25,15 @@ import {
   getAverageSessionMinutes,
   getAnnualFirmCostEstimate,
   parseLogDate,
+  getUserHourlyRate,
+  buildDailyBuckets,
+  getBusinessHoursCount,
   HourlyBucket,
   WeekdayBucket,
 } from "../utils/analytics";
+import { calculateAchievements } from "../utils/achievements";
+import WeeklyChart from "../components/WeeklyChart";
+import AchievementsGrid from "../components/AchievementsGrid";
 import { toRoman } from "../utils/roman";
 
 interface AnalyticsScreenProps {
@@ -71,7 +77,7 @@ export default function AnalyticsScreen({
     }
   }, [initialMode]);
 
-  const hourlyRate = user.hourlyRate || (user.salary ? user.salary / 176 : 20);
+  const hourlyRate = useMemo(() => getUserHourlyRate(user), [user]);
 
   const loadData = async () => {
     if (!user?.uid) return;
@@ -122,6 +128,18 @@ export default function AnalyticsScreen({
           : 10
       ),
     [logs, hourlyRate, user.bathroomDurationMinutes]
+  );
+  const dailyBuckets = useMemo(
+    () => buildDailyBuckets(logs, hourlyRate),
+    [logs, hourlyRate]
+  );
+  const businessHoursCount = useMemo(
+    () => getBusinessHoursCount(logs),
+    [logs]
+  );
+  const achievements = useMemo(
+    () => calculateAchievements(user, logs),
+    [user, logs]
   );
 
   // Pagination
@@ -473,6 +491,13 @@ export default function AnalyticsScreen({
               </View>
             </View>
 
+            {/* WEEKLY VOLUME & OFFICE HOURS PERFORMANCE */}
+            <WeeklyChart
+              buckets={dailyBuckets}
+              officeHoursCount={businessHoursCount}
+              totalSessions={logs.length}
+            />
+
             {/* CHART 1: Horários Mais Frequentes do Dia */}
             <View style={styles.chartCard}>
               <View style={styles.chartHeader}>
@@ -663,6 +688,9 @@ export default function AnalyticsScreen({
                 </View>
               )}
             </View>
+
+            {/* SISTEMA DE CONQUISTAS (ACHIEVEMENTS GRID) */}
+            <AchievementsGrid achievements={achievements} />
           </>
         ) : (
           /* TAB 2: HISTÓRICO COMPLETO PAGINADO */

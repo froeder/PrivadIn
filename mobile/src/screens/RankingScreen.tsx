@@ -63,7 +63,14 @@ export default function RankingScreen({
   const countdown = useMemo(() => getDaysUntilSunday(), []);
 
   useEffect(() => {
-    fetchAppSettings().then(setAppSettings).catch(console.warn);
+    fetchAppSettings()
+      .then((settings) => {
+        setAppSettings(settings);
+        if (settings?.overallRankingVisible === false && mode === "overall") {
+          setMode("weekly");
+        }
+      })
+      .catch(console.warn);
   }, []);
 
   const handleShareRanking = async () => {
@@ -220,30 +227,41 @@ export default function RankingScreen({
           </TouchableOpacity>
         )}
 
-        {/* Mode Switcher Tabs */}
-        <View style={styles.tabSwitcher}>
-          <TouchableOpacity
-            style={[styles.tabButton, mode === "weekly" && styles.tabButtonActive]}
-            onPress={() => setMode("weekly")}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.tabButtonText, mode === "weekly" && styles.tabButtonTextActive]}>
-              ⚡ Rodada Semanal
-            </Text>
-            {mode === "weekly" && <View style={styles.activeDot} />}
-          </TouchableOpacity>
+        {/* Mode Switcher Tabs (visibilidade controlada pelo administrador) */}
+        {appSettings?.overallRankingVisible !== false ? (
+          <View style={styles.tabSwitcher}>
+            <TouchableOpacity
+              style={[styles.tabButton, mode === "weekly" && styles.tabButtonActive]}
+              onPress={() => setMode("weekly")}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.tabButtonText, mode === "weekly" && styles.tabButtonTextActive]}>
+                ⚡ Rodada Semanal
+              </Text>
+              {mode === "weekly" && <View style={styles.activeDot} />}
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.tabButton, mode === "overall" && styles.tabButtonActive]}
-            onPress={() => setMode("overall")}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.tabButtonText, mode === "overall" && styles.tabButtonTextActive]}>
-              👑 Geral Histórico
-            </Text>
-            {mode === "overall" && <View style={styles.activeDot} />}
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity
+              style={[styles.tabButton, mode === "overall" && styles.tabButtonActive]}
+              onPress={() => setMode("overall")}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.tabButtonText, mode === "overall" && styles.tabButtonTextActive]}>
+                👑 Geral Histórico
+              </Text>
+              {mode === "overall" && <View style={styles.activeDot} />}
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.tabSwitcherSingle}>
+            <View style={styles.tabButtonSingle}>
+              <Text style={styles.tabButtonTextActive}>
+                ⚡ Rodada Semanal Oficial
+              </Text>
+              <View style={styles.activeDot} />
+            </View>
+          </View>
+        )}
 
         {/* Mode Countdown & Context Ribbon */}
         <View style={styles.countdownRibbon}>
@@ -819,6 +837,25 @@ const styles = StyleSheet.create({
     marginTop: 10,
     borderWidth: 1,
     borderColor: "#1e293b",
+  },
+  tabSwitcherSingle: {
+    backgroundColor: "#0f172a",
+    borderRadius: 12,
+    padding: 3,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+  },
+  tabButtonSingle: {
+    paddingVertical: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 9,
+    flexDirection: "row",
+    gap: 6,
+    backgroundColor: "rgba(234, 179, 8, 0.15)",
+    borderWidth: 1,
+    borderColor: "#eab308",
   },
   tabButton: {
     flex: 1,

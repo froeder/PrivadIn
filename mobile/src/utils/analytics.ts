@@ -1,4 +1,5 @@
-import { PoopLog } from "../types";
+import { AppUser, PoopLog } from "../types";
+import { resolveWorkSchedule, dailyWorkMinutes } from "./workSchedule";
 
 export interface HourlyBucket {
   hour: number;
@@ -13,6 +14,16 @@ export interface WeekdayBucket {
   earnedAmount: number;
 }
 
+export interface DailyBucket {
+  label: string;
+  dayShort: string;
+  dateStr: string;
+  count: number;
+  points: number;
+  earnedAmount: number;
+  isToday: boolean;
+}
+
 export interface AnnualEstimate {
   annualCost: number;
   averageDailyMinutes: number;
@@ -20,6 +31,7 @@ export interface AnnualEstimate {
   totalHistoricalEarned: number;
   totalHistoricalMinutes: number;
 }
+
 
 export function parseLogDate(val: any): Date | null {
   if (!val) return null;
@@ -199,3 +211,87 @@ export function getAnnualFirmCostEstimate(
     totalHistoricalMinutes: Math.round(totalHistoricalMinutes),
   };
 }
+
+export function getUserHourlyRate(user?: AppUser | null): number {
+  if (!user) return 20;
+
+  if (typeof user.hourlyRate === "number" && user.hourlyRate > 0) {
+    return user.hourlyRate;
+  }
+
+  let monthlySalary = 3000;
+  if (typeof user.salary === "number" && user.salary > 0) {
+    monthlySalary = user.salary;
+  }
+
+  const sched = resolveWorkSchedule(user.workSchedule);
+  const workMinutes = dailyWorkMinutes(sched) * 22;
+  const workHours = Math.max(1, workMinutes / 60);
+
+  return Number((monthlySalary / workHours).toFixed(2));
+}
+
+export function getBusinessHoursCount(logs: PoopLog[]): number {
+  return logs.filter((log) => {
+    const d = parseLogDate(log.createdAt);
+    if (!d) return false;
+    const hour = d.getHours();
+    return hour >= 8 && hour <= 18;
+  }).length;
+}
+
+const DAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+export function buildDailyBuckets(logs: PoopLog[], hourlyRate = 20): DailyBucket[] {
+  const today = new Date();
+  const buckets: DailyBucket[] = [];
+
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    d.setHours(0, 0, 0, 0);
+
+    const nextD = new Date(d);
+    nextD.setDate(d.getDate() + 1);
+
+    const dayLogs = logs.filter((log) => {
+      const logDate = parseLogDate(log.createdAt);
+      return logDate && logDate >= d && logDate < nextD;
+    });
+
+    const count = dayLogs.length;
+    const points = dayLogs.reduce(
+      (sum, l) => sum + (typeof l.points === "number" ? l.points : 2000),
+      0
+    );
+    const earnedAmount = dayLogs.reduce((sum, l) => {
+      if (typeof l.earnedAmount === "number" && l.earnedAmount > 0) {
+        return sum + l.earnedAmount;
+      }
+      const durSec =
+        typeof l.durationSeconds === "number" && l.durationSeconds > 0
+          ? l.durationSeconds
+          : 600;
+      return sum + (durSec / 3600) * hourlyRate;
+    }, 0);
+
+    const isToday = i === 0;
+    const dayShort = DAY_LABELS[d.getDay()];
+    const dateStr = `${String(d.getDate()).padStart(2, "0")}/${String(
+      d.getMonth() + 1
+    ).padStart(2, "0")}`;
+
+    buckets.push({
+      label: isToday ? "Hoje" : dayShort,
+      dayShort,
+      dateStr,
+      count,
+      points,
+      earnedAmount: Number(earnedAmount.toFixed(2)),
+      isToday,
+    });
+  }
+
+  return buckets;
+}
+
