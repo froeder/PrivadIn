@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -10,7 +10,10 @@ import {
   ActivityIndicator,
   Modal,
   Linking,
+  Platform,
 } from "react-native";
+import * as Clipboard from "expo-clipboard";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppUser, WorkSchedule } from "../types";
 import { signOutUser, deleteCurrentUserAccount } from "../services/authService";
 import {
@@ -22,6 +25,12 @@ import PoopcoinWalletCard from "../components/PoopcoinWalletCard";
 import TransferPoopcoinsModal from "../components/TransferPoopcoinsModal";
 import UserProfileModal from "../components/UserProfileModal";
 import UserAvatar from "../components/UserAvatar";
+import ChangePasswordModal from "../components/ChangePasswordModal";
+import {
+  SupportedLanguage,
+  getPersistedLanguage,
+  persistLanguage,
+} from "../utils/i18n";
 
 interface ProfileScreenProps {
   user: AppUser;
@@ -95,6 +104,8 @@ export default function ProfileScreen({
   // Navigation / Modal States
   const [publicProfileModalVisible, setPublicProfileModalVisible] = useState(false);
   const [transferModalVisible, setTransferModalVisible] = useState(false);
+  const [changePasswordModalVisible, setChangePasswordModalVisible] = useState(false);
+  const [copiedSelfUid, setCopiedSelfUid] = useState(false);
 
   // Active section tab in screen
   const [activeSection, setActiveSection] = useState<"profile" | "work" | "financial" | "security">("profile");
@@ -113,7 +124,11 @@ export default function ProfileScreen({
   const [selectedTheme, setSelectedTheme] = useState(user.themeColor || "#eab308");
   const [savingProfile, setSavingProfile] = useState(false);
 
-  // 2. Work Schedule state
+  // Preferences: Idioma e Tema de Aparência
+  const [language, setLanguage] = useState<SupportedLanguage>("pt-BR");
+  const [appearanceTheme, setAppearanceTheme] = useState<"dark" | "light" | "system">("dark");
+
+  // 2. Work Schedule & Bathroom state
   const [workStart, setWorkStart] = useState(
     user.workSchedule?.horarioInicioExpediente || "09:00"
   );
@@ -129,7 +144,80 @@ export default function ProfileScreen({
   const [timezone, setTimezone] = useState(
     user.workSchedule?.timezone || "America/Sao_Paulo"
   );
+  const [bathroomDurationInput, setBathroomDurationInput] = useState(
+    user.bathroomDurationMinutes ? String(user.bathroomDurationMinutes) : "10"
+  );
   const [savingWork, setSavingWork] = useState(false);
+
+  // Carregar preferências persistidas (idioma e tema)
+  useEffect(() => {
+    async function loadPreferences() {
+      const savedLang = await getPersistedLanguage();
+      setLanguage(savedLang);
+      try {
+        const savedAppearance = await AsyncStorage.getItem("@privadin:appearance_theme");
+        if (savedAppearance === "dark" || savedAppearance === "light" || savedAppearance === "system") {
+          setAppearanceTheme(savedAppearance);
+        }
+      } catch (err) {
+        console.warn("Error loading appearance theme:", err);
+      }
+    }
+    loadPreferences();
+  }, []);
+
+  useEffect(() => {
+    if (user.bathroomDurationMinutes) {
+      setBathroomDurationInput(String(user.bathroomDurationMinutes));
+    }
+  }, [user.bathroomDurationMinutes]);
+
+  // Handler: Copiar Própria Chave Poopcoin / UID
+  const handleCopySelfUid = async () => {
+    try {
+      await Clipboard.setStringAsync(user.uid);
+      setCopiedSelfUid(true);
+      setTimeout(() => setCopiedSelfUid(false), 2500);
+      Alert.alert(
+        "Chave Poopcoin / ID Copiado! 📋",
+        "Seu identificador único foi copiado para a área de transferência. Envie para colegas para receber transferências de Poopcoins."
+      );
+    } catch {
+      Alert.alert("Erro", "Não foi possível copiar o ID.");
+    }
+  };
+
+  // Handler: Alterar Idioma
+  const handleChangeLanguage = async (newLang: SupportedLanguage) => {
+    setLanguage(newLang);
+    await persistLanguage(newLang);
+    Alert.alert(
+      newLang === "pt-BR" ? "Idioma Atualizado 🇧🇷" : "Language Updated 🇺🇸",
+      newLang === "pt-BR"
+        ? "O idioma foi definido para Português (Brasil)."
+        : "Language set to English (US)."
+    );
+  };
+
+  // Handler: Alterar Modo de Tema
+  const handleChangeAppearance = async (newTheme: "dark" | "light" | "system") => {
+    setAppearanceTheme(newTheme);
+    try {
+      await AsyncStorage.setItem("@privadin:appearance_theme", newTheme);
+      Alert.alert(
+        "Aparência Atualizada 🎨",
+        `Tema configurado para: ${
+          newTheme === "dark"
+            ? "Escuro (Noturno OLED)"
+            : newTheme === "light"
+              ? "Claro"
+              : "Acompanhar Sistema"
+        }`
+      );
+    } catch (err) {
+      console.warn("Error saving appearance theme:", err);
+    }
+  };
 
   // 3. Financial Settings state
   const [financialMode, setFinancialMode] = useState<"salary" | "hourly">("salary");
@@ -191,7 +279,7 @@ export default function ProfileScreen({
     }
   };
 
-  // Handler: Save Work Schedule
+  // Handler: Save Work Schedule & Bathroom Duration
   const handleSaveWorkSchedule = async () => {
     setSavingWork(true);
     try {
@@ -203,8 +291,14 @@ export default function ProfileScreen({
         timezone,
       };
 
-      await updateUserWorkSchedule(user.uid, schedule);
-      Alert.alert("Jornada Salva! ⏰", "Seus horários de expediente e fuso horário foram atualizados.");
+      const duration = parseInt(bathroomDurationInput, 10);
+      const finalDuration = isNaN(duration) || duration < 1 ? 10 : Math.min(180, duration);
+
+      await updateUserWorkSchedule(user.uid, schedule, finalDuration);
+      Alert.alert(
+        "Jornada Salva! ⏰",
+        `Seus horários de expediente, fuso horário e tempo médio no banheiro (${finalDuration} min) foram atualizados.`
+      );
       onRefreshUser();
     } catch (error: any) {
       console.error("Erro ao salvar jornada:", error);
@@ -335,6 +429,20 @@ export default function ProfileScreen({
           <Text style={{ fontSize: 16 }}>👁️</Text>
           <Text style={[styles.publicProfileButtonText, { color: userThemeColor }]}>
             Ver Como os Colegas Me Veem
+          </Text>
+        </TouchableOpacity>
+
+        {/* Copy Own UID / Poopcoin Key Button */}
+        <TouchableOpacity
+          style={[styles.copyIdPill, { borderColor: `${userThemeColor}40` }]}
+          onPress={handleCopySelfUid}
+          activeOpacity={0.7}
+        >
+          <Text style={{ fontSize: 13 }}>📋</Text>
+          <Text style={styles.copyIdPillText}>
+            {copiedSelfUid
+              ? "Chave Copiada! ✓"
+              : `Chave: ${user.uid ? `${user.uid.slice(0, 10)}...` : ""} (Toque p/ Copiar)`}
           </Text>
         </TouchableOpacity>
 
@@ -507,7 +615,7 @@ export default function ProfileScreen({
           </View>
 
           {/* Theme Color Selector */}
-          <Text style={[styles.inputLabel, { marginTop: 16 }]}>Cor Tema do Aplicativo</Text>
+          <Text style={[styles.inputLabel, { marginTop: 16 }]}>Cor de Destaque do Aplicativo</Text>
           <View style={styles.themePaletteRow}>
             {THEME_PALETTES.map((palette) => {
               const isSelected = selectedTheme === palette.color;
@@ -526,6 +634,131 @@ export default function ProfileScreen({
                 </TouchableOpacity>
               );
             })}
+          </View>
+
+          {/* Preferências: Idioma & Modo de Tema */}
+          <View style={styles.preferencesDivider} />
+          <Text style={styles.subSectionTitle}>Preferências do Aplicativo</Text>
+          <Text style={styles.cardDescription}>
+            Configure o idioma e o modo de exibição da interface do PrivadIn.
+          </Text>
+
+          {/* Idioma */}
+          <Text style={styles.inputLabel}>Idioma / Language</Text>
+          <View style={styles.prefButtonsRow}>
+            <TouchableOpacity
+              style={[
+                styles.prefButton,
+                language === "pt-BR" && [
+                  styles.prefButtonActive,
+                  { borderColor: selectedTheme, backgroundColor: `${selectedTheme}15` },
+                ],
+              ]}
+              onPress={() => handleChangeLanguage("pt-BR")}
+              activeOpacity={0.8}
+            >
+              <Text style={{ fontSize: 16 }}>🇧🇷</Text>
+              <Text
+                style={[
+                  styles.prefButtonText,
+                  language === "pt-BR" && { color: selectedTheme, fontWeight: "800" },
+                ]}
+              >
+                Português
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.prefButton,
+                language === "en-US" && [
+                  styles.prefButtonActive,
+                  { borderColor: selectedTheme, backgroundColor: `${selectedTheme}15` },
+                ],
+              ]}
+              onPress={() => handleChangeLanguage("en-US")}
+              activeOpacity={0.8}
+            >
+              <Text style={{ fontSize: 16 }}>🇺🇸</Text>
+              <Text
+                style={[
+                  styles.prefButtonText,
+                  language === "en-US" && { color: selectedTheme, fontWeight: "800" },
+                ]}
+              >
+                English
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Modo de Aparência (Tema) */}
+          <Text style={[styles.inputLabel, { marginTop: 14 }]}>Modo de Aparência</Text>
+          <View style={styles.prefButtonsRow}>
+            <TouchableOpacity
+              style={[
+                styles.prefButton,
+                appearanceTheme === "dark" && [
+                  styles.prefButtonActive,
+                  { borderColor: selectedTheme, backgroundColor: `${selectedTheme}15` },
+                ],
+              ]}
+              onPress={() => handleChangeAppearance("dark")}
+              activeOpacity={0.8}
+            >
+              <Text style={{ fontSize: 15 }}>🌙</Text>
+              <Text
+                style={[
+                  styles.prefButtonText,
+                  appearanceTheme === "dark" && { color: selectedTheme, fontWeight: "800" },
+                ]}
+              >
+                Escuro
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.prefButton,
+                appearanceTheme === "light" && [
+                  styles.prefButtonActive,
+                  { borderColor: selectedTheme, backgroundColor: `${selectedTheme}15` },
+                ],
+              ]}
+              onPress={() => handleChangeAppearance("light")}
+              activeOpacity={0.8}
+            >
+              <Text style={{ fontSize: 15 }}>☀️</Text>
+              <Text
+                style={[
+                  styles.prefButtonText,
+                  appearanceTheme === "light" && { color: selectedTheme, fontWeight: "800" },
+                ]}
+              >
+                Claro
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.prefButton,
+                appearanceTheme === "system" && [
+                  styles.prefButtonActive,
+                  { borderColor: selectedTheme, backgroundColor: `${selectedTheme}15` },
+                ],
+              ]}
+              onPress={() => handleChangeAppearance("system")}
+              activeOpacity={0.8}
+            >
+              <Text style={{ fontSize: 15 }}>⚙️</Text>
+              <Text
+                style={[
+                  styles.prefButtonText,
+                  appearanceTheme === "system" && { color: selectedTheme, fontWeight: "800" },
+                ]}
+              >
+                Sistema
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {/* Save Profile Button */}
@@ -662,6 +895,56 @@ export default function ProfileScreen({
                 </TouchableOpacity>
               );
             })}
+          </View>
+
+          {/* Tempo Médio de Banheiro / Duração Padrão */}
+          <Text style={[styles.inputLabel, { marginTop: 18 }]}>
+            Tempo Médio no Trono / Duração Padrão (Minutos)
+          </Text>
+          <Text style={styles.cardDescription}>
+            Define a duração média estimada das suas sessões para calibrar alertas de saúde e cálculos de lucratividade.
+          </Text>
+
+          {/* Quick Presets for Duration */}
+          <View style={styles.presetsContainer}>
+            {[5, 10, 15, 20, 30].map((mins) => {
+              const isSelected = bathroomDurationInput === String(mins);
+              return (
+                <TouchableOpacity
+                  key={mins}
+                  style={[
+                    styles.presetChip,
+                    isSelected && [styles.presetChipSelected, { borderColor: userThemeColor }],
+                  ]}
+                  onPress={() => setBathroomDurationInput(String(mins))}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.presetChipText,
+                      isSelected && { color: userThemeColor, fontWeight: "800" },
+                    ]}
+                  >
+                    {mins} min {mins === 10 ? "⭐" : ""}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <View style={{ marginTop: 8 }}>
+            <TextInput
+              style={styles.timeTextInput}
+              value={bathroomDurationInput}
+              onChangeText={setBathroomDurationInput}
+              placeholder="10"
+              placeholderTextColor="#64748b"
+              keyboardType="numeric"
+              maxLength={3}
+            />
+            <Text style={[styles.customAvatarHint, { marginTop: 4 }]}>
+              * Valor permitido: entre 1 e 180 minutos. Padrão: 10 minutos.
+            </Text>
           </View>
 
           {/* Work Calculation Summary Banner */}
@@ -872,6 +1155,23 @@ export default function ProfileScreen({
             </View>
           </View>
 
+          {/* Troca de Senha Autenticada */}
+          <View style={styles.changePasswordCard}>
+            <View style={styles.changePasswordHeader}>
+              <Text style={styles.changePasswordTitle}>🔐 Alteração de Senha de Acesso</Text>
+              <Text style={styles.changePasswordDesc}>
+                Mantenha sua conta protegida. Você pode alterar sua senha a qualquer momento com validação imediata ou receber um link de redefinição por e-mail.
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.changePasswordButton, { backgroundColor: userThemeColor }]}
+              onPress={() => setChangePasswordModalVisible(true)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.changePasswordButtonText}>Alterar Senha Agora</Text>
+            </TouchableOpacity>
+          </View>
+
           {/* Exclusão Parcial de Dados (conforme política oficial) */}
           <View style={styles.partialDeletionCard}>
             <Text style={styles.partialDeletionTitle}>⚙️ Exclusão Parcial de Dados</Text>
@@ -1025,6 +1325,14 @@ export default function ProfileScreen({
         currentUser={user}
         onClose={() => setTransferModalVisible(false)}
         onSuccess={onRefreshUser}
+      />
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        isOpen={changePasswordModalVisible}
+        onClose={() => setChangePasswordModalVisible(false)}
+        userEmail={user.email}
+        themeColor={userThemeColor}
       />
 
       {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO DE CONTA */}
@@ -1335,6 +1643,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#334155",
+  },
+  presetChipSelected: {
+    borderWidth: 1.5,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
   },
   presetChipText: {
     color: "#cbd5e1",
@@ -1895,6 +2207,97 @@ const styles = StyleSheet.create({
   },
   modalConfirmDeleteBtnText: {
     color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  copyIdPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#1e293b",
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginTop: 8,
+  },
+  copyIdPillText: {
+    fontSize: 11,
+    color: "#cbd5e1",
+    fontWeight: "700",
+  },
+  preferencesDivider: {
+    height: 1,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    marginVertical: 18,
+  },
+  subSectionTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#f8fafc",
+    marginBottom: 4,
+  },
+  prefButtonsRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 6,
+  },
+  prefButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: "#1e293b",
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  prefButtonActive: {
+    borderWidth: 1.5,
+  },
+  prefButtonText: {
+    fontSize: 12,
+    color: "#94a3b8",
+    fontWeight: "600",
+  },
+  inputSubHint: {
+    fontSize: 12,
+    color: "#94a3b8",
+    marginBottom: 10,
+    lineHeight: 16,
+  },
+  changePasswordCard: {
+    backgroundColor: "rgba(30, 41, 59, 0.6)",
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+    marginTop: 12,
+  },
+  changePasswordHeader: {
+    marginBottom: 12,
+  },
+  changePasswordTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#f8fafc",
+    marginBottom: 4,
+  },
+  changePasswordDesc: {
+    fontSize: 12,
+    color: "#94a3b8",
+    lineHeight: 16,
+  },
+  changePasswordButton: {
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  changePasswordButtonText: {
+    color: "#020617",
     fontSize: 13,
     fontWeight: "900",
   },

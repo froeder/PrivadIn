@@ -274,6 +274,45 @@ export async function changePasswordWithCredentials(
   }
 }
 
+/**
+ * Altera a senha do usuário atualmente autenticado com reautenticação
+ * segura via EmailAuthProvider. Sem desconectar a sessão.
+ */
+export async function changePasswordForCurrentUser(
+  currentPass: string,
+  newPass: string
+): Promise<void> {
+  const user = auth.currentUser;
+  if (!user || !user.email) {
+    throw new Error("Usuário não está autenticado.");
+  }
+  if (!currentPass) {
+    throw new Error("Informe a sua senha atual.");
+  }
+  if (!newPass || newPass.length < 6) {
+    throw new Error("A nova senha deve ter no mínimo 6 caracteres.");
+  }
+  if (currentPass === newPass) {
+    throw new Error("A nova senha não pode ser igual à senha atual.");
+  }
+
+  const credential = EmailAuthProvider.credential(user.email, currentPass);
+  await reauthenticateWithCredential(user, credential);
+  await updatePassword(user, newPass);
+}
+
+/**
+ * Envia e-mail de redefinição de senha para o usuário atualmente autenticado.
+ */
+export async function sendPasswordResetForCurrentUser(): Promise<void> {
+  const user = auth.currentUser;
+  if (!user || !user.email) {
+    throw new Error("Nenhum e-mail vinculado a esta conta.");
+  }
+  await sendPasswordResetEmail(auth, user.email);
+}
+
+
 export async function fetchAppSettings(): Promise<AppSettings> {
   try {
     const snap = await getDoc(doc(db, "app_settings", "global"));

@@ -313,8 +313,12 @@ export async function updateUserProfileCustomization(
   await updateDoc(doc(db, "users", userId), updates);
 }
 
-export async function updateUserWorkSchedule(userId: string, schedule: WorkSchedule) {
-  await updateDoc(doc(db, "users", userId), {
+export async function updateUserWorkSchedule(
+  userId: string,
+  schedule: WorkSchedule,
+  bathroomDurationMinutes?: number
+) {
+  const payload: Record<string, any> = {
     workSchedule: {
       horarioInicioExpediente: schedule.horarioInicioExpediente || "09:00",
       horarioFimExpediente: schedule.horarioFimExpediente || "18:00",
@@ -322,8 +326,41 @@ export async function updateUserWorkSchedule(userId: string, schedule: WorkSched
       horarioFimAlmoco: schedule.horarioFimAlmoco || "13:00",
       timezone: schedule.timezone || "America/Sao_Paulo",
     },
-  });
+  };
+
+  if (typeof bathroomDurationMinutes === "number" && !isNaN(bathroomDurationMinutes)) {
+    payload.bathroomDurationMinutes = Math.max(1, Math.min(180, Math.trunc(bathroomDurationMinutes)));
+  }
+
+  await updateDoc(doc(db, "users", userId), payload);
 }
+
+export async function updateUserOperationalProfile(
+  userId: string,
+  updates: {
+    workSchedule?: WorkSchedule;
+    bathroomDurationMinutes?: number;
+  }
+) {
+  const payload: Record<string, any> = {};
+  if (updates.workSchedule) {
+    payload.workSchedule = {
+      horarioInicioExpediente: updates.workSchedule.horarioInicioExpediente || "09:00",
+      horarioFimExpediente: updates.workSchedule.horarioFimExpediente || "18:00",
+      horarioInicioAlmoco: updates.workSchedule.horarioInicioAlmoco || "12:00",
+      horarioFimAlmoco: updates.workSchedule.horarioFimAlmoco || "13:00",
+      timezone: updates.workSchedule.timezone || "America/Sao_Paulo",
+    };
+  }
+  if (typeof updates.bathroomDurationMinutes === "number" && !isNaN(updates.bathroomDurationMinutes)) {
+    payload.bathroomDurationMinutes = Math.max(1, Math.min(180, Math.trunc(updates.bathroomDurationMinutes)));
+  }
+
+  if (Object.keys(payload).length > 0) {
+    await updateDoc(doc(db, "users", userId), payload);
+  }
+}
+
 
 export async function updateUserFinancialSettings(
   userId: string,

@@ -7,7 +7,10 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  Alert,
+  Platform,
 } from "react-native";
+import * as Clipboard from "expo-clipboard";
 import { AppUser, CuiterPost, PoopLog } from "../types";
 import { fetchUserCuiterPosts, fetchUserProfile, formatTimeAgo } from "../services/cuiterService";
 import { formatPoopcoins } from "../services/poopcoinService";
@@ -49,6 +52,23 @@ export default function UserProfileModal({
   const [userPosts, setUserPosts] = useState<CuiterPost[]>([]);
   const [userLogs, setUserLogs] = useState<PoopLog[]>([]);
   const [activeTab, setActiveTab] = useState<"stats" | "history" | "cuiter">("stats");
+  const [copiedUid, setCopiedUid] = useState(false);
+
+  const handleCopyUid = async () => {
+    if (!profileUser?.uid) return;
+    try {
+      await Clipboard.setStringAsync(profileUser.uid);
+      setCopiedUid(true);
+      setTimeout(() => setCopiedUid(false), 2000);
+      Alert.alert(
+        "ID Copiado!",
+        "A Chave/ID do usuário foi copiada para a área de transferência."
+      );
+    } catch {
+      Alert.alert("Erro", "Não foi possível copiar o ID.");
+    }
+  };
+
 
   useEffect(() => {
     if (!visible || !userId) {
@@ -249,6 +269,30 @@ export default function UserProfileModal({
                     <Text style={styles.bioText}>“{profileUser.bio}”</Text>
                   </View>
                 ) : null}
+
+                {/* Chave Poopcoin / Identificador do Usuário */}
+                <View style={styles.coinKeyCard}>
+                  <View style={styles.coinKeyHeader}>
+                    <Text style={styles.coinKeyLabel}>CHAVE POOPCOIN (ID)</Text>
+                    {copiedUid && (
+                      <Text style={[styles.copiedBadge, { color: themeColor }]}>
+                        Copiado! ✓
+                      </Text>
+                    )}
+                  </View>
+                  <View style={styles.coinKeyRow}>
+                    <Text style={styles.coinKeyText} numberOfLines={1}>
+                      {profileUser.uid}
+                    </Text>
+                    <TouchableOpacity
+                      style={[styles.copyUidButton, { backgroundColor: themeColor }]}
+                      onPress={handleCopyUid}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.copyUidButtonText}>Copiar</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
               </View>
 
               {/* Action: Transfer button if viewing another user */}
@@ -640,6 +684,58 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontStyle: "italic",
     textAlign: "center",
+  },
+  coinKeyCard: {
+    width: "100%",
+    backgroundColor: "rgba(30, 41, 59, 0.7)",
+    borderRadius: 14,
+    padding: 12,
+    marginTop: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  coinKeyHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  coinKeyLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#64748b",
+    letterSpacing: 0.5,
+  },
+  copiedBadge: {
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  coinKeyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#0f172a",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  coinKeyText: {
+    flex: 1,
+    fontSize: 12,
+    color: "#cbd5e1",
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+  },
+  copyUidButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  copyUidButtonText: {
+    color: "#020617",
+    fontSize: 11,
+    fontWeight: "900",
   },
   transferButton: {
     flexDirection: "row",
