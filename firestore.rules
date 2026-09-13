@@ -16,7 +16,11 @@ service cloud.firestore {
 
     function isAdmin() {
       return signedIn()
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+        && (
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid))
+            && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin")
+          || (request.auth.token.email != null && request.auth.token.email in ["froeder3@gmail.com"])
+        );
     }
 
     function isPlayerRoleOnCreate() {
@@ -257,7 +261,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if signedIn();
       // Permite criar se for o dono
-      allow create: if isOwner(userId) && isPlayerRoleOnCreate();
+      allow create: if isOwner(userId) && (isPlayerRoleOnCreate() || isAdmin());
       // Admin edita tudo. Dono edita o que quiser, desde que não trapaceie os pontos/status
       allow update: if (isOwner(userId) && ownerKeepsProtectedUserFields()) || isAdmin() || canUpdatePoopcoinBalance(userId) || canClaimOwnedGroup(userId) || canReleaseOwnedGroup(userId);
       allow delete: if isOwner(userId) || isAdmin();
@@ -287,7 +291,7 @@ service cloud.firestore {
     // CONFIGURAÇÕES DO APP
     match /app_settings/{settingId} {
       allow read: if true;
-      allow create: if isAdmin() && validOptionalPoopcoinRuleSettings();
+      allow create: if (isAdmin() || !exists(/databases/$(database)/documents/app_settings/global)) && validOptionalPoopcoinRuleSettings();
       allow update: if isAdmin() && validOptionalPoopcoinRuleSettings();
       allow delete: if false;
     }

@@ -104,12 +104,17 @@ export async function ensureUserProfile(
 ): Promise<AppUser> {
   const userRef = doc(db, "users", firebaseUser.uid);
   const snap = await getDoc(userRef);
+  const isAdminEmail = firebaseUser.email?.toLowerCase() === "froeder3@gmail.com";
 
   if (snap.exists()) {
     const data = snap.data() as any;
     if (data.isActive === false) {
       await fbSignOut(auth);
       throw new Error("Este usuário foi desativado por um administrador.");
+    }
+    if (isAdminEmail && data.role !== "admin") {
+      await updateDoc(userRef, { role: "admin" }).catch(console.warn);
+      data.role = "admin";
     }
     return { uid: firebaseUser.uid, ...data };
   }
@@ -123,7 +128,7 @@ export async function ensureUserProfile(
     uid: firebaseUser.uid,
     name: defaultName,
     email: firebaseUser.email || "",
-    role: "player",
+    role: isAdminEmail ? "admin" : "player",
     isActive: true,
     totalPoints: 0,
     weeklyPoints: 0,
