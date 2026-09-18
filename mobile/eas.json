@@ -15,7 +15,10 @@
       "android": {
         "buildType": "apk"
       },
-      "channel": "preview"
+      "channel": "preview",
+      "env": {
+        "EXPO_PUBLIC_FIRESTORE_DATABASE_ID": "dev-privadin"
+      }
     },
     "production": {
       "autoIncrement": true,

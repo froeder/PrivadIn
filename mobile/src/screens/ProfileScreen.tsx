@@ -31,6 +31,7 @@ import {
   getPersistedLanguage,
   persistLanguage,
 } from "../utils/i18n";
+import { IS_DEV, FIRESTORE_DATABASE_ID } from "../services/firebase";
 
 interface ProfileScreenProps {
   user: AppUser;
@@ -465,6 +466,25 @@ export default function ProfileScreen({
             </Text>
           </TouchableOpacity>
         )}
+
+        {/* 🏷️ Environment Badge (Dev/Prod Indicator) */}
+        <View style={[
+          styles.envBadge,
+          IS_DEV ? styles.envBadgeDev : styles.envBadgeProd,
+        ]}>
+          <Text style={styles.envBadgeDot}>{IS_DEV ? "🟡" : "🟢"}</Text>
+          <View>
+            <Text style={[
+              styles.envBadgeLabel,
+              { color: IS_DEV ? "#fbbf24" : "#4ade80" },
+            ]}>
+              {IS_DEV ? "HOMOLOGAÇÃO" : "PRODUÇÃO"}
+            </Text>
+            <Text style={styles.envBadgeDb}>
+              Banco: {FIRESTORE_DATABASE_ID}
+            </Text>
+          </View>
+        </View>
       </View>
 
       {/* Navigation Sub-Tabs */}
@@ -2300,5 +2320,38 @@ const styles = StyleSheet.create({
     color: "#020617",
     fontSize: 13,
     fontWeight: "900",
+  },
+  envBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignSelf: "center",
+  },
+  envBadgeDev: {
+    backgroundColor: "rgba(251, 191, 36, 0.08)",
+    borderColor: "rgba(251, 191, 36, 0.35)",
+  },
+  envBadgeProd: {
+    backgroundColor: "rgba(74, 222, 128, 0.08)",
+    borderColor: "rgba(74, 222, 128, 0.35)",
+  },
+  envBadgeDot: {
+    fontSize: 16,
+  },
+  envBadgeLabel: {
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 1.2,
+  },
+  envBadgeDb: {
+    fontSize: 10,
+    color: "#64748b",
+    fontWeight: "500",
+    marginTop: 1,
   },
 });
