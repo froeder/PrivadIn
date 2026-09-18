@@ -20,12 +20,15 @@ import {
   updateUserProfileCustomization,
   updateUserWorkSchedule,
   updateUserFinancialSettings,
+  uploadUserAvatarPhoto,
 } from "../services/poopService";
 import PoopcoinWalletCard from "../components/PoopcoinWalletCard";
 import TransferPoopcoinsModal from "../components/TransferPoopcoinsModal";
 import UserProfileModal from "../components/UserProfileModal";
 import UserAvatar from "../components/UserAvatar";
 import ChangePasswordModal from "../components/ChangePasswordModal";
+import AvatarCropper from "../components/AvatarCropper";
+import * as ImagePicker from "expo-image-picker";
 import {
   SupportedLanguage,
   getPersistedLanguage,
@@ -120,10 +123,18 @@ export default function ProfileScreen({
   // 1. Profile customization state
   const [nickname, setNickname] = useState(user.nickname || user.name || "");
   const [bio, setBio] = useState(user.bio || "");
-  const [selectedAvatar, setSelectedAvatar] = useState(user.avatar || "🚽");
+  const [selectedAvatar, setSelectedAvatar] = useState(user.avatar || "🚿");
   const [customAvatarInput, setCustomAvatarInput] = useState("");
   const [selectedTheme, setSelectedTheme] = useState(user.themeColor || "#eab308");
   const [savingProfile, setSavingProfile] = useState(false);
+
+  // Photo avatar state
+  const [photoUri, setPhotoUri] = useState<string | null>(
+    user.avatar?.startsWith("http") ? user.avatar : null
+  );
+  const [cropperVisible, setCropperVisible] = useState(false);
+  const [pendingPhotoUri, setPendingPhotoUri] = useState<string | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   // Preferences: Idioma e Tema de Aparência
   const [language, setLanguage] = useState<SupportedLanguage>("pt-BR");
@@ -254,9 +265,92 @@ export default function ProfileScreen({
     }
   }, [financialMode, salaryInput, hourlyInput, monthlyWorkHours]);
 
+  // Handler: Pick photo from gallery or camera
+  const handlePickPhoto = async (source: "gallery" | "camera") => {
+    const permResult =
+      source === "gallery"
+        ? await ImagePicker.requestMediaLibraryPermissionsAsync()
+        : await ImagePicker.requestCameraPermissionsAsync();
+
+    if (!permResult.granted) {
+      Alert.alert(
+        "Permissão necessária",
+        source === "gallery"
+          ? "Permita o acesso à galeria nas configurações do dispositivo."
+          : "Permita o acesso à câmera nas configurações do dispositivo."
+      );
+      return;
+    }
+
+    const result =
+      source === "gallery"
+        ? await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ["images"],
+            allowsEditing: false,
+            quality: 0.85,
+          })
+        : await ImagePicker.launchCameraAsync({
+            allowsEditing: false,
+            quality: 0.85,
+          });
+
+    if (!result.canceled && result.assets[0]) {
+      setPendingPhotoUri(result.assets[0].uri);
+      setCropperVisible(true);
+    }
+  };
+
+  // Handler: Apply cropped photo (upload to Firebase Storage)
+  const handleApplyCrop = async (cropData: {
+    zoom: number;
+    offsetX: number;
+    offsetY: number;
+    imageUrl: string;
+  }) => {
+    if (!cropData.imageUrl) return;
+    setUploadingPhoto(true);
+    try {
+      const url = await uploadUserAvatarPhoto(user.uid, cropData.imageUrl);
+      setPhotoUri(url);
+      setCustomAvatarInput("");
+      setCropperVisible(false);
+      setPendingPhotoUri(null);
+      onRefreshUser();
+      Alert.alert("📸 Foto Atualizada!", "Sua foto de perfil foi salva com sucesso.");
+    } catch (err: any) {
+      console.error("Erro ao fazer upload da foto:", err);
+      Alert.alert("Erro", "Não foi possível salvar a foto. Verifique sua conexão e tente novamente.");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  // Handler: Remove photo (revert to emoji)
+  const handleRemovePhoto = () => {
+    Alert.alert(
+      "Remover Foto",
+      "Deseja remover sua foto de perfil e voltar ao avatar emoji?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Remover",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await updateUserProfileCustomization(user.uid, { avatar: selectedAvatar });
+              setPhotoUri(null);
+              onRefreshUser();
+            } catch {
+              Alert.alert("Erro", "Não foi possível remover a foto.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // Handler: Save Profile Customization
   const handleSaveProfile = async () => {
-    const finalAvatar = customAvatarInput.trim() || selectedAvatar;
     if (!nickname.trim()) {
       Alert.alert("Aviso", "Por favor, insira um apelido ou nome de guerra.");
       return;
@@ -264,6 +358,8 @@ export default function ProfileScreen({
 
     setSavingProfile(true);
     try {
+      // Se tiver foto, ela já foi salva no upload. Salva nickname/theme/bio + avatar.
+      const finalAvatar = photoUri ?? (customAvatarInput.trim() || selectedAvatar);
       await updateUserProfileCustomization(user.uid, {
         nickname: nickname.trim(),
         avatar: finalAvatar,
@@ -594,45 +690,110 @@ export default function ProfileScreen({
             maxLength={120}
           />
 
-          {/* Avatar Picker */}
-          <Text style={[styles.inputLabel, { marginTop: 16 }]}>Escolha seu Avatar</Text>
-          <View style={styles.avatarGrid}>
-            {AVATAR_PRESETS.map((emoji) => {
-              const isSelected = selectedAvatar === emoji && !customAvatarInput.trim();
-              return (
-                <TouchableOpacity
-                  key={emoji}
-                  style={[
-                    styles.avatarPresetItem,
-                    isSelected && [styles.avatarPresetSelected, { borderColor: selectedTheme }],
-                  ]}
-                  onPress={() => {
-                    setSelectedAvatar(emoji);
-                    setCustomAvatarInput("");
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Text style={{ fontSize: 24 }}>{emoji}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          {/* Photo Avatar Picker */}
+          <Text style={[styles.inputLabel, { marginTop: 0, marginBottom: 10 }]}>Foto de Perfil</Text>
 
-          {/* Custom Avatar Input */}
-          <View style={styles.customAvatarRow}>
-            <Text style={styles.customAvatarHint}>Ou digite outro emoji:</Text>
-            <TextInput
-              style={styles.customAvatarInput}
-              value={customAvatarInput}
-              onChangeText={(txt) => {
-                setCustomAvatarInput(txt);
-                if (txt.trim()) setSelectedAvatar(txt.trim());
-              }}
-              placeholder="Ex: 🐯"
-              placeholderTextColor="#64748b"
-              maxLength={4}
-            />
-          </View>
+          {/* Current photo preview */}
+          {photoUri ? (
+            <View style={styles.photoPreviewRow}>
+              <UserAvatar
+                avatar={photoUri}
+                name={user.nickname || user.name}
+                size={72}
+                borderColor={userThemeColor}
+                borderWidth={2.5}
+                backgroundColor="#1e293b"
+              />
+              <View style={styles.photoPreviewActions}>
+                <TouchableOpacity
+                  style={[styles.photoActionBtn, { borderColor: userThemeColor }]}
+                  onPress={() => handlePickPhoto("gallery")}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.photoActionIcon}>🖼️</Text>
+                  <Text style={[styles.photoActionText, { color: userThemeColor }]}>Trocar Foto</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.photoActionBtn, { borderColor: "#ef4444" }]}
+                  onPress={handleRemovePhoto}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.photoActionIcon}>🗑️</Text>
+                  <Text style={[styles.photoActionText, { color: "#ef4444" }]}>Remover Foto</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.photoPickerRow}>
+              <TouchableOpacity
+                style={[styles.photoPickBtn, { borderColor: `${userThemeColor}60` }]}
+                onPress={() => handlePickPhoto("gallery")}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.photoPickIcon}>🖼️</Text>
+                <Text style={styles.photoPickLabel}>Galeria</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.photoPickBtn, { borderColor: `${userThemeColor}60` }]}
+                onPress={() => handlePickPhoto("camera")}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.photoPickIcon}>📷</Text>
+                <Text style={styles.photoPickLabel}>Câmera</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Avatar Emoji Picker — shown when no photo */}
+          {!photoUri && (
+            <>
+              <View style={styles.avatarPhotoSeparator}>
+                <View style={styles.separatorLine} />
+                <Text style={styles.separatorText}>ou escolha um emoji</Text>
+                <View style={styles.separatorLine} />
+              </View>
+
+              {/* Avatar Picker */}
+              <Text style={[styles.inputLabel, { marginTop: 16 }]}>Escolha seu Avatar</Text>
+              <View style={styles.avatarGrid}>
+                {AVATAR_PRESETS.map((emoji) => {
+                  const isSelected = selectedAvatar === emoji && !customAvatarInput.trim();
+                  return (
+                    <TouchableOpacity
+                      key={emoji}
+                      style={[
+                        styles.avatarPresetItem,
+                        isSelected && [styles.avatarPresetSelected, { borderColor: selectedTheme }],
+                      ]}
+                      onPress={() => {
+                        setSelectedAvatar(emoji);
+                        setCustomAvatarInput("");
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={{ fontSize: 24 }}>{emoji}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Custom Avatar Input */}
+              <View style={styles.customAvatarRow}>
+                <Text style={styles.customAvatarHint}>Ou digite outro emoji:</Text>
+                <TextInput
+                  style={styles.customAvatarInput}
+                  value={customAvatarInput}
+                  onChangeText={(txt) => {
+                    setCustomAvatarInput(txt);
+                    if (txt.trim()) setSelectedAvatar(txt.trim());
+                  }}
+                  placeholder="Ex: 🐯"
+                  placeholderTextColor="#64748b"
+                  maxLength={4}
+                />
+              </View>
+            </>
+          )}
 
           {/* Theme Color Selector */}
           <Text style={[styles.inputLabel, { marginTop: 16 }]}>Cor de Destaque do Aplicativo</Text>
@@ -793,6 +954,27 @@ export default function ProfileScreen({
               <Text style={styles.saveButtonText}>Salvar Identidade</Text>
             )}
           </TouchableOpacity>
+
+          {/* AvatarCropper Modal */}
+          <AvatarCropper
+            isOpen={cropperVisible}
+            imageUrl={pendingPhotoUri || ""}
+            onApply={handleApplyCrop}
+            onCancel={() => {
+              setCropperVisible(false);
+              setPendingPhotoUri(null);
+            }}
+          />
+
+          {/* Upload overlay */}
+          {uploadingPhoto && (
+            <View style={styles.uploadOverlay}>
+              <ActivityIndicator size="large" color={userThemeColor} />
+              <Text style={[styles.uploadOverlayText, { color: userThemeColor }]}>
+                Enviando foto...
+              </Text>
+            </View>
+          )}
         </View>
       )}
 
@@ -2353,5 +2535,95 @@ const styles = StyleSheet.create({
     color: "#64748b",
     fontWeight: "500",
     marginTop: 1,
+  },
+  // Photo picker styles
+  photoPickerRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 10,
+  },
+  photoPickBtn: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 16,
+    borderRadius: 14,
+    backgroundColor: "rgba(30, 41, 59, 0.8)",
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+  },
+  photoPickIcon: {
+    fontSize: 28,
+  },
+  photoPickLabel: {
+    fontSize: 12,
+    color: "#94a3b8",
+    fontWeight: "700",
+  },
+  photoPreviewRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    marginBottom: 10,
+    backgroundColor: "rgba(30, 41, 59, 0.6)",
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.07)",
+  },
+  photoPreviewActions: {
+    flex: 1,
+    gap: 8,
+  },
+  photoActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: "rgba(30, 41, 59, 0.8)",
+    borderWidth: 1,
+  },
+  photoActionIcon: {
+    fontSize: 14,
+  },
+  photoActionText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  avatarPhotoSeparator: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginVertical: 10,
+  },
+  separatorLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  separatorText: {
+    fontSize: 11,
+    color: "#64748b",
+    fontWeight: "600",
+  },
+  uploadOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(2, 6, 23, 0.75)",
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    zIndex: 10,
+  },
+  uploadOverlayText: {
+    fontSize: 13,
+    fontWeight: "700",
   },
 });

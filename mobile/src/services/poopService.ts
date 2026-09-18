@@ -15,7 +15,8 @@ import {
   writeBatch,
   deleteDoc,
 } from "firebase/firestore";
-import { db } from "./firebase";
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
+import { db, app } from "./firebase";
 import { AppUser, PoopLog, WorkSchedule, BonusTimeRange, PoopLocation } from "../types";
 import { mintPoopcoinsForLog } from "./poopcoinService";
 import {
@@ -311,6 +312,31 @@ export async function updateUserProfileCustomization(
   if (data.bio !== undefined) updates.bio = data.bio.trim();
 
   await updateDoc(doc(db, "users", userId), updates);
+}
+
+/**
+ * Faz upload de uma foto local (URI) para o Firebase Storage
+ * no caminho avatars/{userId}.jpg e salva a URL pública no Firestore.
+ * Retorna a URL pública da imagem.
+ */
+export async function uploadUserAvatarPhoto(
+  userId: string,
+  localUri: string
+): Promise<string> {
+  // Converte o URI local para Blob
+  const response = await fetch(localUri);
+  const blob = await response.blob();
+
+  const storage = getStorage(app);
+  const avatarRef = storageRef(storage, `avatars/${userId}/avatar.jpg`);
+
+  await uploadBytes(avatarRef, blob, { contentType: "image/jpeg" });
+  const downloadUrl = await getDownloadURL(avatarRef);
+
+  // Persiste a URL no Firestore
+  await updateDoc(doc(db, "users", userId), { avatar: downloadUrl });
+
+  return downloadUrl;
 }
 
 export async function updateUserWorkSchedule(
