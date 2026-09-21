@@ -391,6 +391,9 @@ export async function fetchAppSettings(): Promise<AppSettings> {
         termsOfUseText: data.termsOfUseText,
         termsOfUseVersion: Number(data.termsOfUseVersion ?? 1),
         competitionAnnouncement: data.competitionAnnouncement,
+        // Previously missing — required for bonus time ranges and rule banner
+        bonusTimeRanges: Array.isArray(data.bonusTimeRanges) ? data.bonusTimeRanges : [],
+        poopcoinsPerLogUpdatedAt: data.poopcoinsPerLogUpdatedAt ?? null,
       };
     }
   } catch (err) {
@@ -404,6 +407,8 @@ export async function fetchAppSettings(): Promise<AppSettings> {
     cuiterPostCost: 5,
     edition: 1,
     termsOfUseVersion: 1,
+    bonusTimeRanges: [],
+    poopcoinsPerLogUpdatedAt: null,
   };
 }
 

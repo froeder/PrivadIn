@@ -280,10 +280,14 @@ export default function DashboardScreen({
           text: "Descartar",
           style: "destructive",
           onPress: async () => {
-            setIsActive(false);
-            setStartTime(null);
-            setSeconds(0);
-            await AsyncStorage.removeItem(ACTIVE_TIMER_STORAGE_KEY);
+            try {
+              setIsActive(false);
+              setStartTime(null);
+              setSeconds(0);
+              await AsyncStorage.removeItem(ACTIVE_TIMER_STORAGE_KEY);
+            } catch (err) {
+              console.warn("Erro ao cancelar timer:", err);
+            }
           },
         },
       ]
@@ -354,6 +358,9 @@ export default function DashboardScreen({
 
   const finalizeBreak = async (finalSeconds: number) => {
     setIsActive(false);
+    // Reset timer display immediately so UI doesn't show stale values
+    setStartTime(null);
+    setSeconds(0);
     setSaving(true);
     try {
       const earned = (finalSeconds / 3600) * hourlyRate;
@@ -394,8 +401,6 @@ export default function DashboardScreen({
       Alert.alert("Erro", "Não foi possível registrar o intervalo.");
     } finally {
       setSaving(false);
-      setStartTime(null);
-      setSeconds(0);
     }
   };
 
@@ -931,7 +936,10 @@ export default function DashboardScreen({
       {rewardModalData && (
         <PoopRewardModal
           visible={rewardModalData.visible}
-          onClose={() => setRewardModalData(null)}
+          onClose={() => {
+            setRewardModalData(null);
+            setShowConfetti(false);
+          }}
           points={rewardModalData.points}
           poopcoins={rewardModalData.poopcoins}
           durationSeconds={rewardModalData.durationSeconds}
@@ -941,7 +949,10 @@ export default function DashboardScreen({
         />
       )}
       </ScrollView>
-      <ConfettiEffect active={showConfetti} onEnd={() => setShowConfetti(false)} />
+      {/* ConfettiEffect only shown when modal is NOT open to avoid duplication */}
+      {showConfetti && !rewardModalData && (
+        <ConfettiEffect active={showConfetti} onEnd={() => setShowConfetti(false)} />
+      )}
     </View>
   );
 }
