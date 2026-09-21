@@ -11,6 +11,8 @@ import {
   Alert,
   Modal,
   Share,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { AppUser, RankingGroup } from "../types";
@@ -24,6 +26,7 @@ import {
   updateGroup,
   removeGroupMember,
   deleteGroup,
+  leaveGroup,
   GROUP_NAME_MAX_LENGTH,
   GROUP_DESCRIPTION_MAX_LENGTH,
   normalizeGroupName,
@@ -333,6 +336,40 @@ export default function GroupsScreen({ user, onRefreshUser }: GroupsScreenProps)
     );
   };
 
+  // Member: Leave group
+  const handleLeaveGroup = () => {
+    if (!selectedGroup) return;
+    if (selectedGroup.ownerId === user.uid) {
+      Alert.alert("Não permitido", "O criador da liga não pode sair. Para encerrá-la, utilize a opção de exclusão.");
+      return;
+    }
+
+    Alert.alert(
+      "Sair da Liga",
+      `Deseja realmente sair da liga "${selectedGroup.name}"?`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Sair",
+          style: "destructive",
+          onPress: async () => {
+            setActionLoading(true);
+            try {
+              await leaveGroup(user, selectedGroup);
+              Alert.alert("Sucesso", `Você saiu da liga "${selectedGroup.name}".`);
+              if (onRefreshUser) onRefreshUser();
+              await loadGroups();
+            } catch (err: any) {
+              Alert.alert("Erro ao sair", err.message || "Não foi possível sair da liga.");
+            } finally {
+              setActionLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const renderMedal = (index: number) => {
     if (index === 0) return "🥇";
     if (index === 1) return "🥈";
@@ -499,6 +536,18 @@ export default function GroupsScreen({ user, onRefreshUser }: GroupsScreenProps)
                     </TouchableOpacity>
                   </View>
                 </View>
+
+                {/* Member Leave League Button */}
+                {!isOwner && (
+                  <TouchableOpacity
+                    style={styles.leaveGroupBtn}
+                    onPress={handleLeaveGroup}
+                    disabled={actionLoading}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.leaveGroupBtnText}>🚪 Sair desta Liga</Text>
+                  </TouchableOpacity>
+                )}
 
                 {/* Admin Management Toggle */}
                 {isAdmin && (
@@ -725,7 +774,10 @@ export default function GroupsScreen({ user, onRefreshUser }: GroupsScreenProps)
         animationType="slide"
         onRequestClose={() => setCreateModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalOverlay}
+        >
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Criar Liga Privada</Text>
@@ -799,7 +851,7 @@ export default function GroupsScreen({ user, onRefreshUser }: GroupsScreenProps)
               </ScrollView>
             )}
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Modal: Join Group */}
@@ -809,7 +861,10 @@ export default function GroupsScreen({ user, onRefreshUser }: GroupsScreenProps)
         animationType="slide"
         onRequestClose={() => setJoinModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalOverlay}
+        >
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Entrar por Código</Text>
@@ -855,7 +910,7 @@ export default function GroupsScreen({ user, onRefreshUser }: GroupsScreenProps)
               )}
             </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* User Public Profile Modal */}
@@ -1170,6 +1225,18 @@ const styles = StyleSheet.create({
   },
   adminToggleText: {
     color: "#94a3b8",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  leaveGroupBtn: {
+    marginTop: 10,
+    paddingVertical: 8,
+    alignItems: "center",
+    borderTopWidth: 1,
+    borderTopColor: "#1e293b",
+  },
+  leaveGroupBtnText: {
+    color: "#f87171",
     fontSize: 12,
     fontWeight: "700",
   },

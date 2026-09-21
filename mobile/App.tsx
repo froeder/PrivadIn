@@ -87,7 +87,10 @@ function MainApp() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
+    <SafeAreaView
+      style={styles.safeArea}
+      edges={!firebaseUser || !appUser ? ["top", "left", "right"] : ["left", "right"]}
+    >
       <StatusBar style="light" />
 
       {!firebaseUser || !appUser ? (
