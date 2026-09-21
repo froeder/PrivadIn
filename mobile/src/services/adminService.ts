@@ -560,6 +560,15 @@ export function formatAuditLogMessage(
     case "delete_group":
       return `${adminName} excluiu um grupo da organização.`;
 
+    case "create_shop_item":
+      return (log as any).reason || `${adminName} cadastrou um novo item na Loja de Poopcoins.`;
+
+    case "update_shop_item":
+      return (log as any).reason || `${adminName} atualizou um item na Loja de Poopcoins.`;
+
+    case "delete_shop_item":
+      return (log as any).reason || `${adminName} removeu um item da Loja de Poopcoins.`;
+
     default:
       return `${adminName} executou uma ação administrativa (${log.action}).`;
   }

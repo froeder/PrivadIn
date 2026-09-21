@@ -168,7 +168,10 @@ export type AdminAuditAction =
   | "reverse_poopcoin_transaction"
   | "migrate_poopcoins"
   | "recalculate_poopcoin_supply"
-  | "delete_group";
+  | "delete_group"
+  | "create_shop_item"
+  | "update_shop_item"
+  | "delete_shop_item";
 
 export type RegistrationAttemptStatus =
   | "code_requested"
@@ -260,8 +263,15 @@ export interface ShopItem {
   category: ShopItemCategory;
   rarity: ShopItemRarity;
   price: number;
+  basePrice?: number;
+  initialStock?: number;
+  currentStock?: number;
+  priceMultiplier?: number;
   icon: string;
   perkEffect?: string;
+  active?: boolean;
+  createdAt?: any;
+  updatedAt?: any;
 }
 
 export type AppTheme = "light" | "dark" | "system";

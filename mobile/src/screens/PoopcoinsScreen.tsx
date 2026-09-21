@@ -27,6 +27,7 @@ import {
   listenPoopcoinTransactions,
   listenUserPoopcoinTransactions,
   SHOP_CATALOG,
+  listenShopItems,
   buyShopItem,
   equipUserItem,
 } from "../services/poopcoinService";
@@ -89,6 +90,7 @@ export default function PoopcoinsScreen({
   const [usersMap, setUsersMap] = useState<Map<string, AppUser>>(new Map());
   const [ledgerSubTab, setLedgerSubTab] = useState<"my" | "all">("my");
   const [shopCategory, setShopCategory] = useState<"all" | ShopItemCategory>("all");
+  const [shopItems, setShopItems] = useState<ShopItem[]>(SHOP_CATALOG);
   const [selectedShopItem, setSelectedShopItem] = useState<ShopItem | null>(null);
   const [purchasing, setPurchasing] = useState(false);
   const [equipping, setEquipping] = useState(false);
@@ -138,10 +140,15 @@ export default function PoopcoinsScreen({
       setUserTransactions(txs);
     }, 40);
 
+    const unsubShop = listenShopItems((items) => {
+      setShopItems(items);
+    });
+
     return () => {
       unsubHead();
       unsubAllTxs();
       unsubUserTxs();
+      unsubShop();
     };
   }, [user.uid]);
 
@@ -353,7 +360,8 @@ export default function PoopcoinsScreen({
     );
   };
 
-  const filteredShopItems = SHOP_CATALOG.filter((item) => {
+  const filteredShopItems = shopItems.filter((item) => {
+    if (item.active === false) return false;
     if (shopCategory === "all") return true;
     return item.category === shopCategory;
   });
@@ -630,6 +638,46 @@ export default function PoopcoinsScreen({
                         {item.description}
                       </Text>
 
+                      {/* Stock & Scarcity Badges */}
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginVertical: 4 }}>
+                        {(() => {
+                          const stock = item.currentStock ?? item.initialStock ?? 10;
+                          const initial = item.initialStock ?? 10;
+                          const isOutOfStock = stock <= 0;
+                          const base = item.basePrice ?? item.price;
+                          const hasSurge = item.price > base;
+                          const surgePct = hasSurge ? Math.round(((item.price - base) / base) * 100) : 0;
+
+                          return (
+                            <>
+                              <View
+                                style={[
+                                  styles.stockBadge,
+                                  isOutOfStock ? styles.stockBadgeOut : stock <= 3 ? styles.stockBadgeLow : styles.stockBadgeNormal,
+                                ]}
+                              >
+                                <Text
+                                  style={[
+                                    styles.stockBadgeText,
+                                    isOutOfStock ? styles.stockBadgeTextOut : stock <= 3 ? styles.stockBadgeTextLow : styles.stockBadgeTextNormal,
+                                  ]}
+                                >
+                                  {isOutOfStock ? "🚫 ESGOTADO" : `📦 ${stock}/${initial} restantes`}
+                                </Text>
+                              </View>
+
+                              {hasSurge && (
+                                <View style={styles.surgeBadge}>
+                                  <Text style={styles.surgeBadgeText}>
+                                    🔥 Alta Procura (+{surgePct}%)
+                                  </Text>
+                                </View>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </View>
+
                       {item.perkEffect && (
                         <View style={styles.perkEffectBox}>
                           <Text style={styles.perkEffectText}>
@@ -642,11 +690,25 @@ export default function PoopcoinsScreen({
 
                   {/* Price & Action Bottom Row */}
                   <View style={styles.shopItemBottom}>
-                    <View style={styles.shopPriceBox}>
-                      <Text style={styles.shopPriceText}>
-                        🪙 {formatPoopcoins(item.price)} PC
-                      </Text>
-                    </View>
+                    {(() => {
+                      const stock = item.currentStock ?? item.initialStock ?? 10;
+                      const isOutOfStock = stock <= 0;
+                      const base = item.basePrice ?? item.price;
+                      const hasSurge = item.price > base;
+
+                      return (
+                        <View style={styles.shopPriceBox}>
+                          <Text style={styles.shopPriceText}>
+                            🪙 {formatPoopcoins(item.price)} PC
+                          </Text>
+                          {hasSurge && (
+                            <Text style={styles.shopBasePriceSub}>
+                              Base: {formatPoopcoins(base)} PC
+                            </Text>
+                          )}
+                        </View>
+                      );
+                    })()}
 
                     {isOwned ? (
                       item.category === "perk" ? (
@@ -676,18 +738,22 @@ export default function PoopcoinsScreen({
                       <TouchableOpacity
                         style={[
                           styles.buyBtn,
-                          !canAfford && styles.buyBtnDisabled,
+                          ((item.currentStock ?? 10) <= 0 || !canAfford) && styles.buyBtnDisabled,
                         ]}
                         onPress={() => setSelectedShopItem(item)}
-                        disabled={!canAfford}
+                        disabled={(item.currentStock ?? 10) <= 0 || !canAfford}
                       >
                         <Text
                           style={[
                             styles.buyBtnText,
-                            !canAfford && styles.buyBtnTextDisabled,
+                            ((item.currentStock ?? 10) <= 0 || !canAfford) && styles.buyBtnTextDisabled,
                           ]}
                         >
-                          {canAfford ? "Comprar" : `Faltam ${item.price - balance} PC`}
+                          {(item.currentStock ?? 10) <= 0
+                            ? "Esgotado"
+                            : canAfford
+                            ? "Comprar"
+                            : `Faltam ${item.price - balance} PC`}
                         </Text>
                       </TouchableOpacity>
                     )}
@@ -830,9 +896,23 @@ export default function PoopcoinsScreen({
 
               <View style={styles.purchaseSummaryBox}>
                 <View style={styles.purchaseSummaryRow}>
-                  <Text style={styles.summaryRowLabel}>Preço do Item:</Text>
+                  <Text style={styles.summaryRowLabel}>Preço Dinâmico Atual:</Text>
                   <Text style={styles.summaryRowValue}>
                     {formatPoopcoins(selectedShopItem.price)} PC
+                  </Text>
+                </View>
+                {selectedShopItem.basePrice && selectedShopItem.price > selectedShopItem.basePrice && (
+                  <View style={styles.purchaseSummaryRow}>
+                    <Text style={styles.summaryRowLabel}>Preço Base Inicial:</Text>
+                    <Text style={[styles.summaryRowValue, { color: "#94a3b8", textDecorationLine: "line-through" }]}>
+                      {formatPoopcoins(selectedShopItem.basePrice)} PC
+                    </Text>
+                  </View>
+                )}
+                <View style={styles.purchaseSummaryRow}>
+                  <Text style={styles.summaryRowLabel}>Estoque Disponível:</Text>
+                  <Text style={[styles.summaryRowValue, { color: (selectedShopItem.currentStock ?? 10) <= 3 ? "#f59e0b" : "#38bdf8" }]}>
+                    {selectedShopItem.currentStock ?? selectedShopItem.initialStock ?? 10} unidades
                   </Text>
                 </View>
                 <View style={styles.purchaseSummaryRow}>
@@ -1569,5 +1649,57 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: "center",
     marginTop: 4,
+  },
+  // Stock & Scarcity Surge Badges
+  stockBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  stockBadgeNormal: {
+    backgroundColor: "rgba(56, 189, 248, 0.12)",
+    borderColor: "rgba(56, 189, 248, 0.3)",
+  },
+  stockBadgeLow: {
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    borderColor: "rgba(245, 158, 11, 0.4)",
+  },
+  stockBadgeOut: {
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
+    borderColor: "rgba(239, 68, 68, 0.4)",
+  },
+  stockBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  stockBadgeTextNormal: {
+    color: "#38bdf8",
+  },
+  stockBadgeTextLow: {
+    color: "#f59e0b",
+  },
+  stockBadgeTextOut: {
+    color: "#ef4444",
+  },
+  surgeBadge: {
+    backgroundColor: "rgba(234, 179, 8, 0.15)",
+    borderColor: "rgba(234, 179, 8, 0.4)",
+    borderWidth: 1,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  surgeBadgeText: {
+    color: "#eab308",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  shopBasePriceSub: {
+    color: "#64748b",
+    fontSize: 10,
+    fontWeight: "600",
+    textDecorationLine: "line-through",
+    marginTop: 2,
   },
 });

@@ -24,6 +24,9 @@ import {
   PoopcoinTransaction,
   PoopcoinSupplySummary,
   BonusTimeRange,
+  ShopItem,
+  ShopItemCategory,
+  ShopItemRarity,
 } from "../types";
 import {
   listenAllUsers,
@@ -54,6 +57,10 @@ import {
   recalculatePoopcoinSupply,
   migratePoopcoinsForLogs,
   formatPoopcoins,
+  listenShopItems,
+  saveShopItem,
+  deleteShopItem,
+  calculateCurrentItemPrice,
 } from "../services/poopcoinService";
 import { toRoman } from "../utils/roman";
 import UserAvatar from "../components/UserAvatar";
@@ -82,6 +89,7 @@ interface AdminScreenProps {
 
 type AdminSection =
   | "users"
+  | "shop"
   | "logs"
   | "economy"
   | "settings"
@@ -106,6 +114,25 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
   const [poopcoinSupply, setPoopcoinSupply] = useState<PoopcoinSupplySummary | null>(null);
   const [poopcoinTransactions, setPoopcoinTransactions] = useState<PoopcoinTransaction[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+
+  // Shop Items Management State
+  const [shopItems, setShopItems] = useState<ShopItem[]>([]);
+  const [shopSearchQuery, setShopSearchQuery] = useState("");
+  const [shopCategoryFilter, setShopCategoryFilter] = useState<"all" | ShopItemCategory>("all");
+  const [editingShopItem, setEditingShopItem] = useState<ShopItem | null>(null);
+  const [shopModalVisible, setShopModalVisible] = useState(false);
+  const [shopFormName, setShopFormName] = useState("");
+  const [shopFormDescription, setShopFormDescription] = useState("");
+  const [shopFormCategory, setShopFormCategory] = useState<ShopItemCategory>("title");
+  const [shopFormRarity, setShopFormRarity] = useState<ShopItemRarity>("comum");
+  const [shopFormIcon, setShopFormIcon] = useState("👑");
+  const [shopFormBasePrice, setShopFormBasePrice] = useState("20");
+  const [shopFormInitialStock, setShopFormInitialStock] = useState("10");
+  const [shopFormCurrentStock, setShopFormCurrentStock] = useState("10");
+  const [shopFormMultiplier, setShopFormMultiplier] = useState("1.15");
+  const [shopFormPerkEffect, setShopFormPerkEffect] = useState("");
+  const [shopFormActive, setShopFormActive] = useState(true);
+  const [savingShopItem, setSavingShopItem] = useState(false);
 
   // User Management State
   const [searchQuery, setSearchQuery] = useState("");
@@ -220,6 +247,10 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
       setPoopcoinTransactions(txs);
     });
 
+    const unsubShop = listenShopItems((items) => {
+      setShopItems(items);
+    });
+
     return () => {
       unsubUsers();
       unsubSettings();
@@ -229,6 +260,7 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
       unsubAttempts();
       unsubChain();
       unsubTxs();
+      unsubShop();
     };
   }, [isAdmin]);
 
@@ -279,6 +311,16 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
     if (attemptFilter === "all") return registrationAttempts;
     return registrationAttempts.filter((a) => a.status === attemptFilter);
   }, [registrationAttempts, attemptFilter]);
+
+  // Filtered Shop Items List
+  const filteredShopItems = useMemo(() => {
+    return shopItems.filter((item) => {
+      const matchesCategory = shopCategoryFilter === "all" || item.category === shopCategoryFilter;
+      const q = shopSearchQuery.trim().toLowerCase();
+      const matchesQuery = !q || item.name.toLowerCase().includes(q) || (item.description || "").toLowerCase().includes(q);
+      return matchesCategory && matchesQuery;
+    });
+  }, [shopItems, shopCategoryFilter, shopSearchQuery]);
 
   // Filtered Audit Logs
   const filteredAuditLogs = useMemo(() => {
@@ -725,6 +767,146 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
     }
   };
 
+  // Handlers for Shop Items
+  const handleOpenCreateShopItem = () => {
+    setEditingShopItem(null);
+    setShopFormName("");
+    setShopFormDescription("");
+    setShopFormCategory("title");
+    setShopFormRarity("comum");
+    setShopFormIcon("👑");
+    setShopFormBasePrice("20");
+    setShopFormInitialStock("10");
+    setShopFormCurrentStock("10");
+    setShopFormMultiplier("1.15");
+    setShopFormPerkEffect("");
+    setShopFormActive(true);
+    setShopModalVisible(true);
+  };
+
+  const handleOpenEditShopItem = (item: ShopItem) => {
+    setEditingShopItem(item);
+    setShopFormName(item.name);
+    setShopFormDescription(item.description || "");
+    setShopFormCategory(item.category);
+    setShopFormRarity(item.rarity);
+    setShopFormIcon(item.icon);
+    setShopFormBasePrice(String(item.basePrice ?? item.price ?? 20));
+    setShopFormInitialStock(String(item.initialStock ?? 10));
+    setShopFormCurrentStock(String(item.currentStock ?? item.initialStock ?? 10));
+    setShopFormMultiplier(String(item.priceMultiplier ?? 1.15));
+    setShopFormPerkEffect(item.perkEffect || "");
+    setShopFormActive(item.active !== false);
+    setShopModalVisible(true);
+  };
+
+  const handleSaveShopItem = async () => {
+    if (!shopFormName.trim()) {
+      Alert.alert("Validação", "Informe o nome do item.");
+      return;
+    }
+    const basePrice = parseInt(shopFormBasePrice, 10);
+    if (isNaN(basePrice) || basePrice < 1) {
+      Alert.alert("Validação", "O preço base deve ser pelo menos 1 PC.");
+      return;
+    }
+    const initialStock = parseInt(shopFormInitialStock, 10);
+    if (isNaN(initialStock) || initialStock < 1) {
+      Alert.alert("Validação", "O estoque inicial deve ser no mínimo 1.");
+      return;
+    }
+    const currentStock = parseInt(shopFormCurrentStock, 10);
+    if (isNaN(currentStock) || currentStock < 0) {
+      Alert.alert("Validação", "O estoque atual não pode ser negativo.");
+      return;
+    }
+    if (currentStock > initialStock) {
+      Alert.alert("Validação", "O estoque atual não pode ser maior que o estoque inicial.");
+      return;
+    }
+    const multiplier = parseFloat(shopFormMultiplier.replace(",", "."));
+    if (isNaN(multiplier) || multiplier < 1) {
+      Alert.alert("Validação", "O multiplicador deve ser no mínimo 1.0 (ex: 1.15 = +15% a cada compra quando o estoque diminui).");
+      return;
+    }
+
+    setSavingShopItem(true);
+    try {
+      await saveShopItem(user, {
+        id: editingShopItem?.id,
+        name: shopFormName.trim(),
+        description: shopFormDescription.trim(),
+        category: shopFormCategory,
+        rarity: shopFormRarity,
+        icon: shopFormIcon.trim() || "🎁",
+        basePrice,
+        initialStock,
+        currentStock,
+        priceMultiplier: multiplier,
+        perkEffect: shopFormPerkEffect.trim() || undefined,
+        active: shopFormActive,
+      });
+      setShopModalVisible(false);
+      Alert.alert(
+        "Sucesso",
+        editingShopItem
+          ? `Item "${shopFormName.trim()}" atualizado com sucesso!`
+          : `Item "${shopFormName.trim()}" criado com sucesso!`
+      );
+    } catch (err: any) {
+      Alert.alert("Erro", err.message || "Não foi possível salvar o item da loja.");
+    } finally {
+      setSavingShopItem(false);
+    }
+  };
+
+  const handleDeleteShopItem = (item: ShopItem) => {
+    Alert.alert(
+      "Excluir Item",
+      `Deseja realmente excluir "${item.name}" da loja?`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Excluir",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteShopItem(user, item.id);
+              Alert.alert("Item Excluído", `O item "${item.name}" foi removido da loja.`);
+            } catch (err: any) {
+              Alert.alert("Erro", err.message || "Falha ao excluir item.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleQuickRestock = (item: ShopItem) => {
+    const initial = item.initialStock ?? 10;
+    Alert.alert(
+      "Reabastecer Estoque",
+      `Restaurar o estoque de "${item.name}" para ${initial} unidades e resetar o preço dinâmico para o valor base (${item.basePrice ?? item.price} PC)?`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Reabastecer",
+          onPress: async () => {
+            try {
+              await saveShopItem(user, {
+                ...item,
+                currentStock: initial,
+              });
+              Alert.alert("Sucesso", `Estoque de "${item.name}" reabastecido para ${initial} unidades.`);
+            } catch (err: any) {
+              Alert.alert("Erro", err.message || "Falha ao reabastecer estoque.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // Se não for admin, bloqueia visualização
   if (!isAdmin) {
     return (
@@ -775,6 +957,17 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
             <Text style={styles.sectionTabIcon}>👥</Text>
             <Text style={[styles.sectionTabText, activeSection === "users" && styles.sectionTabTextActive]}>
               Usuários ({users.length})
+            </Text>
+          </TouchableOpacity>
+
+          {/* Loja de Poopcoins */}
+          <TouchableOpacity
+            style={[styles.sectionTab, activeSection === "shop" && styles.sectionTabActive]}
+            onPress={() => setActiveSection("shop")}
+          >
+            <Text style={styles.sectionTabIcon}>🛍️</Text>
+            <Text style={[styles.sectionTabText, activeSection === "shop" && styles.sectionTabTextActive]}>
+              Loja ({shopItems.length})
             </Text>
           </TouchableOpacity>
 
@@ -1127,6 +1320,226 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
                           onPress={() => setSelectedUserForProfile(item.uid)}
                         >
                           <Text style={styles.userActionBtnTextOutline}>Ver Perfil →</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                })
+              )}
+            </View>
+          )}
+
+          {/* ================= SECTION: GESTÃO DA LOJA (ESTOQUE & MULTIPLICADOR) ================= */}
+          {activeSection === "shop" && (
+            <View style={styles.sectionBody}>
+              <View style={styles.sectionHeaderCard}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 10 }}>
+                  <View style={{ flex: 1, minWidth: 200 }}>
+                    <Text style={styles.sectionHeaderEyebrow}>CATÁLOGO & ECONOMIA</Text>
+                    <Text style={styles.sectionHeaderTitle}>Gestão de Itens da Loja</Text>
+                    <Text style={styles.sectionHeaderDesc}>
+                      Cadastre e edite títulos, molduras e privilégios. Configure o estoque inicial/atual e o multiplicador de escassez (quando a quantidade vai diminuindo, o preço vai aumentando automaticamente).
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.adminCreateShopBtn}
+                    onPress={handleOpenCreateShopItem}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.adminCreateShopBtnText}>+ Novo Item</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* KPI Summary Cards */}
+              <View style={styles.shopKpiRow}>
+                <View style={styles.shopKpiCard}>
+                  <Text style={styles.shopKpiVal}>{shopItems.length}</Text>
+                  <Text style={styles.shopKpiLabel}>Itens Totais</Text>
+                </View>
+                <View style={styles.shopKpiCard}>
+                  <Text style={[styles.shopKpiVal, { color: "#4ade80" }]}>
+                    {shopItems.filter((i) => i.active !== false).length}
+                  </Text>
+                  <Text style={styles.shopKpiLabel}>Itens Ativos</Text>
+                </View>
+                <View style={styles.shopKpiCard}>
+                  <Text style={[styles.shopKpiVal, { color: "#eab308" }]}>
+                    {shopItems.filter((i) => (i.currentStock ?? 10) < (i.initialStock ?? 10) && (i.currentStock ?? 10) > 0).length}
+                  </Text>
+                  <Text style={styles.shopKpiLabel}>Alta Procura 🔥</Text>
+                </View>
+                <View style={styles.shopKpiCard}>
+                  <Text style={[styles.shopKpiVal, { color: "#ef4444" }]}>
+                    {shopItems.filter((i) => (i.currentStock ?? 10) <= 0).length}
+                  </Text>
+                  <Text style={styles.shopKpiLabel}>Esgotados</Text>
+                </View>
+              </View>
+
+              {/* Search & Category Filter */}
+              <View style={styles.searchBox}>
+                <Text style={styles.searchIcon}>🔍</Text>
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Buscar itens da loja por nome ou descrição..."
+                  placeholderTextColor="#64748b"
+                  value={shopSearchQuery}
+                  onChangeText={setShopSearchQuery}
+                />
+                {shopSearchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setShopSearchQuery("")}>
+                    <Text style={styles.clearSearchText}>✕</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* Category Chips */}
+              <View style={styles.filterChipsRow}>
+                <TouchableOpacity
+                  style={[styles.chip, shopCategoryFilter === "all" && styles.chipActive]}
+                  onPress={() => setShopCategoryFilter("all")}
+                >
+                  <Text style={[styles.chipText, shopCategoryFilter === "all" && styles.chipTextActive]}>
+                    Todos ({shopItems.length})
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.chip, shopCategoryFilter === "title" && styles.chipActive]}
+                  onPress={() => setShopCategoryFilter("title")}
+                >
+                  <Text style={[styles.chipText, shopCategoryFilter === "title" && styles.chipTextActive]}>
+                    👑 Títulos ({shopItems.filter((i) => i.category === "title").length})
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.chip, shopCategoryFilter === "badge" && styles.chipActive]}
+                  onPress={() => setShopCategoryFilter("badge")}
+                >
+                  <Text style={[styles.chipText, shopCategoryFilter === "badge" && styles.chipTextActive]}>
+                    🥇 Molduras ({shopItems.filter((i) => i.category === "badge").length})
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.chip, shopCategoryFilter === "perk" && styles.chipActive]}
+                  onPress={() => setShopCategoryFilter("perk")}
+                >
+                  <Text style={[styles.chipText, shopCategoryFilter === "perk" && styles.chipTextActive]}>
+                    ⚡ Perks ({shopItems.filter((i) => i.category === "perk").length})
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Items List */}
+              {filteredShopItems.length === 0 ? (
+                <View style={styles.emptyCard}>
+                  <Text style={styles.emptyIcon}>🛍️</Text>
+                  <Text style={styles.emptyTitle}>Nenhum item da loja encontrado</Text>
+                  <Text style={styles.emptyText}>
+                    Clique no botão "+ Novo Item" acima para cadastrar o primeiro item da loja.
+                  </Text>
+                </View>
+              ) : (
+                filteredShopItems.map((item) => {
+                  const basePrice = item.basePrice ?? item.price;
+                  const currentPrice = calculateCurrentItemPrice(item);
+                  const initialStock = item.initialStock ?? 10;
+                  const currentStock = item.currentStock ?? initialStock;
+                  const isOutOfStock = currentStock <= 0;
+                  const multiplier = item.priceMultiplier ?? 1.15;
+                  const hasSurge = currentPrice > basePrice;
+                  const surgePct = hasSurge ? Math.round(((currentPrice - basePrice) / basePrice) * 100) : 0;
+                  const stockPct = initialStock > 0 ? Math.max(0, Math.min(100, Math.round((currentStock / initialStock) * 100))) : 0;
+
+                  return (
+                    <View key={item.id} style={styles.adminShopCard}>
+                      <View style={styles.adminShopCardTop}>
+                        <View style={styles.adminShopIconBox}>
+                          <Text style={{ fontSize: 24 }}>{item.icon}</Text>
+                        </View>
+
+                        <View style={{ flex: 1, marginLeft: 12 }}>
+                          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
+                            <Text style={styles.adminShopItemName}>{item.name}</Text>
+                            <View style={{ flexDirection: "row", gap: 4 }}>
+                              <View style={styles.adminCategoryBadge}>
+                                <Text style={styles.adminCategoryBadgeText}>{item.category.toUpperCase()}</Text>
+                              </View>
+                              <View style={[styles.adminRarityBadge, { borderColor: item.rarity === "lendario" ? "#f59e0b" : item.rarity === "epico" ? "#a855f7" : item.rarity === "raro" ? "#38bdf8" : "#94a3b8" }]}>
+                                <Text style={[styles.adminRarityBadgeText, { color: item.rarity === "lendario" ? "#f59e0b" : item.rarity === "epico" ? "#a855f7" : item.rarity === "raro" ? "#38bdf8" : "#94a3b8" }]}>
+                                  {item.rarity.toUpperCase()}
+                                </Text>
+                              </View>
+                              {item.active === false && (
+                                <View style={styles.adminInactiveBadge}>
+                                  <Text style={styles.adminInactiveBadgeText}>PAUSADO</Text>
+                                </View>
+                              )}
+                            </View>
+                          </View>
+
+                          <Text style={styles.adminShopItemDesc}>{item.description}</Text>
+                          {item.perkEffect && (
+                            <Text style={styles.adminShopPerkText}>✨ {item.perkEffect}</Text>
+                          )}
+                        </View>
+                      </View>
+
+                      {/* Pricing & Stock Stats Row */}
+                      <View style={styles.adminShopMetricsGrid}>
+                        {/* Price box */}
+                        <View style={styles.adminShopMetricBox}>
+                          <Text style={styles.adminShopMetricLabel}>Preço Dinâmico</Text>
+                          <Text style={styles.adminShopPriceVal}>🪙 {formatPoopcoins(currentPrice)} PC</Text>
+                          <Text style={styles.adminShopBasePriceSub}>
+                            Base: {formatPoopcoins(basePrice)} PC
+                            {hasSurge ? ` • 🔥 +${surgePct}%` : ""}
+                          </Text>
+                        </View>
+
+                        {/* Stock box */}
+                        <View style={styles.adminShopMetricBox}>
+                          <Text style={styles.adminShopMetricLabel}>Estoque</Text>
+                          <Text style={[styles.adminShopStockVal, isOutOfStock ? { color: "#ef4444" } : currentStock <= 3 ? { color: "#f59e0b" } : { color: "#38bdf8" }]}>
+                            {isOutOfStock ? "ESGOTADO" : `${currentStock} / ${initialStock}`}
+                          </Text>
+                          {/* Progress bar */}
+                          <View style={styles.adminStockProgressBarTrack}>
+                            <View style={[styles.adminStockProgressBarFill, { width: `${stockPct}%`, backgroundColor: isOutOfStock ? "#ef4444" : currentStock <= 3 ? "#f59e0b" : "#38bdf8" }]} />
+                          </View>
+                        </View>
+
+                        {/* Multiplier box */}
+                        <View style={styles.adminShopMetricBox}>
+                          <Text style={styles.adminShopMetricLabel}>Multiplicador</Text>
+                          <Text style={styles.adminShopMultVal}>{multiplier.toFixed(2)}x</Text>
+                          <Text style={styles.adminShopMultSub}>
+                            +{Math.round((multiplier - 1) * 100)}% por venda
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Action buttons */}
+                      <View style={styles.adminShopActionsRow}>
+                        <TouchableOpacity
+                          style={styles.adminShopEditBtn}
+                          onPress={() => handleOpenEditShopItem(item)}
+                        >
+                          <Text style={styles.adminShopEditBtnText}>✏️ Editar</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={styles.adminShopRestockBtn}
+                          onPress={() => handleQuickRestock(item)}
+                        >
+                          <Text style={styles.adminShopRestockBtnText}>📦 Reabastecer</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={styles.adminShopDeleteBtn}
+                          onPress={() => handleDeleteShopItem(item)}
+                        >
+                          <Text style={styles.adminShopDeleteBtnText}>🗑️</Text>
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -2474,6 +2887,231 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
         </View>
       </Modal>
 
+      {/* ================= MODAL: CRIAR / EDITAR ITEM DA LOJA ================= */}
+      <Modal
+        visible={shopModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShopModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalOverlay}
+        >
+          <View style={[styles.modalContent, { maxHeight: "90%" }]}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.modalTitle}>
+                {editingShopItem ? "✏️ Editar Item da Loja" : "🛍️ Novo Item da Loja"}
+              </Text>
+              <Text style={styles.modalSubtitle}>
+                Defina o estoque e o multiplicador dinâmico de escassez (conforme o item for vendido, seu preço subirá automaticamente).
+              </Text>
+
+              {/* Nome */}
+              <Text style={styles.modalInputLabel}>Nome do Item *</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Ex: Coroa de Ouro, Escudo VIP..."
+                placeholderTextColor="#64748b"
+                value={shopFormName}
+                onChangeText={setShopFormName}
+                maxLength={50}
+              />
+
+              {/* Descrição */}
+              <Text style={styles.modalInputLabel}>Descrição do Item *</Text>
+              <TextInput
+                style={[styles.modalInput, { minHeight: 60, textAlignVertical: "top" }]}
+                placeholder="Descreva o propósito ou lore corporativo deste item..."
+                placeholderTextColor="#64748b"
+                value={shopFormDescription}
+                onChangeText={setShopFormDescription}
+                multiline
+                maxLength={200}
+              />
+
+              {/* Ícone Emoji */}
+              <Text style={styles.modalInputLabel}>Ícone / Emoji do Item *</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Ex: 👑, 💎, ☕, 🧻..."
+                placeholderTextColor="#64748b"
+                value={shopFormIcon}
+                onChangeText={setShopFormIcon}
+                maxLength={10}
+              />
+
+              {/* Categoria */}
+              <Text style={styles.modalInputLabel}>Categoria do Item *</Text>
+              <View style={styles.filterChipsRow}>
+                <TouchableOpacity
+                  style={[styles.chip, shopFormCategory === "title" && styles.chipActive]}
+                  onPress={() => setShopFormCategory("title")}
+                >
+                  <Text style={[styles.chipText, shopFormCategory === "title" && styles.chipTextActive]}>
+                    👑 Título
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.chip, shopFormCategory === "badge" && styles.chipActive]}
+                  onPress={() => setShopFormCategory("badge")}
+                >
+                  <Text style={[styles.chipText, shopFormCategory === "badge" && styles.chipTextActive]}>
+                    🥇 Moldura / Badge
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.chip, shopFormCategory === "perk" && styles.chipActive]}
+                  onPress={() => setShopFormCategory("perk")}
+                >
+                  <Text style={[styles.chipText, shopFormCategory === "perk" && styles.chipTextActive]}>
+                    ⚡ Perk Corporativo
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Raridade */}
+              <Text style={styles.modalInputLabel}>Raridade *</Text>
+              <View style={styles.filterChipsRow}>
+                {(["comum", "raro", "epico", "lendario"] as ShopItemRarity[]).map((rar) => (
+                  <TouchableOpacity
+                    key={rar}
+                    style={[styles.chip, shopFormRarity === rar && styles.chipActive]}
+                    onPress={() => setShopFormRarity(rar)}
+                  >
+                    <Text style={[styles.chipText, shopFormRarity === rar && styles.chipTextActive]}>
+                      {rar.toUpperCase()}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Preço Base */}
+              <Text style={styles.modalInputLabel}>Preço Base Inicial (Poopcoins) *</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Ex: 25"
+                placeholderTextColor="#64748b"
+                value={shopFormBasePrice}
+                onChangeText={setShopFormBasePrice}
+                keyboardType="numeric"
+              />
+
+              {/* Linha Estoque Inicial e Atual */}
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.modalInputLabel}>Estoque Total *</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="Ex: 10"
+                    placeholderTextColor="#64748b"
+                    value={shopFormInitialStock}
+                    onChangeText={setShopFormInitialStock}
+                    keyboardType="numeric"
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.modalInputLabel}>Estoque Disponível *</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="Ex: 10"
+                    placeholderTextColor="#64748b"
+                    value={shopFormCurrentStock}
+                    onChangeText={setShopFormCurrentStock}
+                    keyboardType="numeric"
+                  />
+                </View>
+              </View>
+
+              {/* Multiplicador de Escassez */}
+              <Text style={styles.modalInputLabel}>
+                Multiplicador de Escassez por Venda (ex: 1.15 = +15% a cada compra) *
+              </Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Ex: 1.15 (1.0 = preço fixo sem aumento)"
+                placeholderTextColor="#64748b"
+                value={shopFormMultiplier}
+                onChangeText={setShopFormMultiplier}
+                keyboardType="numeric"
+              />
+
+              {/* Efeito do Perk (se for perk) */}
+              {shopFormCategory === "perk" && (
+                <>
+                  <Text style={styles.modalInputLabel}>Efeito Descritivo do Perk</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="Ex: Imunidade de pressa no café da copa"
+                    placeholderTextColor="#64748b"
+                    value={shopFormPerkEffect}
+                    onChangeText={setShopFormPerkEffect}
+                    maxLength={100}
+                  />
+                </>
+              )}
+
+              {/* Switch Ativo */}
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginVertical: 12, paddingVertical: 8, borderTopWidth: 1, borderTopColor: "#1e293b" }}>
+                <View>
+                  <Text style={{ color: "#f8fafc", fontSize: 13, fontWeight: "700" }}>Item Ativo na Loja</Text>
+                  <Text style={{ color: "#64748b", fontSize: 11 }}>Se desativado, o item não aparecerá para compra</Text>
+                </View>
+                <Switch
+                  value={shopFormActive}
+                  onValueChange={setShopFormActive}
+                  trackColor={{ false: "#334155", true: "#eab308" }}
+                  thumbColor={shopFormActive ? "#020617" : "#94a3b8"}
+                />
+              </View>
+
+              {/* Simulação do Preço Dinâmico */}
+              {(() => {
+                const base = Math.max(1, parseInt(shopFormBasePrice, 10) || 1);
+                const initial = Math.max(1, parseInt(shopFormInitialStock, 10) || 10);
+                const mult = Math.max(1, parseFloat(shopFormMultiplier.replace(",", ".")) || 1);
+                const priceHalf = Math.round(base * (1 + (mult - 1) * Math.floor(initial / 2)));
+                const priceLast = Math.round(base * (1 + (mult - 1) * (initial - 1)));
+
+                return (
+                  <View style={styles.adminSimBox}>
+                    <Text style={styles.adminSimTitle}>📊 Simulação de Escassez em Tempo Real:</Text>
+                    <Text style={styles.adminSimLine}>• Estoque cheio ({initial} un.): <Text style={{ color: "#4ade80", fontWeight: "800" }}>{base} PC</Text></Text>
+                    <Text style={styles.adminSimLine}>• Metade vendido ({Math.ceil(initial / 2)} un.): <Text style={{ color: "#eab308", fontWeight: "800" }}>{priceHalf} PC</Text></Text>
+                    <Text style={styles.adminSimLine}>• Última unidade restante (1 un.): <Text style={{ color: "#ef4444", fontWeight: "800" }}>{priceLast} PC</Text></Text>
+                  </View>
+                );
+              })()}
+
+              {/* Modal Buttons */}
+              <View style={[styles.modalButtonsRow, { marginTop: 16 }]}>
+                <TouchableOpacity
+                  style={styles.modalCancelBtn}
+                  onPress={() => setShopModalVisible(false)}
+                  disabled={savingShopItem}
+                >
+                  <Text style={styles.modalCancelBtnText}>Cancelar</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.modalConfirmBtn, savingShopItem && styles.btnDisabled]}
+                  onPress={handleSaveShopItem}
+                  disabled={savingShopItem}
+                >
+                  {savingShopItem ? (
+                    <ActivityIndicator size="small" color="#020617" />
+                  ) : (
+                    <Text style={styles.modalConfirmBtnText}>
+                      {editingShopItem ? "Salvar Alterações" : "Criar Item"}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       {/* ================= MODAL: PERFIL PÚBLICO DO USUÁRIO ================= */}
       <UserProfileModal
         visible={!!selectedUserForProfile}
@@ -3711,7 +4349,24 @@ const styles = StyleSheet.create({
     color: "#f8fafc",
     fontSize: 15,
   },
+  modalInput: {
+    backgroundColor: "#0f172a",
+    borderWidth: 1,
+    borderColor: "#334155",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: "#f8fafc",
+    fontSize: 14,
+    marginBottom: 10,
+  },
   modalActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 10,
+    marginTop: 8,
+  },
+  modalButtonsRow: {
     flexDirection: "row",
     justifyContent: "flex-end",
     gap: 10,
@@ -3828,5 +4483,242 @@ const styles = StyleSheet.create({
     backgroundColor: "#0f172a",
     padding: 12,
     borderRadius: 10,
+  },
+
+  // Admin Shop Management
+  adminCreateShopBtn: {
+    backgroundColor: "#eab308",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    alignSelf: "flex-start",
+  },
+  adminCreateShopBtnText: {
+    color: "#020617",
+    fontWeight: "900",
+    fontSize: 13,
+  },
+  shopKpiRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 12,
+  },
+  shopKpiCard: {
+    flex: 1,
+    backgroundColor: "#0f172a",
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    alignItems: "center",
+  },
+  shopKpiVal: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#f8fafc",
+  },
+  shopKpiLabel: {
+    fontSize: 9,
+    color: "#94a3b8",
+    fontWeight: "700",
+    marginTop: 2,
+    textAlign: "center",
+  },
+  adminShopCard: {
+    backgroundColor: "#0f172a",
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 10,
+  },
+  adminShopCardTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  adminShopIconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: "rgba(234, 179, 8, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(234, 179, 8, 0.3)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  adminShopItemName: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#f8fafc",
+  },
+  adminCategoryBadge: {
+    backgroundColor: "#1e293b",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  adminCategoryBadgeText: {
+    color: "#94a3b8",
+    fontSize: 9,
+    fontWeight: "800",
+  },
+  adminRarityBadge: {
+    borderWidth: 1,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  adminRarityBadgeText: {
+    fontSize: 9,
+    fontWeight: "800",
+  },
+  adminInactiveBadge: {
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
+    borderWidth: 1,
+    borderColor: "#ef4444",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  adminInactiveBadgeText: {
+    color: "#ef4444",
+    fontSize: 9,
+    fontWeight: "800",
+  },
+  adminShopItemDesc: {
+    fontSize: 12,
+    color: "#94a3b8",
+    marginTop: 4,
+    lineHeight: 16,
+  },
+  adminShopPerkText: {
+    fontSize: 11,
+    color: "#eab308",
+    fontWeight: "700",
+    marginTop: 4,
+  },
+  adminShopMetricsGrid: {
+    flexDirection: "row",
+    gap: 8,
+    backgroundColor: "#020617",
+    borderRadius: 12,
+    padding: 10,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+  },
+  adminShopMetricBox: {
+    flex: 1,
+    alignItems: "center",
+  },
+  adminShopMetricLabel: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#64748b",
+    textTransform: "uppercase",
+  },
+  adminShopPriceVal: {
+    fontSize: 13,
+    fontWeight: "900",
+    color: "#eab308",
+    marginTop: 2,
+  },
+  adminShopBasePriceSub: {
+    fontSize: 9,
+    color: "#64748b",
+    marginTop: 1,
+  },
+  adminShopStockVal: {
+    fontSize: 12,
+    fontWeight: "900",
+    marginTop: 2,
+  },
+  adminStockProgressBarTrack: {
+    width: "100%",
+    height: 4,
+    backgroundColor: "#1e293b",
+    borderRadius: 2,
+    marginTop: 4,
+    overflow: "hidden",
+  },
+  adminStockProgressBarFill: {
+    height: "100%",
+    borderRadius: 2,
+  },
+  adminShopMultVal: {
+    fontSize: 13,
+    fontWeight: "900",
+    color: "#f59e0b",
+    marginTop: 2,
+  },
+  adminShopMultSub: {
+    fontSize: 9,
+    color: "#94a3b8",
+    marginTop: 1,
+  },
+  adminShopActionsRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 10,
+  },
+  adminShopEditBtn: {
+    flex: 2,
+    backgroundColor: "#1e293b",
+    borderWidth: 1,
+    borderColor: "#334155",
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  adminShopEditBtnText: {
+    color: "#f8fafc",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  adminShopRestockBtn: {
+    flex: 3,
+    backgroundColor: "rgba(56, 189, 248, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.3)",
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  adminShopRestockBtnText: {
+    color: "#38bdf8",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  adminShopDeleteBtn: {
+    width: 36,
+    backgroundColor: "rgba(239, 68, 68, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.3)",
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  adminShopDeleteBtnText: {
+    fontSize: 13,
+  },
+  adminSimBox: {
+    backgroundColor: "rgba(234, 179, 8, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(234, 179, 8, 0.25)",
+    borderRadius: 12,
+    padding: 10,
+    marginTop: 10,
+  },
+  adminSimTitle: {
+    color: "#eab308",
+    fontSize: 11,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  adminSimLine: {
+    color: "#cbd5e1",
+    fontSize: 11,
+    lineHeight: 18,
   },
 });

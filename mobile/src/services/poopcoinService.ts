@@ -13,6 +13,11 @@ import {
   increment,
   updateDoc,
   Unsubscribe,
+  setDoc,
+  deleteDoc,
+  addDoc,
+  writeBatch,
+  serverTimestamp,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import {
@@ -25,12 +30,13 @@ import {
   ShopItem,
 } from "../types";
 import { canonicalJson, randomNonce, sha256Hex } from "./cryptoUtils";
-import { createAuditLogRecord } from "./adminService";
+import { createAuditLogRecord, adminLogsRef } from "./adminService";
 
 export const poopcoinTransactionsRef = collection(db, "poopcoin_transactions");
 export const poopcoinChainHeadRef = doc(db, "poopcoin_chain", "head");
 export const usersRef = collection(db, "users");
 export const appSettingsRef = doc(db, "app_settings", "global");
+export const shopItemsRef = collection(db, "shop_items");
 
 export const POOPCOIN_TOTAL_SUPPLY = 1_000_000;
 export const MAX_TRANSFER_AMOUNT = 100_000;
@@ -392,8 +398,33 @@ export async function spendPoopcoins(
 }
 
 // ---------------------------------------------------------------------------
-// LOJA PRIVADIN (SHOP & RECOMPENSAS)
+// LOJA PRIVADIN (SHOP & RECOMPENSAS COM ESTOQUE E PREÇO DINÂMICO)
 // ---------------------------------------------------------------------------
+
+/**
+ * Calcula o preço atual do item baseado no estoque restante e no multiplicador de escassez.
+ * Conforme a quantidade vai diminuindo, o preço vai aumentando proporcionalmente.
+ */
+export function calculateCurrentItemPrice(item: Partial<ShopItem>): number {
+  const base = Math.max(1, Math.round(Number(item.basePrice ?? item.price ?? 1)));
+  const initial = Math.max(1, Math.round(Number(item.initialStock ?? 10)));
+  const current = Math.max(0, Math.round(Number(item.currentStock ?? initial)));
+  const multiplier =
+    typeof item.priceMultiplier === "number" && item.priceMultiplier >= 1
+      ? item.priceMultiplier
+      : 1;
+
+  if (multiplier <= 1 || current >= initial) {
+    return base;
+  }
+
+  // Quantidade de unidades já vendidas
+  const sold = Math.max(0, initial - current);
+  // Cada unidade vendida acrescenta (multiplier - 1) ao fator de escassez
+  const increaseFactor = 1 + (multiplier - 1) * sold;
+  const dynamicPrice = Math.round(base * increaseFactor);
+  return Math.max(base, dynamicPrice);
+}
 
 export const SHOP_CATALOG: ShopItem[] = [
   // TÍTULOS
@@ -404,7 +435,12 @@ export const SHOP_CATALOG: ShopItem[] = [
     category: "title",
     rarity: "raro",
     price: 25,
+    basePrice: 25,
+    initialStock: 15,
+    currentStock: 15,
+    priceMultiplier: 1.15,
     icon: "👑",
+    active: true,
   },
   {
     id: "title_lightning_pooper",
@@ -413,7 +449,12 @@ export const SHOP_CATALOG: ShopItem[] = [
     category: "title",
     rarity: "comum",
     price: 15,
+    basePrice: 15,
+    initialStock: 25,
+    currentStock: 25,
+    priceMultiplier: 1.1,
     icon: "⚡",
+    active: true,
   },
   {
     id: "title_coffee_flush",
@@ -422,7 +463,12 @@ export const SHOP_CATALOG: ShopItem[] = [
     category: "title",
     rarity: "comum",
     price: 10,
+    basePrice: 10,
+    initialStock: 30,
+    currentStock: 30,
+    priceMultiplier: 1.1,
     icon: "☕",
+    active: true,
   },
   {
     id: "title_triple_ply",
@@ -431,7 +477,12 @@ export const SHOP_CATALOG: ShopItem[] = [
     category: "title",
     rarity: "raro",
     price: 35,
+    basePrice: 35,
+    initialStock: 12,
+    currentStock: 12,
+    priceMultiplier: 1.2,
     icon: "🧻",
+    active: true,
   },
   {
     id: "title_paid_rest",
@@ -440,7 +491,12 @@ export const SHOP_CATALOG: ShopItem[] = [
     category: "title",
     rarity: "epico",
     price: 50,
+    basePrice: 50,
+    initialStock: 8,
+    currentStock: 8,
+    priceMultiplier: 1.25,
     icon: "🛋️",
+    active: true,
   },
   {
     id: "title_emperor",
@@ -449,7 +505,12 @@ export const SHOP_CATALOG: ShopItem[] = [
     category: "title",
     rarity: "lendario",
     price: 100,
+    basePrice: 100,
+    initialStock: 3,
+    currentStock: 3,
+    priceMultiplier: 1.5,
     icon: "💩",
+    active: true,
   },
 
   // BADGES / MOLDURAS
@@ -460,7 +521,12 @@ export const SHOP_CATALOG: ShopItem[] = [
     category: "badge",
     rarity: "epico",
     price: 60,
+    basePrice: 60,
+    initialStock: 10,
+    currentStock: 10,
+    priceMultiplier: 1.25,
     icon: "🥇",
+    active: true,
   },
   {
     id: "badge_flame_pro",
@@ -469,7 +535,12 @@ export const SHOP_CATALOG: ShopItem[] = [
     category: "badge",
     rarity: "raro",
     price: 35,
+    basePrice: 35,
+    initialStock: 15,
+    currentStock: 15,
+    priceMultiplier: 1.15,
     icon: "🔥",
+    active: true,
   },
   {
     id: "badge_diamond_toilet",
@@ -478,7 +549,12 @@ export const SHOP_CATALOG: ShopItem[] = [
     category: "badge",
     rarity: "lendario",
     price: 120,
+    basePrice: 120,
+    initialStock: 2,
+    currentStock: 2,
+    priceMultiplier: 1.6,
     icon: "💎",
+    active: true,
   },
   {
     id: "badge_stealth_ninja",
@@ -487,7 +563,12 @@ export const SHOP_CATALOG: ShopItem[] = [
     category: "badge",
     rarity: "raro",
     price: 40,
+    basePrice: 40,
+    initialStock: 12,
+    currentStock: 12,
+    priceMultiplier: 1.2,
     icon: "🥷",
+    active: true,
   },
 
   // PRIVILÉGIOS CORPORATIVOS FICTÍCIOS
@@ -498,8 +579,13 @@ export const SHOP_CATALOG: ShopItem[] = [
     category: "perk",
     rarity: "comum",
     price: 10,
+    basePrice: 10,
+    initialStock: 50,
+    currentStock: 50,
+    priceMultiplier: 1.05,
     icon: "☕",
     perkEffect: "Imunidade de pressa no café da copa",
+    active: true,
   },
   {
     id: "perk_meeting_immunity",
@@ -508,8 +594,13 @@ export const SHOP_CATALOG: ShopItem[] = [
     category: "perk",
     rarity: "epico",
     price: 75,
+    basePrice: 75,
+    initialStock: 5,
+    currentStock: 5,
+    priceMultiplier: 1.35,
     icon: "🔇",
     perkEffect: "Álibi corporativo supremo",
+    active: true,
   },
   {
     id: "perk_radio_dj",
@@ -518,8 +609,13 @@ export const SHOP_CATALOG: ShopItem[] = [
     category: "perk",
     rarity: "raro",
     price: 45,
+    basePrice: 45,
+    initialStock: 10,
+    currentStock: 10,
+    priceMultiplier: 1.2,
     icon: "🎵",
     perkEffect: "Voto de minerva na caixa de som",
+    active: true,
   },
   {
     id: "perk_friday_license",
@@ -528,34 +624,196 @@ export const SHOP_CATALOG: ShopItem[] = [
     category: "perk",
     rarity: "lendario",
     price: 150,
+    basePrice: 150,
+    initialStock: 3,
+    currentStock: 3,
+    priceMultiplier: 1.5,
     icon: "🍻",
     perkEffect: "Vibe sextou ativada",
+    active: true,
   },
 ];
+
+/**
+ * Escuta os itens da loja em tempo real no Firestore.
+ * Se a coleção estiver vazia, popula automaticamente com o catálogo padrão.
+ */
+export function listenShopItems(callback: (items: ShopItem[]) => void): () => void {
+  const q = query(shopItemsRef);
+  return onSnapshot(
+    q,
+    async (snapshot) => {
+      if (snapshot.empty) {
+        try {
+          const batch = writeBatch(db);
+          SHOP_CATALOG.forEach((it) => {
+            const ref = doc(db, "shop_items", it.id);
+            const initial = it.initialStock ?? (it.rarity === "lendario" ? 3 : it.rarity === "epico" ? 8 : 15);
+            const base = it.basePrice ?? it.price ?? 10;
+            const mult = it.priceMultiplier ?? 1.15;
+            batch.set(ref, {
+              ...it,
+              basePrice: base,
+              initialStock: initial,
+              currentStock: initial,
+              priceMultiplier: mult,
+              active: true,
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            });
+          });
+          await batch.commit();
+        } catch (err) {
+          console.warn("Não foi possível inicializar itens da loja no Firestore:", err);
+        }
+
+        callback(
+          SHOP_CATALOG.map((it) => {
+            const dynamicPrice = calculateCurrentItemPrice(it);
+            return {
+              ...it,
+              price: dynamicPrice,
+            };
+          })
+        );
+        return;
+      }
+
+      const items: ShopItem[] = [];
+      snapshot.forEach((snap) => {
+        const data = snap.data();
+        const raw = { ...data, id: snap.id } as ShopItem;
+        const dynamicPrice = calculateCurrentItemPrice(raw);
+        items.push({
+          ...raw,
+          price: dynamicPrice,
+        });
+      });
+
+      // Ordenar por categoria e depois por preço crescente
+      items.sort((a, b) => {
+        if (a.category !== b.category) return a.category.localeCompare(b.category);
+        return (a.price || 0) - (b.price || 0);
+      });
+
+      callback(items);
+    },
+    (err) => {
+      console.warn("Erro ao escutar shop_items:", err);
+      callback(
+        SHOP_CATALOG.map((it) => ({
+          ...it,
+          price: calculateCurrentItemPrice(it),
+        }))
+      );
+    }
+  );
+}
+
+/**
+ * Cria ou atualiza um item da loja (acesso restrito a administradores).
+ */
+export async function saveShopItem(
+  admin: AppUser,
+  itemData: Partial<ShopItem> & { id?: string }
+): Promise<string> {
+  if (admin.role !== "admin") {
+    throw new Error("Apenas administradores podem gerenciar itens da loja.");
+  }
+
+  const basePrice = Math.max(1, Math.round(Number(itemData.basePrice || itemData.price || 10)));
+  const initialStock = Math.max(1, Math.round(Number(itemData.initialStock ?? 10)));
+  const currentStock = Math.max(0, Math.min(initialStock, Math.round(Number(itemData.currentStock ?? initialStock))));
+  const priceMultiplier = Math.max(1, Number(itemData.priceMultiplier ?? 1.15));
+
+  const itemId =
+    itemData.id?.trim() ||
+    `item_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+  const itemRef = doc(db, "shop_items", itemId);
+  const snap = await getDoc(itemRef);
+
+  const payload: any = {
+    name: itemData.name?.trim() || "Item da Loja",
+    description: itemData.description?.trim() || "",
+    category: itemData.category || "title",
+    rarity: itemData.rarity || "comum",
+    icon: itemData.icon?.trim() || "🎁",
+    basePrice,
+    initialStock,
+    currentStock,
+    priceMultiplier,
+    active: itemData.active !== false,
+    updatedAt: serverTimestamp(),
+  };
+
+  if (itemData.perkEffect?.trim()) {
+    payload.perkEffect = itemData.perkEffect.trim();
+  } else {
+    payload.perkEffect = null;
+  }
+
+  if (snap.exists()) {
+    await updateDoc(itemRef, payload);
+    await addDoc(adminLogsRef, {
+      action: "update_shop_item",
+      adminId: admin.uid,
+      adminName: admin.name || "Admin",
+      createdAt: serverTimestamp(),
+      reason: `${admin.name || "Admin"} editou "${payload.name}" (Estoque: ${currentStock}/${initialStock}, Mult: ${priceMultiplier.toFixed(2)}x)`,
+    });
+  } else {
+    payload.id = itemId;
+    payload.createdAt = serverTimestamp();
+    await setDoc(itemRef, payload);
+    await addDoc(adminLogsRef, {
+      action: "create_shop_item",
+      adminId: admin.uid,
+      adminName: admin.name || "Admin",
+      createdAt: serverTimestamp(),
+      reason: `${admin.name || "Admin"} criou "${payload.name}" (Preço Base: ${basePrice} PC, Estoque: ${initialStock}, Mult: ${priceMultiplier.toFixed(2)}x)`,
+    });
+  }
+
+  return itemId;
+}
+
+/**
+ * Exclui um item da loja (acesso restrito a administradores).
+ */
+export async function deleteShopItem(admin: AppUser, itemId: string): Promise<void> {
+  if (admin.role !== "admin") {
+    throw new Error("Apenas administradores podem excluir itens da loja.");
+  }
+  const itemRef = doc(db, "shop_items", itemId);
+  const snap = await getDoc(itemRef);
+  const name = snap.data()?.name || itemId;
+  await deleteDoc(itemRef);
+
+  await addDoc(adminLogsRef, {
+    action: "delete_shop_item",
+    adminId: admin.uid,
+    adminName: admin.name || "Admin",
+    createdAt: serverTimestamp(),
+    reason: `${admin.name || "Admin"} excluiu o item "${name}" da loja`,
+  });
+}
 
 export async function buyShopItem(
   user: AppUser,
   item: ShopItem
-): Promise<{ hash: string }> {
-  const currentBalance = Number(user.poopcoinBalance ?? 0);
-  if (currentBalance < item.price) {
-    throw new Error(
-      `Saldo insuficiente. Você tem ${formatPoopcoins(currentBalance)} PC e o item custa ${formatPoopcoins(item.price)} PC.`
-    );
-  }
-
-  const alreadyOwned = user.unlockedItems?.includes(item.id);
-  if (alreadyOwned) {
-    throw new Error("Você já possui este item em seu inventário!");
-  }
-
+): Promise<{ hash: string; pricePaid: number }> {
   let resultingHash = "";
+  let finalPricePaid = item.price;
 
   await runTransaction(db, async (transaction) => {
     const userRef = doc(db, "users", user.uid);
-    const [userSnap, headSnap] = await Promise.all([
+    const itemRef = doc(db, "shop_items", item.id);
+
+    const [userSnap, headSnap, itemSnap] = await Promise.all([
       transaction.get(userRef),
       transaction.get(poopcoinChainHeadRef),
+      transaction.get(itemRef),
     ]);
 
     const userData = userSnap.data() as AppUser | undefined;
@@ -563,11 +821,41 @@ export async function buyShopItem(
       throw new Error("Usuário inativo ou não encontrado.");
     }
 
+    // Identifica dados dinâmicos do item se existir no banco
+    let effectiveItem: ShopItem = item;
+    if (itemSnap.exists()) {
+      const itemData = itemSnap.data() as ShopItem;
+      if (itemData.active === false) {
+        throw new Error("Este item não está mais disponível na loja.");
+      }
+      const availableStock = itemData.currentStock ?? itemData.initialStock ?? 10;
+      if (availableStock <= 0) {
+        throw new Error("Este item está ESGOTADO!");
+      }
+      effectiveItem = {
+        ...itemData,
+        id: itemSnap.id,
+      };
+    } else {
+      if ((effectiveItem.currentStock ?? 10) <= 0) {
+        throw new Error("Este item está ESGOTADO!");
+      }
+    }
+
+    // Calcula o preço dinâmico em tempo real
+    const livePrice = calculateCurrentItemPrice(effectiveItem);
+    finalPricePaid = livePrice;
+
     const liveBalance = Number(userData.poopcoinBalance ?? 0);
-    if (liveBalance < item.price) {
+    if (liveBalance < livePrice) {
       throw new Error(
-        `Saldo insuficiente. Seu saldo atual é de ${formatPoopcoins(liveBalance)} PC.`
+        `Saldo insuficiente. O item custa ${formatPoopcoins(livePrice)} PC e seu saldo é de ${formatPoopcoins(liveBalance)} PC.`
       );
+    }
+
+    const alreadyOwned = userData.unlockedItems?.includes(item.id);
+    if (alreadyOwned) {
+      throw new Error("Você já possui este item em seu inventário!");
     }
 
     const previousHash = String(headSnap.data()?.lastHash ?? GENESIS_HASH);
@@ -576,11 +864,11 @@ export async function buyShopItem(
     const createdAt = Timestamp.now();
     const nonce = randomNonce();
     const entries: PoopcoinTransactionEntry[] = [
-      { userId: user.uid, delta: -item.price },
+      { userId: user.uid, delta: -livePrice },
     ];
     const affectedUserIds = [user.uid];
     const role = (userData.role === "admin" ? "admin" : "player") as "player" | "admin";
-    const reason = `Loja: ${item.name}`;
+    const reason = `Loja: ${effectiveItem.name}`;
 
     const unsignedPayload = {
       previousHash,
@@ -591,7 +879,7 @@ export async function buyShopItem(
       affectedUserIds,
       fromUserId: user.uid,
       toUserId: null,
-      amount: item.price,
+      amount: livePrice,
       createdBy: user.uid,
       createdByRole: role,
       status: "active",
@@ -615,7 +903,7 @@ export async function buyShopItem(
       affectedUserIds,
       fromUserId: user.uid,
       toUserId: null,
-      amount: item.price,
+      amount: livePrice,
       createdBy: user.uid,
       createdByRole: role,
       status: "active",
@@ -627,10 +915,19 @@ export async function buyShopItem(
       nonce,
     };
 
-    // 1. Write transaction block
+    // 1. Grava bloco da transação
     transaction.set(doc(db, "poopcoin_transactions", hash), transactionData);
 
-    // 2. Update head (burnedSupply up, circulatingSupply down)
+    // 2. Diminui estoque do item
+    if (itemSnap.exists()) {
+      const stock = effectiveItem.currentStock ?? effectiveItem.initialStock ?? 10;
+      transaction.update(itemRef, {
+        currentStock: Math.max(0, stock - 1),
+        updatedAt: createdAt,
+      });
+    }
+
+    // 3. Atualiza head (queima e circulação de moedas)
     const currentBurned = Number(headSnap.data()?.burnedSupply ?? 0);
     const currentCirculating = Number(headSnap.data()?.circulatingSupply ?? 0);
     transaction.set(
@@ -639,31 +936,31 @@ export async function buyShopItem(
         lastHash: hash,
         lastSequence: sequence,
         updatedAt: createdAt,
-        burnedSupply: currentBurned + item.price,
-        circulatingSupply: Math.max(0, currentCirculating - item.price),
+        burnedSupply: currentBurned + livePrice,
+        circulatingSupply: Math.max(0, currentCirculating - livePrice),
       },
       { merge: true }
     );
 
-    // 3. Update user document
+    // 4. Atualiza usuário (desconta saldo e adiciona aos itens desbloqueados)
     const updatedUnlocked = Array.from(
       new Set([...(userData.unlockedItems || []), item.id])
     );
     const userUpdates: any = {
-      poopcoinBalance: increment(-item.price),
+      poopcoinBalance: increment(-livePrice),
       unlockedItems: updatedUnlocked,
     };
-    if (item.category === "title" && !userData.equippedTitle) {
-      userUpdates.equippedTitle = item.name;
+    if (effectiveItem.category === "title" && !userData.equippedTitle) {
+      userUpdates.equippedTitle = effectiveItem.name;
     }
-    if (item.category === "badge" && !userData.equippedBadge) {
-      userUpdates.equippedBadge = item.icon;
+    if (effectiveItem.category === "badge" && !userData.equippedBadge) {
+      userUpdates.equippedBadge = effectiveItem.icon;
     }
 
     transaction.update(userRef, userUpdates);
   });
 
-  return { hash: resultingHash };
+  return { hash: resultingHash, pricePaid: finalPricePaid };
 }
 
 export async function equipUserItem(
