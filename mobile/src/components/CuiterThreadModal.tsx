@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   StyleSheet,
   View,
@@ -136,7 +136,8 @@ export default function CuiterThreadModal({
   });
   const userReaction = reactions[currentUser.uid];
 
-  const renderHeader = () => (
+  const renderHeader = useCallback(() => {
+    return (
     <View style={styles.headerPostContainer}>
       {/* Post Original Card */}
       <View style={styles.originalPostCard}>
@@ -254,9 +255,10 @@ export default function CuiterThreadModal({
         </View>
       </View>
     </View>
-  );
+    );
+  }, [post, likeCount, poopCount, laughCount, userReaction, comments.length, onOpenAuthorProfile, onToggleReaction]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const renderCommentItem = ({ item }: { item: CuiterComment }) => {
+  const renderCommentItem = useCallback(({ item }: { item: CuiterComment }) => {
     const isCommentOwner = item.userId === currentUser.uid;
     const canDelete = isCommentOwner || currentUser.role === "admin";
     const isReplyingToThis = replyingTo?.commentId === item.id;
@@ -345,7 +347,7 @@ export default function CuiterThreadModal({
         </View>
       </View>
     );
-  };
+  }, [currentUser.uid, currentUser.role, replyingTo, onOpenAuthorProfile]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const charsRemaining = CUITER_MAX_CHARS - replyText.length;
 
@@ -374,7 +376,7 @@ export default function CuiterThreadModal({
 
         <KeyboardAvoidingView
           style={styles.keyboardContainer}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}
         >
           {loadingComments ? (

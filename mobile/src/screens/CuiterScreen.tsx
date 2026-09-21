@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   StyleSheet,
   View,
@@ -60,10 +60,15 @@ export default function CuiterScreen({
   const [threadPost, setThreadPost] = useState<CuiterPost | null>(null);
   const [threadModalVisible, setThreadModalVisible] = useState(false);
 
-  // Sync threadPost if posts feed updates
+  // Sync threadPost if posts feed updates (use ref to avoid adding threadPost to deps which would cause a loop)
+  const threadPostRef = useRef(threadPost);
   useEffect(() => {
-    if (threadPost) {
-      const updated = posts.find((p) => p.id === threadPost.id);
+    threadPostRef.current = threadPost;
+  }, [threadPost]);
+
+  useEffect(() => {
+    if (threadPostRef.current) {
+      const updated = posts.find((p) => p.id === threadPostRef.current!.id);
       if (updated) {
         setThreadPost(updated);
       }
@@ -100,13 +105,23 @@ export default function CuiterScreen({
     return () => unsubscribe();
   }, []);
 
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup refresh timer on unmount
+  useEffect(() => {
+    return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    };
+  }, []);
+
   const handleRefresh = async () => {
     setRefreshing(true);
     const cost = await fetchCuiterPostCost();
     setPostCost(cost);
     onRefreshUser();
     // feed will auto-refresh through snapshot, but give a 600ms grace period for UX
-    setTimeout(() => setRefreshing(false), 600);
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => setRefreshing(false), 600);
   };
 
   const handlePublish = async () => {
@@ -194,7 +209,7 @@ export default function CuiterScreen({
   const canPost = currentBalance >= postCost;
   const charsRemaining = CUITER_MAX_CHARS - message.length;
 
-  const renderPostItem = ({ item }: { item: CuiterPost }) => {
+  const renderPostItem = useCallback(({ item }: { item: CuiterPost }) => {
     const reactions = item.reactions || {};
     let likeCount = 0;
     let poopCount = 0;
@@ -337,7 +352,7 @@ export default function CuiterScreen({
         </View>
       </View>
     );
-  };
+  }, [user.uid, reactingPostId, handleToggleReaction, handleOpenAuthorProfile, handleOpenThread]);
 
   // Static header: only banner + timeline title (no volatile state → stable reference)
   const renderStaticHeader = useCallback(
@@ -516,6 +531,7 @@ export default function CuiterScreen({
       <TransferPoopcoinsModal
         visible={transferModalVisible}
         currentUser={user}
+        initialRecipientUser={transferRecipient ?? undefined}
         onClose={() => {
           setTransferModalVisible(false);
           setTransferRecipient(null);
