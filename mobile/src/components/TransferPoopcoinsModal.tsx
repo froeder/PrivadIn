@@ -86,7 +86,8 @@ export default function TransferPoopcoinsModal({
   };
 
   const handleSetMaxAmount = () => {
-    setAmount(String(Math.max(0, balance)));
+    // Use Math.floor to ensure whole number only (transfer only accepts integers)
+    setAmount(String(Math.max(0, Math.floor(balance))));
   };
 
   const handleConfirmTransfer = async () => {
@@ -161,7 +162,7 @@ export default function TransferPoopcoinsModal({
     >
       <KeyboardAvoidingView
         style={styles.modalOverlay}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <View style={styles.modalContainer}>
           {/* Header */}

@@ -110,12 +110,16 @@ export default function PoopcoinsScreen({
   };
 
   const loadSettingsAndSupply = async () => {
-    const [cfg, sup] = await Promise.all([
-      fetchPoopcoinSettings(),
-      fetchPoopcoinSupplySummary(),
-    ]);
-    setSettings(cfg);
-    setSupply(sup);
+    try {
+      const [cfg, sup] = await Promise.all([
+        fetchPoopcoinSettings(),
+        fetchPoopcoinSupplySummary(),
+      ]);
+      setSettings(cfg);
+      setSupply(sup);
+    } catch (e) {
+      console.error("Error loading poopcoin settings/supply:", e);
+    }
   };
 
   useEffect(() => {
@@ -143,12 +147,17 @@ export default function PoopcoinsScreen({
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([
-      loadUsersMap(),
-      loadSettingsAndSupply(),
-      onRefreshUser(),
-    ]);
-    setRefreshing(false);
+    try {
+      await Promise.all([
+        loadUsersMap(),
+        loadSettingsAndSupply(),
+        onRefreshUser(),
+      ]);
+    } catch (e) {
+      console.error("Error during refresh:", e);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const handleCopyHash = async (hash: string) => {
@@ -265,7 +274,7 @@ export default function PoopcoinsScreen({
         }
         break;
 
-      case "admin_adjustment":
+      case "admin_adjustment": {
         icon = "⚙️";
         typeLabel = "Ajuste Administrativo";
         const entry = tx.entries?.find((e) => e.userId === user.uid);
@@ -275,12 +284,20 @@ export default function PoopcoinsScreen({
         }
         description = tx.reason || "Ajuste de saldo";
         break;
+      }
 
-      case "reversal":
+      case "reversal": {
         icon = "↩️";
         typeLabel = "Reversão";
+        // Check entries to determine if the reversal credits or debits the user
+        const reversalEntry = tx.entries?.find((e) => e.userId === user.uid);
+        if (reversalEntry) {
+          isPositive = reversalEntry.delta > 0;
+          deltaSign = isPositive ? "+" : "";
+        }
         description = `Reversão de transação anterior`;
         break;
+      }
 
       default:
         typeLabel = tx.type;
@@ -825,7 +842,7 @@ export default function PoopcoinsScreen({
                 <View style={[styles.purchaseSummaryRow, { borderTopWidth: 1, borderTopColor: "#334155", paddingTop: 8, marginTop: 4 }]}>
                   <Text style={styles.summaryRowLabel}>Saldo Após Compra:</Text>
                   <Text style={[styles.summaryRowValue, { color: "#4ade80" }]}>
-                    {formatPoopcoins(balance - selectedShopItem.price)} PC
+                    {formatPoopcoins(Math.max(0, balance - selectedShopItem.price))} PC
                   </Text>
                 </View>
               </View>

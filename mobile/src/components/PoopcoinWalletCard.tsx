@@ -56,8 +56,7 @@ export default function PoopcoinWalletCard({
         {onOpenTransfer && (
           <TouchableOpacity
             style={styles.compactActionBtn}
-            onPress={(e) => {
-              e.stopPropagation();
+            onPress={() => {
               onOpenTransfer();
             }}
           >
