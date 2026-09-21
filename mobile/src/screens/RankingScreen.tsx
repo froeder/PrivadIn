@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   StyleSheet,
   Text,
@@ -31,7 +31,9 @@ function getDaysUntilSunday(): { days: number; hours: number; isLastDay: boolean
   const now = new Date();
   const day = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
   const daysUntil = day === 0 ? 0 : 7 - day;
-  const hoursUntil = 23 - now.getHours();
+  // Account for minutes: if 23:30 remains we still have ~30min, round up
+  const rawHours = 23 - now.getHours();
+  const hoursUntil = now.getMinutes() > 0 ? rawHours : Math.max(0, rawHours);
   return {
     days: daysUntil,
     hours: Math.max(0, hoursUntil),
@@ -610,7 +612,7 @@ export default function RankingScreen({
             </View>
           ) : null
         }
-        renderItem={({ item, index }) => {
+        renderItem={useCallback(({ item, index }: { item: AppUser; index: number }) => {
           // If filtering, rank is index in leaders list + 1; otherwise index + 4
           const originalIndex = leaders.findIndex((u) => u.uid === item.uid);
           const rank = originalIndex >= 0 ? originalIndex + 1 : index + 4;
@@ -692,7 +694,7 @@ export default function RankingScreen({
               </View>
             </TouchableOpacity>
           );
-        }}
+        }, [leaders, currentUserId, mode, getPoints, handleOpenProfile])}
       />
 
       {/* Colleague Public Profile Modal */}
@@ -700,7 +702,10 @@ export default function RankingScreen({
         visible={profileModalVisible}
         userId={selectedUserId}
         currentUserId={currentUserId || ""}
-        onClose={() => setProfileModalVisible(false)}
+        onClose={() => {
+          setProfileModalVisible(false);
+          setSelectedUserId(null);
+        }}
         onOpenTransfer={handleOpenTransfer}
       />
 

@@ -139,8 +139,7 @@ export default function RankingList({
               {onTipUser && !isCurrentUser && (
                 <TouchableOpacity
                   style={styles.tipBtn}
-                  onPress={(e) => {
-                    e.stopPropagation();
+                  onPress={() => {
                     onTipUser(user);
                   }}
                   activeOpacity={0.7}
