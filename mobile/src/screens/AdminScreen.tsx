@@ -59,6 +59,21 @@ import { toRoman } from "../utils/roman";
 import UserAvatar from "../components/UserAvatar";
 import UserProfileModal from "../components/UserProfileModal";
 
+function formatAdminDate(raw: any, dateOnly = false): string {
+  if (!raw) return dateOnly ? "Data desconhecida" : "Recentemente";
+  let d: Date | null = null;
+  if (raw instanceof Date) d = raw;
+  else if (typeof raw.toDate === "function") d = raw.toDate();
+  else if (typeof raw.toMillis === "function") d = new Date(raw.toMillis());
+  else if (typeof raw.seconds === "number") d = new Date(raw.seconds * 1000);
+  else {
+    const parsed = new Date(raw);
+    if (!isNaN(parsed.getTime())) d = parsed;
+  }
+  if (!d || isNaN(d.getTime())) return dateOnly ? "Data desconhecida" : "Recentemente";
+  return dateOnly ? d.toLocaleDateString("pt-BR") : d.toLocaleString("pt-BR");
+}
+
 interface AdminScreenProps {
   user: AppUser;
   onBack: () => void;
@@ -410,6 +425,7 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
       await adjustUserPoints(user, adjustPointsUser, delta);
       Alert.alert("Sucesso", `${delta > 0 ? `+${delta}` : delta} pontos aplicados para ${adjustPointsUser.name}.`);
       setAdjustPointsUser(null);
+      setCustomDeltaInput("2000");
     } catch (err: any) {
       Alert.alert("Erro", err.message || "Falha ao ajustar pontos.");
     } finally {
@@ -440,6 +456,7 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
         `Ajuste de ${amount > 0 ? `+${amount}` : amount} PoopCoins registrado no Ledger para ${adjustPoopcoinsUser.name}.`
       );
       setAdjustPoopcoinsUser(null);
+      setAdjustPoopcoinsAmount("10");
       setAdjustPoopcoinsReason("");
     } catch (err: any) {
       Alert.alert("Erro", err.message || "Falha ao ajustar PoopCoins.");
@@ -526,7 +543,7 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
         pointsPerLog: pts,
         cuiterPostCost: cuiter,
         poopcoinsPerLog: pcLog,
-        competitionAnnouncement: announcementInput,
+        competitionAnnouncement: announcementInput.trim(),
       });
       setSettingsSuccessMsg("✅ Parâmetros da competição salvos com sucesso!");
       setTimeout(() => setSettingsSuccessMsg(""), 4000);
@@ -550,6 +567,16 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
 
   // Handler: Save Bonus Ranges
   const handleSaveBonusRanges = async () => {
+    for (const r of bonusRanges) {
+      if (!r.start || !r.end || r.start >= r.end) {
+        Alert.alert("Faixa Inválida", `A faixa ${r.start || "início"} até ${r.end || "fim"} possui horário inválido.`);
+        return;
+      }
+      if (!r.points || r.points <= 0) {
+        Alert.alert("Pontuação Inválida", `A faixa ${r.start} - ${r.end} deve ter pontuação positiva.`);
+        return;
+      }
+    }
     setSavingBonus(true);
     try {
       await updateBonusTimeRanges(user, bonusRanges);
@@ -924,7 +951,7 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
                           style={styles.avatarTouchable}
                         >
                           <UserAvatar
-                            avatar={item.avatar}
+                            avatar={item.avatar || "🚽"}
                             name={item.name}
                             badge={item.equippedBadge}
                             size={48}
@@ -1152,11 +1179,7 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
                   const author = usersMap.get(log.userId) || { name: log.userName, email: "" };
                   const durationMin = Math.floor((log.durationSeconds || 0) / 60);
                   const durationSec = (log.durationSeconds || 0) % 60;
-                  const dateStr = log.createdAt?.toDate
-                    ? log.createdAt.toDate().toLocaleString("pt-BR")
-                    : log.createdAt?.seconds
-                    ? new Date(log.createdAt.seconds * 1000).toLocaleString("pt-BR")
-                    : "Recentemente";
+                  const dateStr = formatAdminDate(log.createdAt);
 
                   return (
                     <View key={log.id} style={styles.logCard}>
@@ -1371,7 +1394,7 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
                   poopcoinTransactions.slice(0, 30).map((tx) => {
                     const isReversed = tx.status === "reversed";
                     return (
-                      <View key={tx.hash} style={[styles.txItem, isReversed && styles.txItemReversed]}>
+                      <View key={tx.hash || String(tx.sequence)} style={[styles.txItem, isReversed && styles.txItemReversed]}>
                         <View style={styles.txHeaderRow}>
                           <View style={styles.txBadge}>
                             <Text style={styles.txBadgeText}>#{tx.sequence}</Text>
@@ -1609,14 +1632,15 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
                       <TextInput
                         style={[styles.formInput, styles.bonusPointsInput]}
                         keyboardType="number-pad"
-                        value={String(range.points)}
+                        value={String(range.points || "")}
                         placeholder="Pontos"
                         placeholderTextColor="#64748b"
-                        onChangeText={(txt) =>
+                        onChangeText={(txt) => {
+                          const sanitized = txt.replace(/[^0-9]/g, "");
                           setBonusRanges((cur) =>
-                            cur.map((v, i) => (i === idx ? { ...v, points: parseInt(txt, 10) || 0 } : v))
-                          )
-                        }
+                            cur.map((v, i) => (i === idx ? { ...v, points: sanitized ? parseInt(sanitized, 10) : 0 } : v))
+                          );
+                        }}
                       />
                       <TouchableOpacity
                         style={styles.bonusRemoveBtn}
@@ -1720,11 +1744,7 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
               ) : (
                 filteredGroups.map((group) => {
                   const owner = usersMap.get(group.ownerId);
-                  const dateStr = group.createdAt?.toDate
-                    ? group.createdAt.toDate().toLocaleDateString("pt-BR")
-                    : group.createdAt?.seconds
-                    ? new Date(group.createdAt.seconds * 1000).toLocaleDateString("pt-BR")
-                    : "Data desconhecida";
+                  const dateStr = formatAdminDate(group.createdAt, true);
 
                   return (
                     <View key={group.id} style={styles.groupCard}>
@@ -1825,11 +1845,7 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
                 </View>
               ) : (
                 filteredAttempts.map((att) => {
-                  const dateStr = att.createdAt?.toDate
-                    ? att.createdAt.toDate().toLocaleString("pt-BR")
-                    : att.createdAt?.seconds
-                    ? new Date(att.createdAt.seconds * 1000).toLocaleString("pt-BR")
-                    : "Recentemente";
+                  const dateStr = formatAdminDate(att.createdAt);
 
                   let statusBadgeColor = "#3b82f6";
                   let statusText: string = att.status;
@@ -2043,11 +2059,7 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
               ) : (
                 filteredAuditLogs.map((log) => {
                   const message = formatAuditLogMessage(log, usersMap);
-                  const dateStr = log.createdAt?.toDate
-                    ? log.createdAt.toDate().toLocaleString("pt-BR")
-                    : log.createdAt?.seconds
-                    ? new Date(log.createdAt.seconds * 1000).toLocaleString("pt-BR")
-                    : "Data desconhecida";
+                  const dateStr = formatAdminDate(log.createdAt);
 
                   let icon = "⚙️";
                   let badgeColor = "#64748b";
@@ -2140,7 +2152,7 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
         onRequestClose={() => setAdjustPointsUser(null)}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.modalOverlay}
         >
           <View style={styles.modalContent}>
@@ -2241,7 +2253,7 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
         onRequestClose={() => setAdjustPoopcoinsUser(null)}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.modalOverlay}
         >
           <View style={styles.modalContent}>
@@ -2309,7 +2321,7 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
         onRequestClose={() => setCooldownModalUser(null)}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.modalOverlay}
         >
           <View style={styles.modalContent}>
@@ -2366,7 +2378,7 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
         onRequestClose={() => !resetting && setResetModalVisible(false)}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.modalOverlay}
         >
           <View style={[styles.modalContent, styles.resetModalBorder]}>
