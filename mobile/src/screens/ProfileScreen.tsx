@@ -37,6 +37,11 @@ import {
   persistLanguage,
 } from "../utils/i18n";
 import { IS_DEV, FIRESTORE_DATABASE_ID } from "../services/firebase";
+import {
+  getAppDisplayVersion,
+  checkAndFetchUpdate,
+  reloadApp,
+} from "../services/updateService";
 
 interface ProfileScreenProps {
   user: AppUser;
@@ -511,6 +516,44 @@ export default function ProfileScreen({
 
   const userThemeColor = user.themeColor || selectedTheme || "#eab308";
   const userHourlyRate = user.hourlyRate || (user.salary ? user.salary / 176 : 20);
+
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+
+  const handleCheckUpdates = async () => {
+    if (checkingUpdate) return;
+    setCheckingUpdate(true);
+    try {
+      const res = await checkAndFetchUpdate();
+      if (res.status === "updated") {
+        Alert.alert(
+          "Atualização Encontrada! 🎉",
+          "Uma nova versão foi baixada com sucesso. Deseja reiniciar o aplicativo agora para aplicar as novidades?",
+          [
+            { text: "Mais tarde", style: "cancel" },
+            {
+              text: "Reiniciar Agora",
+              onPress: () => {
+                reloadApp().catch(() => {});
+              },
+            },
+          ]
+        );
+      } else if (res.status === "up_to_date") {
+        Alert.alert("Tudo Atualizado! ✨", res.message);
+      } else if (res.status === "disabled") {
+        Alert.alert("Aviso", res.message);
+      } else {
+        Alert.alert(
+          "Não foi possível verificar",
+          "Verifique sua conexão com a internet ou tente novamente em alguns instantes."
+        );
+      }
+    } catch {
+      Alert.alert("Erro", "Falha ao verificar atualizações.");
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
 
   return (
     <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
@@ -1522,7 +1565,20 @@ export default function ProfileScreen({
 
       {/* App Info & Logout */}
       <View style={styles.footerSection}>
-        <Text style={styles.versionText}>PrivadIn Mobile v1.0.0 • Expo EAS</Text>
+        <Text style={styles.versionText}>PrivadIn Mobile {getAppDisplayVersion()} • Expo EAS</Text>
+
+        <TouchableOpacity
+          style={styles.checkForUpdatesButton}
+          onPress={handleCheckUpdates}
+          disabled={checkingUpdate}
+          activeOpacity={0.7}
+        >
+          {checkingUpdate ? (
+            <ActivityIndicator size="small" color="#38bdf8" />
+          ) : (
+            <Text style={styles.checkForUpdatesButtonText}>🔄 Buscar Atualizações</Text>
+          )}
+        </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.manageAccountButton}
@@ -2111,7 +2167,26 @@ const styles = StyleSheet.create({
   versionText: {
     color: "#64748b",
     fontSize: 12,
-    marginBottom: 16,
+    marginBottom: 12,
+  },
+  checkForUpdatesButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(56, 189, 248, 0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.35)",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    marginBottom: 14,
+    minWidth: 190,
+    gap: 8,
+  },
+  checkForUpdatesButtonText: {
+    color: "#38bdf8",
+    fontSize: 13,
+    fontWeight: "700",
   },
   logoutButton: {
     paddingVertical: 12,

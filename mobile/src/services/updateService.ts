@@ -1,5 +1,12 @@
 import { Platform } from "react-native";
 import Constants from "expo-constants";
+import * as Updates from "expo-updates";
+
+/**
+ * Versão semântica do código do aplicativo.
+ * Altere aqui a cada nova versão ou update que desejar destacar aos usuários.
+ */
+export const APP_CODE_VERSION = "1.0.1";
 
 export interface UpdateCheckResult {
   hasUpdate: boolean;
@@ -15,10 +22,26 @@ export type TriggerAppUpdateResult = "reloading" | "store_redirect" | "pending";
  */
 export function getCurrentAppVersion(): string {
   return (
+    APP_CODE_VERSION ||
     Constants.expoConfig?.version ||
     Constants.manifest2?.extra?.expoClient?.version ||
     "1.0.0"
   );
+}
+
+/**
+ * Retorna a string descritiva da versão para exibição no aplicativo (ex: v1.0.1 ou v1.0.1 • OTA #df1cc6d).
+ */
+export function getAppDisplayVersion(): string {
+  const version = getCurrentAppVersion();
+  const updateId = Updates.updateId ? Updates.updateId.slice(0, 7) : null;
+  const channel = Updates.channel;
+
+  if (updateId) {
+    return `v${version} (OTA #${updateId}${channel ? ` • ${channel}` : ""})`;
+  }
+
+  return `v${version}`;
 }
 
 /**
@@ -80,6 +103,74 @@ export async function checkForUpdates(): Promise<UpdateCheckResult> {
     latestVersion: currentVersion,
     error: null,
   };
+}
+
+/**
+ * Verifica manualmente e baixa atualizações via EAS Update.
+ */
+export interface ManualUpdateCheckResult {
+  status: "updated" | "up_to_date" | "disabled" | "error";
+  message: string;
+}
+
+export async function checkAndFetchUpdate(): Promise<ManualUpdateCheckResult> {
+  if (__DEV__) {
+    return {
+      status: "disabled",
+      message: "Atualizações OTA automáticas ficam desativadas durante o desenvolvimento local.",
+    };
+  }
+
+  if (Platform.OS === "web") {
+    if (typeof window !== "undefined") {
+      window.location.reload();
+    }
+    return {
+      status: "updated",
+      message: "Página recarregada.",
+    };
+  }
+
+  if (!Updates.isEnabled) {
+    return {
+      status: "disabled",
+      message: "O serviço de atualizações OTA não está ativo nesta compilação.",
+    };
+  }
+
+  try {
+    const update = await Updates.checkForUpdateAsync();
+    if (update.isAvailable) {
+      await Updates.fetchUpdateAsync();
+      return {
+        status: "updated",
+        message: "Nova versão baixada com sucesso!",
+      };
+    }
+
+    return {
+      status: "up_to_date",
+      message: "Você já está na versão mais recente disponível!",
+    };
+  } catch (error: any) {
+    return {
+      status: "error",
+      message: error?.message || "Erro ao conectar com o servidor de atualizações.",
+    };
+  }
+}
+
+/**
+ * Reinicia o aplicativo imediatamente para carregar o bundle atualizado.
+ */
+export async function reloadApp(): Promise<void> {
+  if (Platform.OS === "web") {
+    if (typeof window !== "undefined") {
+      window.location.reload();
+    }
+    return;
+  }
+  await Updates.reloadAsync();
 }
 
 /**
