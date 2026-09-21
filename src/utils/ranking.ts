@@ -21,7 +21,13 @@ export function rankUsers(users: AppUser[], logs: PoopLog[] = []): RankedUser[] 
     }
 
     const logDate = toDate(log.createdAt);
-    const isCurrentWeekLog = Boolean(logDate && logDate > currentWeekStart);
+    // A log counts toward the current week if isWeeklyActive is true,
+    // OR if it falls within the current calendar week and the field is undefined
+    // (legacy logs created before the field existed).
+    // This ensures mid-week resets (which set isWeeklyActive: false) are respected.
+    const isCurrentWeekLog =
+      log.isWeeklyActive === true ||
+      (log.isWeeklyActive == null && Boolean(logDate && logDate > currentWeekStart));
 
     if (isCurrentWeekLog) {
       currentWeekPoints.set(

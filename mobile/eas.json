@@ -25,6 +25,18 @@
         "EXPO_PUBLIC_FIRESTORE_DATABASE_ID": "dev-privadin"
       }
     },
+    "preview-aab": {
+      "extends": "base",
+      "autoIncrement": true,
+      "distribution": "internal",
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "channel": "preview",
+      "env": {
+        "EXPO_PUBLIC_FIRESTORE_DATABASE_ID": "dev-privadin"
+      }
+    },
     "production": {
       "extends": "base",
       "autoIncrement": true,
