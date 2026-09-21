@@ -114,19 +114,23 @@ export default function RankingScreen({
     fetchLeaders(mode);
   };
 
-  const handleOpenProfile = (user: AppUser) => {
+  const handleOpenProfile = useCallback((user: AppUser) => {
     setSelectedUserId(user.uid);
     setProfileModalVisible(true);
-  };
+  }, []);
 
-  const handleOpenTransfer = (recipient: AppUser) => {
+  const handleOpenTransfer = useCallback((recipient: AppUser) => {
     setTipRecipientUser(recipient);
     setTransferModalVisible(true);
-  };
+  }, []);
 
-  const getPoints = (user: AppUser) => {
-    return (mode === "weekly" ? user.weeklyPoints : user.totalPoints) || 0;
-  };
+  const getPoints = useCallback(
+    (user?: AppUser | null) => {
+      if (!user) return 0;
+      return (mode === "weekly" ? user.weeklyPoints : user.totalPoints) || 0;
+    },
+    [mode]
+  );
 
   // Top 3 for podium
   const top1 = leaders[0] || null;
@@ -159,9 +163,97 @@ export default function RankingScreen({
   // Competition summary stats
   const topScore = leaders.length > 0 ? getPoints(leaders[0]) : 0;
   const maxStreak = useMemo(() => {
-    if (leaders.length === 0) return 0;
-    return Math.max(...leaders.map((u) => u.currentDailyStreak || 0));
+    if (!leaders || leaders.length === 0) return 0;
+    return leaders.reduce((max, u) => Math.max(max, u.currentDailyStreak || 0), 0);
   }, [leaders]);
+
+  // Render item defined before any early returns to strictly satisfy React Rules of Hooks
+  const renderLeaderItem = useCallback(
+    ({ item, index }: { item: AppUser; index: number }) => {
+      // If filtering, rank is index in leaders list + 1; otherwise index + 4
+      const originalIndex = leaders.findIndex((u) => u.uid === item.uid);
+      const rank = originalIndex >= 0 ? originalIndex + 1 : index + 4;
+      const isCurrentUser = currentUserId && item.uid === currentUserId;
+      const dailyStreak = item.currentDailyStreak || 0;
+      const weeklyStreak = item.currentWeeklyStreak || 0;
+      const points = getPoints(item);
+
+      // Super streak check
+      const isSuperStreak = dailyStreak >= 7;
+
+      return (
+        <TouchableOpacity
+          style={[styles.leaderCard, isCurrentUser && styles.leaderCardSelf]}
+          onPress={() => handleOpenProfile(item)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.positionBadge}>
+            <Text style={[styles.positionText, isCurrentUser && styles.positionTextSelf]}>
+              #{rank}
+            </Text>
+          </View>
+
+          <View style={styles.avatarWrap}>
+            <UserAvatar
+              avatar={item.avatar}
+              badge={item.equippedBadge}
+              name={item.name}
+              size={42}
+              borderColor={isCurrentUser ? "#38bdf8" : "#334155"}
+              borderWidth={1.5}
+            />
+          </View>
+
+          <View style={styles.userInfo}>
+            <View style={styles.nameRow}>
+              <Text style={styles.userName} numberOfLines={1}>
+                {item.nickname?.trim() || item.name || "Cagador Anônimo"}
+              </Text>
+              {isCurrentUser && (
+                <View style={styles.selfBadge}>
+                  <Text style={styles.selfBadgeText}>VOCÊ</Text>
+                </View>
+              )}
+            </View>
+
+            {item.equippedTitle ? (
+              <Text style={styles.userTitle} numberOfLines={1}>
+                👑 {item.equippedTitle}
+              </Text>
+            ) : null}
+
+            {/* Streaks & Flames (🔥) */}
+            <View style={styles.streakRow}>
+              {dailyStreak > 0 ? (
+                <View style={[styles.flamePill, isSuperStreak && styles.flamePillSuper]}>
+                  <Text style={[styles.flamePillText, isSuperStreak && styles.flamePillTextSuper]}>
+                    🔥 {dailyStreak}d{isSuperStreak ? " MEGA" : ""}
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.neutralStreakPill}>
+                  <Text style={styles.neutralStreakText}>🔥 0d</Text>
+                </View>
+              )}
+
+              {weeklyStreak > 0 && (
+                <View style={styles.zapPill}>
+                  <Text style={styles.zapPillText}>⚡ {weeklyStreak}sem</Text>
+                </View>
+              )}
+            </View>
+          </View>
+
+          <View style={styles.scoreContainer}>
+            <Text style={styles.scorePoints}>{formatPoopcoins(points)}</Text>
+            <Text style={styles.scoreLabel}>pts</Text>
+            <Text style={styles.cardArrow}>›</Text>
+          </View>
+        </TouchableOpacity>
+      );
+    },
+    [leaders, currentUserId, getPoints, handleOpenProfile]
+  );
 
   if (loading && !refreshing) {
     return (
@@ -612,89 +704,7 @@ export default function RankingScreen({
             </View>
           ) : null
         }
-        renderItem={useCallback(({ item, index }: { item: AppUser; index: number }) => {
-          // If filtering, rank is index in leaders list + 1; otherwise index + 4
-          const originalIndex = leaders.findIndex((u) => u.uid === item.uid);
-          const rank = originalIndex >= 0 ? originalIndex + 1 : index + 4;
-          const isCurrentUser = currentUserId && item.uid === currentUserId;
-          const dailyStreak = item.currentDailyStreak || 0;
-          const weeklyStreak = item.currentWeeklyStreak || 0;
-          const points = getPoints(item);
-
-          // Super streak check
-          const isSuperStreak = dailyStreak >= 7;
-
-          return (
-            <TouchableOpacity
-              style={[styles.leaderCard, isCurrentUser && styles.leaderCardSelf]}
-              onPress={() => handleOpenProfile(item)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.positionBadge}>
-                <Text style={[styles.positionText, isCurrentUser && styles.positionTextSelf]}>
-                  #{rank}
-                </Text>
-              </View>
-
-              <View style={styles.avatarWrap}>
-                <UserAvatar
-                  avatar={item.avatar}
-                  badge={item.equippedBadge}
-                  name={item.name}
-                  size={42}
-                  borderColor={isCurrentUser ? "#38bdf8" : "#334155"}
-                  borderWidth={1.5}
-                />
-              </View>
-
-              <View style={styles.userInfo}>
-                <View style={styles.nameRow}>
-                  <Text style={styles.userName} numberOfLines={1}>
-                    {item.nickname?.trim() || item.name || "Cagador Anônimo"}
-                  </Text>
-                  {isCurrentUser && (
-                    <View style={styles.selfBadge}>
-                      <Text style={styles.selfBadgeText}>VOCÊ</Text>
-                    </View>
-                  )}
-                </View>
-
-                {item.equippedTitle ? (
-                  <Text style={styles.userTitle} numberOfLines={1}>
-                    👑 {item.equippedTitle}
-                  </Text>
-                ) : null}
-
-                {/* Streaks & Flames (🔥) */}
-                <View style={styles.streakRow}>
-                  {dailyStreak > 0 ? (
-                    <View style={[styles.flamePill, isSuperStreak && styles.flamePillSuper]}>
-                      <Text style={[styles.flamePillText, isSuperStreak && styles.flamePillTextSuper]}>
-                        🔥 {dailyStreak}d{isSuperStreak ? " MEGA" : ""}
-                      </Text>
-                    </View>
-                  ) : (
-                    <View style={styles.neutralStreakPill}>
-                      <Text style={styles.neutralStreakText}>🔥 0d</Text>
-                    </View>
-                  )}
-
-                  {weeklyStreak > 0 && (
-                    <View style={styles.zapPill}>
-                      <Text style={styles.zapPillText}>⚡ {weeklyStreak}sem</Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-
-              <View style={styles.scoreContainer}>
-                <Text style={styles.scorePoints}>{formatPoopcoins(points)}</Text>
-                <Text style={styles.scoreLabel}>pts</Text>
-                <Text style={styles.cardArrow}>›</Text>
-              </View>
-            </TouchableOpacity>
-          );
-        }, [leaders, currentUserId, mode, getPoints, handleOpenProfile])}
+        renderItem={renderLeaderItem}
       />
 
       {/* Colleague Public Profile Modal */}

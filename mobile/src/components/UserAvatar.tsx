@@ -44,10 +44,15 @@ export default function UserAvatar({
   }
 
 
-  const initialLetter = (name || "?").trim().charAt(0).toUpperCase() || "?";
-  const displayBadge = badge && badge.trim().length > 0 ? badge.trim() : null;
-  const isEmojiOrTextAvatar = avatar && !resolvedAvatarUri && avatar.trim().length > 0;
-  const displayText = displayBadge || (isEmojiOrTextAvatar ? avatar.trim() : initialLetter);
+  const safeName = typeof name === "string" ? name.trim() : "";
+  const initialLetter = safeName.length > 0 ? safeName.charAt(0).toUpperCase() : "?";
+  const displayBadge =
+    badge && typeof badge === "string" && badge.trim().length > 0 ? badge.trim() : null;
+  const isEmojiOrTextAvatar = Boolean(
+    avatar && typeof avatar === "string" && !resolvedAvatarUri && avatar.trim().length > 0
+  );
+  const displayText =
+    displayBadge || (isEmojiOrTextAvatar ? (avatar as string).trim() : initialLetter);
 
   const dynamicStyles = {
     width: size,

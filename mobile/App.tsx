@@ -20,6 +20,7 @@ import CuiterScreen from "./src/screens/CuiterScreen";
 import AnalyticsScreen from "./src/screens/AnalyticsScreen";
 import AdminScreen from "./src/screens/AdminScreen";
 import Shell from "./src/components/Shell";
+import ErrorBoundary from "./src/components/ErrorBoundary";
 import { listenAppSettings } from "./src/services/settingsService";
 import { ThemeProvider } from "./src/contexts/ThemeContext";
 
@@ -109,77 +110,79 @@ function MainApp() {
           onRefreshUser={() => loadUserData(firebaseUser)}
           edition={appSettings?.edition ?? 1}
         >
-          {currentTab === "timer" && (
-            <DashboardScreen
-              user={appUser}
-              onRefreshUser={() => loadUserData(firebaseUser)}
-              onNavigateToPoopcoins={() => setCurrentTab("poopcoins")}
-              onNavigateToCuiter={() => setCurrentTab("cuiter")}
-              onNavigateToAnalytics={() => {
-                setAnalyticsMode("metrics");
-                setCurrentTab("analytics");
-              }}
-              onNavigateToHistory={() => {
-                setAnalyticsMode("history");
-                setCurrentTab("analytics");
-              }}
-              onNavigateToRanking={() => setCurrentTab("ranking")}
-            />
-          )}
-          {currentTab === "cuiter" && (
-            <CuiterScreen
-              user={appUser}
-              onRefreshUser={() => loadUserData(firebaseUser)}
-              onNavigateToPoopcoins={() => setCurrentTab("poopcoins")}
-            />
-          )}
-          {currentTab === "ranking" && (
-            <RankingScreen
-              currentUserId={appUser.uid}
-              currentUser={appUser}
-              onNavigateToGroups={() => setCurrentTab("groups")}
-              onRefreshUser={() => loadUserData(firebaseUser)}
-            />
-          )}
-          {currentTab === "poopcoins" && (
-            <PoopcoinsScreen
-              user={appUser}
-              onRefreshUser={() => loadUserData(firebaseUser)}
-            />
-          )}
-          {currentTab === "groups" && (
-            <GroupsScreen
-              user={appUser}
-              onRefreshUser={() => loadUserData(firebaseUser)}
-            />
-          )}
-          {currentTab === "analytics" && (
-            <AnalyticsScreen
-              user={appUser}
-              onRefreshUser={() => loadUserData(firebaseUser)}
-              onBack={() => setCurrentTab("timer")}
-              initialMode={analyticsMode}
-            />
-          )}
-          {currentTab === "profile" && (
-            <ProfileScreen
-              user={appUser}
-              onRefreshUser={() => loadUserData(firebaseUser)}
-              onNavigateToPoopcoins={() => setCurrentTab("poopcoins")}
-              onNavigateToAnalytics={() => {
-                setAnalyticsMode("metrics");
-                setCurrentTab("analytics");
-              }}
-              onNavigateToAdmin={() => setCurrentTab("admin")}
-            />
-          )}
-          {currentTab === "admin" && (
-            <AdminScreen
-              user={appUser}
-              onBack={() => setCurrentTab("profile")}
-              onRefreshUser={() => loadUserData(firebaseUser)}
-            />
-          )}
+          <ErrorBoundary key={currentTab} fallbackTitle="Ops! Falha ao carregar esta tela.">
+            {currentTab === "timer" && (
+              <DashboardScreen
+                user={appUser}
+                onRefreshUser={() => loadUserData(firebaseUser)}
+                onNavigateToPoopcoins={() => setCurrentTab("poopcoins")}
+                onNavigateToCuiter={() => setCurrentTab("cuiter")}
+                onNavigateToAnalytics={() => {
+                  setAnalyticsMode("metrics");
+                  setCurrentTab("analytics");
+                }}
+                onNavigateToHistory={() => {
+                  setAnalyticsMode("history");
+                  setCurrentTab("analytics");
+                }}
+                onNavigateToRanking={() => setCurrentTab("ranking")}
+              />
+            )}
+            {currentTab === "cuiter" && (
+              <CuiterScreen
+                user={appUser}
+                onRefreshUser={() => loadUserData(firebaseUser)}
+                onNavigateToPoopcoins={() => setCurrentTab("poopcoins")}
+              />
+            )}
+            {currentTab === "ranking" && (
+              <RankingScreen
+                currentUserId={appUser.uid}
+                currentUser={appUser}
+                onNavigateToGroups={() => setCurrentTab("groups")}
+                onRefreshUser={() => loadUserData(firebaseUser)}
+              />
+            )}
+            {currentTab === "poopcoins" && (
+              <PoopcoinsScreen
+                user={appUser}
+                onRefreshUser={() => loadUserData(firebaseUser)}
+              />
+            )}
+            {currentTab === "groups" && (
+              <GroupsScreen
+                user={appUser}
+                onRefreshUser={() => loadUserData(firebaseUser)}
+              />
+            )}
+            {currentTab === "analytics" && (
+              <AnalyticsScreen
+                user={appUser}
+                onRefreshUser={() => loadUserData(firebaseUser)}
+                onBack={() => setCurrentTab("timer")}
+                initialMode={analyticsMode}
+              />
+            )}
+            {currentTab === "profile" && (
+              <ProfileScreen
+                user={appUser}
+                onRefreshUser={() => loadUserData(firebaseUser)}
+                onNavigateToPoopcoins={() => setCurrentTab("poopcoins")}
+                onNavigateToAnalytics={() => {
+                  setAnalyticsMode("metrics");
+                  setCurrentTab("analytics");
+                }}
+                onNavigateToAdmin={() => setCurrentTab("admin")}
+              />
+            )}
+            {currentTab === "admin" && (
+              <AdminScreen
+                user={appUser}
+                onBack={() => setCurrentTab("profile")}
+                onRefreshUser={() => loadUserData(firebaseUser)}
+              />
+            )}
+          </ErrorBoundary>
         </Shell>
       )}
     </SafeAreaView>
