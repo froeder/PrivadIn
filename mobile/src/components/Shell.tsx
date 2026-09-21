@@ -282,25 +282,6 @@ export default function Shell({
         <TouchableOpacity
           style={[
             styles.tabItem,
-            currentTab === "groups" && styles.tabItemActive,
-          ]}
-          onPress={() => onTabChange("groups")}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.tabIcon}>🏢</Text>
-          <Text
-            style={[
-              styles.tabLabel,
-              currentTab === "groups" && styles.tabLabelActive,
-            ]}
-          >
-            Ligas
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.tabItem,
             currentTab === "analytics" && styles.tabItemActive,
           ]}
           onPress={() => onTabChange("analytics")}
@@ -336,26 +317,7 @@ export default function Shell({
           </Text>
         </TouchableOpacity>
 
-        {isAdmin && (
-          <TouchableOpacity
-            style={[
-              styles.tabItem,
-              currentTab === "admin" && styles.tabItemActive,
-            ]}
-            onPress={() => onTabChange("admin")}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.tabIcon}>🛡️</Text>
-            <Text
-              style={[
-                styles.tabLabel,
-                currentTab === "admin" && styles.tabLabelActive,
-              ]}
-            >
-              Admin
-            </Text>
-          </TouchableOpacity>
-        )}
+
       </View>
 
       {/* ----------------- DRAWER MODAL (MENU LATERAL) ----------------- */}

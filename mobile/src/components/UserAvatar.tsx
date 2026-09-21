@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { StyleSheet, View, Text, Image } from "react-native";
 
 interface UserAvatarProps {
@@ -26,6 +26,11 @@ export default function UserAvatar({
 }: UserAvatarProps) {
   const [imageError, setImageError] = useState(false);
 
+  // Reset error state whenever the avatar URL changes so the new image gets a fresh attempt
+  useEffect(() => {
+    setImageError(false);
+  }, [avatar]);
+
   // Convert dicebear svg to png if necessary for native image rendering
   let resolvedAvatarUri: string | null = null;
   if (avatar && typeof avatar === "string" && avatar.trim().length > 0) {
@@ -37,6 +42,7 @@ export default function UserAvatar({
       resolvedAvatarUri = uri;
     }
   }
+
 
   const initialLetter = (name || "?").trim().charAt(0).toUpperCase() || "?";
   const displayBadge = badge && badge.trim().length > 0 ? badge.trim() : null;

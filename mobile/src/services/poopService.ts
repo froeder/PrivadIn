@@ -316,19 +316,28 @@ export async function updateUserProfileCustomization(
 
 /**
  * Faz upload de uma foto local (URI) para o Firebase Storage
- * no caminho avatars/{userId}.jpg e salva a URL pública no Firestore.
- * Retorna a URL pública da imagem.
+ * no caminho avatars/{userId}/avatar.jpg e salva a URL pública no Firestore.
+ *
+ * Usa XMLHttpRequest para ler o arquivo local como Blob porque o
+ * fetch(localUri).blob() não funciona de forma confiável no React Native/Expo.
+ * Esta é a abordagem recomendada pela documentação oficial do Expo + Firebase.
  */
 export async function uploadUserAvatarPhoto(
   userId: string,
   localUri: string
 ): Promise<string> {
-  // Converte o URI local para Blob
-  const response = await fetch(localUri);
-  const blob = await response.blob();
-
   const storage = getStorage(app);
   const avatarRef = storageRef(storage, `avatars/${userId}/avatar.jpg`);
+
+  // Lê o arquivo local como Blob via XMLHttpRequest (único método confiável no RN/Expo)
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("GET", localUri);
+    xhr.responseType = "blob";
+    xhr.onload = () => resolve(xhr.response as Blob);
+    xhr.onerror = () => reject(new Error("Falha ao ler o arquivo de imagem local."));
+    xhr.send();
+  });
 
   await uploadBytes(avatarRef, blob, { contentType: "image/jpeg" });
   const downloadUrl = await getDownloadURL(avatarRef);

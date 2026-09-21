@@ -184,6 +184,15 @@ export default function ProfileScreen({
     }
   }, [user.bathroomDurationMinutes]);
 
+  // Sync photoUri when user.avatar changes externally (e.g. after onRefreshUser)
+  useEffect(() => {
+    if (user.avatar?.startsWith("http")) {
+      setPhotoUri(user.avatar);
+    } else {
+      setPhotoUri(null);
+    }
+  }, [user.avatar]);
+
   // Handler: Copiar Própria Chave Poopcoin / UID
   const handleCopySelfUid = async () => {
     try {
@@ -287,11 +296,15 @@ export default function ProfileScreen({
         ? await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ["images"],
             allowsEditing: false,
-            quality: 0.85,
+            quality: 0.7,
+            maxWidth: 1024,
+            maxHeight: 1024,
           })
         : await ImagePicker.launchCameraAsync({
             allowsEditing: false,
-            quality: 0.85,
+            quality: 0.7,
+            maxWidth: 1024,
+            maxHeight: 1024,
           });
 
     if (!result.canceled && result.assets[0]) {
@@ -310,16 +323,23 @@ export default function ProfileScreen({
     if (!cropData.imageUrl) return;
     setUploadingPhoto(true);
     try {
+      console.log("[Avatar] Iniciando upload para URI:", cropData.imageUrl);
       const url = await uploadUserAvatarPhoto(user.uid, cropData.imageUrl);
-      setPhotoUri(url);
+      console.log("[Avatar] Upload OK, URL:", url);
+      // Adiciona cache-buster para forçar o React Native a não usar a imagem antiga em cache
+      const cacheBustedUrl = `${url}&_t=${Date.now()}`;
+      setPhotoUri(cacheBustedUrl);
       setCustomAvatarInput("");
       setCropperVisible(false);
       setPendingPhotoUri(null);
       onRefreshUser();
       Alert.alert("📸 Foto Atualizada!", "Sua foto de perfil foi salva com sucesso.");
     } catch (err: any) {
-      console.error("Erro ao fazer upload da foto:", err);
-      Alert.alert("Erro", "Não foi possível salvar a foto. Verifique sua conexão e tente novamente.");
+      console.error("[Avatar] Erro ao fazer upload da foto:", err);
+      Alert.alert(
+        "Erro ao salvar foto",
+        `Não foi possível salvar a foto.\n\nDetalhe: ${err?.message ?? String(err)}\n\nVerifique sua conexão e tente novamente.`
+      );
     } finally {
       setUploadingPhoto(false);
     }
@@ -491,7 +511,7 @@ export default function ProfileScreen({
       {/* Profile Header Card */}
       <View style={styles.profileHeader}>
         <UserAvatar
-          avatar={user.avatar || selectedAvatar}
+          avatar={photoUri ?? user.avatar ?? selectedAvatar}
           badge={user.equippedBadge}
           name={user.nickname || user.name}
           size={84}
