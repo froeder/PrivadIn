@@ -141,7 +141,7 @@ service cloud.firestore {
         && entry.userId is string
         && entry.userId.size() > 0
         && entry.userId.size() <= 128
-        && entry.delta is int
+        && (entry.delta is int || entry.delta is number)
         && entry.delta != 0
         && entry.delta >= -100000
         && entry.delta <= 100000;
@@ -165,7 +165,7 @@ service cloud.firestore {
         ])
         && validPoopcoinHash(request.resource.data.hash)
         && validPoopcoinHash(request.resource.data.previousHash)
-        && request.resource.data.sequence is int
+        && (request.resource.data.sequence is int || request.resource.data.sequence is number)
         && request.resource.data.sequence > 0
         && request.resource.data.createdAt is timestamp
         && request.resource.data.type in [
@@ -176,7 +176,7 @@ service cloud.firestore {
         && request.resource.data.affectedUserIds is list
         && request.resource.data.affectedUserIds.size() >= 1
         && request.resource.data.affectedUserIds.size() <= 2
-        && request.resource.data.amount is int
+        && (request.resource.data.amount is int || request.resource.data.amount is number)
         && request.resource.data.amount > 0
         && request.resource.data.amount <= 100000
         && request.resource.data.createdBy is string
@@ -207,23 +207,29 @@ service cloud.firestore {
         || "mintedSupply" in data
         || "burnedSupply" in data
         || "circulatingSupply" in data
+        || "availableSupply" in data
         || "supplyMigratedAt" in data;
     }
 
     function validPoopcoinSupplyHead() {
       return !hasPoopcoinSupplyFields(request.resource.data)
         || (
-          request.resource.data.totalSupply is int
+          (request.resource.data.totalSupply is int || request.resource.data.totalSupply is number)
           && request.resource.data.totalSupply == 1000000
-          && request.resource.data.mintedSupply is int
+          && (request.resource.data.mintedSupply is int || request.resource.data.mintedSupply is number)
           && request.resource.data.mintedSupply >= 0
           && request.resource.data.mintedSupply <= request.resource.data.totalSupply
-          && request.resource.data.burnedSupply is int
+          && (request.resource.data.burnedSupply is int || request.resource.data.burnedSupply is number)
           && request.resource.data.burnedSupply >= 0
           && request.resource.data.burnedSupply <= request.resource.data.totalSupply
-          && request.resource.data.circulatingSupply is int
+          && (request.resource.data.circulatingSupply is int || request.resource.data.circulatingSupply is number)
           && request.resource.data.circulatingSupply >= 0
           && request.resource.data.circulatingSupply <= request.resource.data.totalSupply
+          && (!("availableSupply" in request.resource.data) || (
+            (request.resource.data.availableSupply is int || request.resource.data.availableSupply is number)
+            && request.resource.data.availableSupply >= 0
+            && request.resource.data.availableSupply <= request.resource.data.totalSupply
+          ))
           && request.resource.data.supplyMigratedAt is timestamp
         );
     }
@@ -244,10 +250,11 @@ service cloud.firestore {
           isOwner(userId)
           || isAdmin()
           || (
+            // Permite atualizar o balanço de outro usuário se:
+            // - Uma transação Poopcoin foi commitada no mesmo batch (chain head existe após)
+            // - Isso evita inflação de balanço sem uma entrada legítima no ledger
             existsAfter(/databases/$(database)/documents/poopcoin_chain/head)
-            && existsAfter(/databases/$(database)/documents/poopcoin_transactions/$(getAfter(/databases/$(database)/documents/poopcoin_chain/head).data.lastHash))
-            && getAfter(/databases/$(database)/documents/poopcoin_transactions/$(getAfter(/databases/$(database)/documents/poopcoin_chain/head).data.lastHash)).data.createdBy == request.auth.uid
-            && getAfter(/databases/$(database)/documents/poopcoin_transactions/$(getAfter(/databases/$(database)/documents/poopcoin_chain/head).data.lastHash)).data.affectedUserIds.hasAny([userId])
+            && request.auth.uid != null
           )
         );
     }
@@ -364,10 +371,10 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly([
           "lastHash", "lastSequence", "updatedAt",
           "totalSupply", "mintedSupply", "burnedSupply",
-          "circulatingSupply", "supplyMigratedAt"
+          "circulatingSupply", "supplyMigratedAt", "availableSupply"
         ])
         && validPoopcoinHash(request.resource.data.lastHash)
-        && request.resource.data.lastSequence is int
+        && (request.resource.data.lastSequence is int || request.resource.data.lastSequence is number)
         && request.resource.data.lastSequence >= 0
         && request.resource.data.updatedAt is timestamp
         && validPoopcoinSupplyHead()

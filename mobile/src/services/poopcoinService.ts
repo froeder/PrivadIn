@@ -1169,10 +1169,11 @@ export async function recalculatePoopcoinSupply(admin: AppUser): Promise<Poopcoi
       latestTransaction && latestSequence > headSequence
         ? latestTransaction.hash
         : String(headData?.lastHash ?? latestTransaction?.hash ?? GENESIS_HASH);
+    const { availableSupply, ...headSupplyFields } = normalizedSummary;
     transaction.set(
       poopcoinChainHeadRef,
       {
-        ...normalizedSummary,
+        ...headSupplyFields,
         lastHash,
         lastSequence: Math.max(headSequence, latestSequence),
         updatedAt: now,

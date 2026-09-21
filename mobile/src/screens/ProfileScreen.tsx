@@ -297,14 +297,10 @@ export default function ProfileScreen({
             mediaTypes: ["images"],
             allowsEditing: false,
             quality: 0.7,
-            maxWidth: 1024,
-            maxHeight: 1024,
           })
         : await ImagePicker.launchCameraAsync({
             allowsEditing: false,
             quality: 0.7,
-            maxWidth: 1024,
-            maxHeight: 1024,
           });
 
     if (!result.canceled && result.assets[0]) {
