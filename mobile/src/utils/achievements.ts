@@ -35,11 +35,13 @@ export function calculateAchievements(
   logs.forEach((log) => {
     const d = parseLogDate(log.createdAt);
     if (!d) return;
+    const day = d.getDay();
+    const isWeekday = day >= 1 && day <= 5;
     const hour = d.getHours();
     if (hour < 8) {
       hasEarlyBird = true;
     }
-    if (hour >= 8 && hour < 18) {
+    if (isWeekday && hour >= 8 && hour < 18) {
       officeHoursCount++;
     }
     if (hour >= 22 || hour < 6) {

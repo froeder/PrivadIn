@@ -25,7 +25,9 @@ export default function WeeklyChart({
   const totalWeeklySessions = buckets.reduce((sum, b) => sum + b.count, 0);
 
   const officePercentage =
-    totalSessions > 0 ? Math.round((officeHoursCount / totalSessions) * 100) : 0;
+    totalSessions > 0
+      ? Math.min(100, Math.max(0, Math.round((officeHoursCount / totalSessions) * 100)))
+      : 0;
 
   return (
     <View style={styles.container}>
@@ -122,7 +124,7 @@ export default function WeeklyChart({
               </View>
               <View style={styles.selectedStatItem}>
                 <Text style={styles.selectedStatVal}>
-                  R$ {selectedDay.earnedAmount.toFixed(2).replace(".", ",")}
+                  R$ {(typeof selectedDay.earnedAmount === "number" && !isNaN(selectedDay.earnedAmount) ? selectedDay.earnedAmount : 0).toFixed(2).replace(".", ",")}
                 </Text>
                 <Text style={styles.selectedStatLbl}>Faturado</Text>
               </View>

@@ -12,6 +12,8 @@ import {
   Modal,
   TextInput,
   Linking,
+  Platform,
+  KeyboardAvoidingView,
 } from "react-native";
 import { AppUser, PoopLog } from "../types";
 import {
@@ -80,7 +82,11 @@ export default function AnalyticsScreen({
   const hourlyRate = useMemo(() => getUserHourlyRate(user), [user]);
 
   const loadData = async () => {
-    if (!user?.uid) return;
+    if (!user?.uid) {
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
     try {
       const allLogs = await getUserAllLogs(user.uid);
       setLogs(allLogs);
@@ -96,10 +102,18 @@ export default function AnalyticsScreen({
     loadData();
   }, [user?.uid]);
 
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    onRefreshUser?.();
-    loadData();
+    try {
+      await Promise.all([
+        onRefreshUser ? Promise.resolve(onRefreshUser()) : Promise.resolve(),
+        loadData(),
+      ]);
+    } catch (e) {
+      console.error("Error refreshing analytics:", e);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   // Calculations
@@ -144,15 +158,26 @@ export default function AnalyticsScreen({
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(logs.length / ITEMS_PER_PAGE));
+
+  // Clamp current page if logs are deleted
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
+
   const paginatedLogs = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
     return logs.slice(start, start + ITEMS_PER_PAGE);
   }, [logs, currentPage]);
 
-  const formatLogDuration = (durationSeconds?: number) => {
-    const sec = durationSeconds && durationSeconds > 0 ? durationSeconds : 600;
+  const formatLogDuration = (durationSeconds?: number | null) => {
+    const sec =
+      typeof durationSeconds === "number" && !isNaN(durationSeconds) && durationSeconds > 0
+        ? durationSeconds
+        : 600;
     const m = Math.floor(sec / 60);
-    const s = sec % 60;
+    const s = Math.floor(sec % 60);
     if (s === 0) return `${m}m`;
     return `${m}m ${s}s`;
   };
@@ -168,8 +193,9 @@ export default function AnalyticsScreen({
     return `${day}/${month}/${year} às ${hour}:${min}`;
   };
 
-  const formatCurrency = (val: number) => {
-    return `R$ ${val.toFixed(2).replace(".", ",")}`;
+  const formatCurrency = (val?: number | null) => {
+    const num = typeof val === "number" && !isNaN(val) ? val : 0;
+    return `R$ ${num.toFixed(2).replace(".", ",")}`;
   };
 
   // Preview calculations for the Edit Modal
@@ -227,6 +253,15 @@ export default function AnalyticsScreen({
     });
   };
 
+  const closeEditModal = () => {
+    if (isSavingEdit) return;
+    setEditingLog(null);
+    setEditingSessionNumber(null);
+    setEditMinutes("10");
+    setEditSeconds("0");
+    setEditNote("");
+  };
+
   const handleSaveEdit = async () => {
     if (!editingLog?.id) return;
     setIsSavingEdit(true);
@@ -248,7 +283,7 @@ export default function AnalyticsScreen({
       // Refresh top level user stats
       onRefreshUser?.();
 
-      setEditingLog(null);
+      closeEditModal();
       Alert.alert(
         "✅ Registro Atualizado",
         `Sua sessão foi corrigida com sucesso!\nNovo rendimento: ${formatCurrency(
@@ -793,7 +828,9 @@ export default function AnalyticsScreen({
                           )}
 
                           {log.location?.latitude != null &&
-                            log.location?.longitude != null && (
+                            log.location?.longitude != null &&
+                            !isNaN(log.location.latitude) &&
+                            !isNaN(log.location.longitude) && (
                               <TouchableOpacity
                                 style={styles.locationPill}
                                 onPress={() =>
@@ -914,9 +951,12 @@ export default function AnalyticsScreen({
         visible={editingLog !== null}
         transparent
         animationType="fade"
-        onRequestClose={() => !isSavingEdit && setEditingLog(null)}
+        onRequestClose={closeEditModal}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <View style={{ flex: 1 }}>
@@ -927,7 +967,7 @@ export default function AnalyticsScreen({
                 </Text>
               </View>
               <TouchableOpacity
-                onPress={() => !isSavingEdit && setEditingLog(null)}
+                onPress={closeEditModal}
                 style={styles.modalCloseBtn}
               >
                 <Text style={styles.modalCloseBtnText}>✕</Text>
@@ -944,7 +984,7 @@ export default function AnalyticsScreen({
                     style={styles.timeTextInput}
                     keyboardType="number-pad"
                     value={editMinutes}
-                    onChangeText={setEditMinutes}
+                    onChangeText={(val) => setEditMinutes(val.replace(/[^0-9]/g, ""))}
                     maxLength={3}
                   />
                 </View>
@@ -957,7 +997,7 @@ export default function AnalyticsScreen({
                     style={styles.timeTextInput}
                     keyboardType="number-pad"
                     value={editSeconds}
-                    onChangeText={setEditSeconds}
+                    onChangeText={(val) => setEditSeconds(val.replace(/[^0-9]/g, ""))}
                     maxLength={2}
                   />
                 </View>
@@ -1049,7 +1089,7 @@ export default function AnalyticsScreen({
             <View style={styles.modalActionsRow}>
               <TouchableOpacity
                 style={styles.modalCancelBtn}
-                onPress={() => setEditingLog(null)}
+                onPress={closeEditModal}
                 disabled={isSavingEdit}
               >
                 <Text style={styles.modalCancelBtnText}>Cancelar</Text>
@@ -1068,7 +1108,7 @@ export default function AnalyticsScreen({
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

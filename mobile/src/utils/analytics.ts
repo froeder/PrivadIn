@@ -35,8 +35,15 @@ export interface AnnualEstimate {
 
 export function parseLogDate(val: any): Date | null {
   if (!val) return null;
-  if (val instanceof Date) return val;
-  if (typeof val.toDate === "function") return val.toDate();
+  if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+  if (typeof val.toDate === "function") {
+    const d = val.toDate();
+    return isNaN(d.getTime()) ? null : d;
+  }
+  if (typeof val.toMillis === "function") {
+    const d = new Date(val.toMillis());
+    return isNaN(d.getTime()) ? null : d;
+  }
   if (typeof val.seconds === "number") return new Date(val.seconds * 1000);
   const parsed = new Date(val);
   return isNaN(parsed.getTime()) ? null : parsed;
@@ -152,11 +159,12 @@ export function getAnnualFirmCostEstimate(
   defaultMinutes = 10
 ): AnnualEstimate {
   const BUSINESS_DAYS_YEAR = 252;
+  const safeHourlyRate = typeof hourlyRate === "number" && !isNaN(hourlyRate) && hourlyRate > 0 ? hourlyRate : 20;
 
   if (logs.length === 0) {
     const averageDailyMinutes = defaultMinutes;
     const annualBathroomHours = (averageDailyMinutes / 60) * BUSINESS_DAYS_YEAR;
-    const annualCost = annualBathroomHours * hourlyRate;
+    const annualCost = annualBathroomHours * safeHourlyRate;
     return {
       annualCost: Number(annualCost.toFixed(2)),
       averageDailyMinutes,
@@ -181,7 +189,7 @@ export function getAnnualFirmCostEstimate(
     const earned =
       typeof log.earnedAmount === "number" && log.earnedAmount > 0
         ? log.earnedAmount
-        : (durationSec / 3600) * hourlyRate;
+        : (durationSec / 3600) * safeHourlyRate;
 
     totalHistoricalMinutes += durationMin;
     totalHistoricalEarned += earned;
@@ -201,7 +209,7 @@ export function getAnnualFirmCostEstimate(
   const annualBathroomHours = Number(
     ((averageDailyMinutes / 60) * BUSINESS_DAYS_YEAR).toFixed(1)
   );
-  const annualCost = Number((annualBathroomHours * hourlyRate).toFixed(2));
+  const annualCost = Number((annualBathroomHours * safeHourlyRate).toFixed(2));
 
   return {
     annualCost,
@@ -215,28 +223,31 @@ export function getAnnualFirmCostEstimate(
 export function getUserHourlyRate(user?: AppUser | null): number {
   if (!user) return 20;
 
-  if (typeof user.hourlyRate === "number" && user.hourlyRate > 0) {
+  if (typeof user.hourlyRate === "number" && user.hourlyRate > 0 && !isNaN(user.hourlyRate)) {
     return user.hourlyRate;
   }
 
   let monthlySalary = 3000;
-  if (typeof user.salary === "number" && user.salary > 0) {
+  if (typeof user.salary === "number" && user.salary > 0 && !isNaN(user.salary)) {
     monthlySalary = user.salary;
   }
 
   const sched = resolveWorkSchedule(user.workSchedule);
   const workMinutes = dailyWorkMinutes(sched) * 22;
   const workHours = Math.max(1, workMinutes / 60);
+  const rate = Number((monthlySalary / workHours).toFixed(2));
 
-  return Number((monthlySalary / workHours).toFixed(2));
+  return isNaN(rate) || rate <= 0 ? 20 : rate;
 }
 
 export function getBusinessHoursCount(logs: PoopLog[]): number {
   return logs.filter((log) => {
     const d = parseLogDate(log.createdAt);
     if (!d) return false;
+    const day = d.getDay(); // 0 = Domingo, 6 = Sábado
+    const isWeekday = day >= 1 && day <= 5;
     const hour = d.getHours();
-    return hour >= 8 && hour <= 18;
+    return isWeekday && hour >= 8 && hour <= 18;
   }).length;
 }
 
