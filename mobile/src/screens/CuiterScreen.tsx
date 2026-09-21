@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   StyleSheet,
   View,
@@ -339,25 +339,46 @@ export default function CuiterScreen({
     );
   };
 
-  const renderHeader = () => (
-    <View style={styles.feedHeaderContainer}>
-      {/* Top Banner */}
-      <View style={styles.bannerCard}>
-        <View style={styles.bannerTop}>
-          <View>
-            <Text style={styles.bannerEyebrow}>FEED SOCIAL DO TRONO</Text>
-            <Text style={styles.bannerTitle}>🐦 Cuiter</Text>
+  // Static header: only banner + timeline title (no volatile state → stable reference)
+  const renderStaticHeader = useCallback(
+    () => (
+      <View style={styles.feedHeaderContainer}>
+        {/* Top Banner */}
+        <View style={styles.bannerCard}>
+          <View style={styles.bannerTop}>
+            <View>
+              <Text style={styles.bannerEyebrow}>FEED SOCIAL DO TRONO</Text>
+              <Text style={styles.bannerTitle}>🐦 Cuiter</Text>
+            </View>
+            <View style={styles.bannerIconBox}>
+              <Text style={styles.bannerIcon}>🚽</Text>
+            </View>
           </View>
-          <View style={styles.bannerIconBox}>
-            <Text style={styles.bannerIcon}>🚽</Text>
-          </View>
+          <Text style={styles.bannerDescription}>
+            Compartilhe pensamentos direto do vaso sanitário corporativo. Cada post queima Poopcoins!
+          </Text>
         </View>
-        <Text style={styles.bannerDescription}>
-          Compartilhe pensamentos direto do vaso sanitário corporativo. Cada post queima Poopcoins!
-        </Text>
-      </View>
 
-      {/* Composer Card */}
+        {/* Feed Divider / Title */}
+        <View style={styles.timelineHeader}>
+          <Text style={styles.timelineTitle}>Linha do Tempo ao Vivo</Text>
+          <Text style={styles.timelineSubtitle}>
+            {posts.length} {posts.length === 1 ? "pensamento" : "pensamentos"}
+          </Text>
+        </View>
+      </View>
+    ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [posts.length]
+  );
+
+  return (
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={0}
+    >
+      {/* Composer Card — fora do FlatList para manter o foco do TextInput */}
       <View style={styles.composerCard}>
         <View style={styles.composerTopRow}>
           <View style={styles.composerUserRow}>
@@ -447,21 +468,6 @@ export default function CuiterScreen({
         )}
       </View>
 
-      {/* Feed Divider / Title */}
-      <View style={styles.timelineHeader}>
-        <Text style={styles.timelineTitle}>Linha do Tempo ao Vivo</Text>
-        <Text style={styles.timelineSubtitle}>
-          {posts.length} {posts.length === 1 ? "pensamento" : "pensamentos"}
-        </Text>
-      </View>
-    </View>
-  );
-
-  return (
-    <KeyboardAvoidingView
-      style={styles.screen}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#eab308" />
@@ -472,7 +478,7 @@ export default function CuiterScreen({
           data={posts}
           keyExtractor={(item) => item.id}
           renderItem={renderPostItem}
-          ListHeaderComponent={renderHeader}
+          ListHeaderComponent={renderStaticHeader}
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl
@@ -610,7 +616,8 @@ const styles = StyleSheet.create({
     borderColor: "rgba(234, 179, 8, 0.3)",
     borderRadius: 20,
     padding: 18,
-    marginBottom: 20,
+    margin: 16,
+    marginBottom: 0,
   },
   composerTopRow: {
     flexDirection: "row",
