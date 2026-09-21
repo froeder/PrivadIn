@@ -11,6 +11,7 @@ import {
   Modal,
   Linking,
   Platform,
+  KeyboardAvoidingView,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -29,6 +30,7 @@ import UserAvatar from "../components/UserAvatar";
 import ChangePasswordModal from "../components/ChangePasswordModal";
 import AvatarCropper from "../components/AvatarCropper";
 import * as ImagePicker from "expo-image-picker";
+import { useTheme } from "../hooks/useTheme";
 import {
   SupportedLanguage,
   getPersistedLanguage,
@@ -137,8 +139,13 @@ export default function ProfileScreen({
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   // Preferences: Idioma e Tema de Aparência
+  const { theme: appTheme, setTheme: setAppTheme } = useTheme();
   const [language, setLanguage] = useState<SupportedLanguage>("pt-BR");
-  const [appearanceTheme, setAppearanceTheme] = useState<"dark" | "light" | "system">("dark");
+  const [appearanceTheme, setAppearanceTheme] = useState<"dark" | "light" | "system">(appTheme);
+
+  useEffect(() => {
+    setAppearanceTheme(appTheme);
+  }, [appTheme]);
 
   // 2. Work Schedule & Bathroom state
   const [workStart, setWorkStart] = useState(
@@ -161,19 +168,11 @@ export default function ProfileScreen({
   );
   const [savingWork, setSavingWork] = useState(false);
 
-  // Carregar preferências persistidas (idioma e tema)
+  // Carregar preferências persistidas (idioma)
   useEffect(() => {
     async function loadPreferences() {
       const savedLang = await getPersistedLanguage();
       setLanguage(savedLang);
-      try {
-        const savedAppearance = await AsyncStorage.getItem("@privadin:appearance_theme");
-        if (savedAppearance === "dark" || savedAppearance === "light" || savedAppearance === "system") {
-          setAppearanceTheme(savedAppearance);
-        }
-      } catch (err) {
-        console.warn("Error loading appearance theme:", err);
-      }
     }
     loadPreferences();
   }, []);
@@ -221,23 +220,19 @@ export default function ProfileScreen({
   };
 
   // Handler: Alterar Modo de Tema
-  const handleChangeAppearance = async (newTheme: "dark" | "light" | "system") => {
+  const handleChangeAppearance = (newTheme: "dark" | "light" | "system") => {
     setAppearanceTheme(newTheme);
-    try {
-      await AsyncStorage.setItem("@privadin:appearance_theme", newTheme);
-      Alert.alert(
-        "Aparência Atualizada 🎨",
-        `Tema configurado para: ${
-          newTheme === "dark"
-            ? "Escuro (Noturno OLED)"
-            : newTheme === "light"
-              ? "Claro"
-              : "Acompanhar Sistema"
-        }`
-      );
-    } catch (err) {
-      console.warn("Error saving appearance theme:", err);
-    }
+    setAppTheme(newTheme);
+    Alert.alert(
+      "Aparência Atualizada 🎨",
+      `Tema configurado para: ${
+        newTheme === "dark"
+          ? "Escuro (Noturno OLED)"
+          : newTheme === "light"
+            ? "Claro"
+            : "Acompanhar Sistema"
+      }`
+    );
   };
 
   // 3. Financial Settings state
@@ -323,7 +318,8 @@ export default function ProfileScreen({
       const url = await uploadUserAvatarPhoto(user.uid, cropData.imageUrl);
       console.log("[Avatar] Upload OK, URL:", url);
       // Adiciona cache-buster para forçar o React Native a não usar a imagem antiga em cache
-      const cacheBustedUrl = `${url}&_t=${Date.now()}`;
+      const separator = url.includes("?") ? "&" : "?";
+      const cacheBustedUrl = `${url}${separator}_t=${Date.now()}`;
       setPhotoUri(cacheBustedUrl);
       setCustomAvatarInput("");
       setCropperVisible(false);
@@ -375,7 +371,7 @@ export default function ProfileScreen({
     setSavingProfile(true);
     try {
       // Se tiver foto, ela já foi salva no upload. Salva nickname/theme/bio + avatar.
-      const finalAvatar = photoUri ?? (customAvatarInput.trim() || selectedAvatar);
+      const finalAvatar = photoUri || customAvatarInput.trim() || selectedAvatar || "🚽";
       await updateUserProfileCustomization(user.uid, {
         nickname: nickname.trim(),
         avatar: finalAvatar,
@@ -394,6 +390,20 @@ export default function ProfileScreen({
 
   // Handler: Save Work Schedule & Bathroom Duration
   const handleSaveWorkSchedule = async () => {
+    const startMin = timeToMinutes(workStart);
+    const endMin = timeToMinutes(workEnd);
+    if (startMin >= endMin) {
+      Alert.alert("Horário Inválido", "O horário de início do expediente deve ser anterior ao término.");
+      return;
+    }
+
+    const lStartMin = timeToMinutes(lunchStart);
+    const lEndMin = timeToMinutes(lunchEnd);
+    if (lStartMin >= lEndMin) {
+      Alert.alert("Horário de Almoço Inválido", "O início do intervalo de almoço deve ser anterior ao término.");
+      return;
+    }
+
     setSavingWork(true);
     try {
       const schedule: WorkSchedule = {
@@ -432,7 +442,7 @@ export default function ProfileScreen({
   // Handler: Save Financial Settings
   const handleSaveFinancials = async () => {
     const { salary, hourly } = effectiveCalculations;
-    if (salary <= 0 || hourly <= 0) {
+    if (isNaN(salary) || isNaN(hourly) || salary <= 0 || hourly <= 0 || !isFinite(salary) || !isFinite(hourly)) {
       Alert.alert("Erro", "Por favor, insira um valor monetário válido.");
       return;
     }
@@ -507,7 +517,7 @@ export default function ProfileScreen({
       {/* Profile Header Card */}
       <View style={styles.profileHeader}>
         <UserAvatar
-          avatar={photoUri ?? user.avatar ?? selectedAvatar}
+          avatar={photoUri || user.avatar || selectedAvatar || "🚽"}
           badge={user.equippedBadge}
           name={user.nickname || user.name}
           size={84}
@@ -713,7 +723,7 @@ export default function ProfileScreen({
           {photoUri ? (
             <View style={styles.photoPreviewRow}>
               <UserAvatar
-                avatar={photoUri}
+                avatar={photoUri || user.avatar || selectedAvatar || "🚽"}
                 name={user.nickname || user.name}
                 size={72}
                 borderColor={userThemeColor}
@@ -1560,7 +1570,10 @@ export default function ProfileScreen({
         animationType="fade"
         onRequestClose={() => !isDeletingAccount && setDeleteModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
           <View style={[styles.modalContainer, { borderColor: "rgba(239, 68, 68, 0.4)" }]}>
             <View style={styles.modalHeader}>
               <View style={{ flex: 1 }}>
@@ -1653,7 +1666,7 @@ export default function ProfileScreen({
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </ScrollView>
   );
@@ -1662,6 +1675,7 @@ export default function ProfileScreen({
 const styles = StyleSheet.create({
   container: {
     padding: 20,
+    paddingBottom: 40,
     backgroundColor: "#020617",
     flexGrow: 1,
   },
