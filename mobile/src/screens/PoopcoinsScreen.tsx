@@ -178,6 +178,21 @@ export default function PoopcoinsScreen({
 
   const handleConfirmPurchase = async () => {
     if (!selectedShopItem) return;
+    const isAlreadyOwned = Boolean(
+      user.unlockedItems?.includes(selectedShopItem.id) ||
+      user.unlockedItems?.includes(selectedShopItem.name) ||
+      (selectedShopItem.category === "title" && user.equippedTitle === selectedShopItem.name) ||
+      (selectedShopItem.category === "badge" && user.equippedBadge === selectedShopItem.icon)
+    );
+    if (isAlreadyOwned) {
+      Alert.alert(
+        "Item Já Adquirido",
+        "Você já possui este item. O limite da loja é de 1 unidade por usuário."
+      );
+      setSelectedShopItem(null);
+      return;
+    }
+
     setPurchasing(true);
     try {
       await buyShopItem(user, selectedShopItem);
@@ -596,7 +611,12 @@ export default function PoopcoinsScreen({
           {/* Shop Items List */}
           <View style={styles.shopGrid}>
             {filteredShopItems.map((item) => {
-              const isOwned = user.unlockedItems?.includes(item.id);
+              const isOwned = Boolean(
+                user.unlockedItems?.includes(item.id) ||
+                user.unlockedItems?.includes(item.name) ||
+                (item.category === "title" && user.equippedTitle === item.name) ||
+                (item.category === "badge" && user.equippedBadge === item.icon)
+              );
               const isEquipped =
                 item.category === "title"
                   ? user.equippedTitle === item.name
@@ -673,6 +693,12 @@ export default function PoopcoinsScreen({
                                   </Text>
                                 </View>
                               )}
+
+                              <View style={styles.limitBadge}>
+                                <Text style={styles.limitBadgeText}>
+                                  {isOwned ? "✓ Limite Atingido (1/1)" : "🔒 Limite: 1 un."}
+                                </Text>
+                              </View>
                             </>
                           );
                         })()}
@@ -713,7 +739,7 @@ export default function PoopcoinsScreen({
                     {isOwned ? (
                       item.category === "perk" ? (
                         <View style={styles.ownedBadge}>
-                          <Text style={styles.ownedBadgeText}>✓ Desbloqueado</Text>
+                          <Text style={styles.ownedBadgeText}>✓ Adquirido (Limite: 1)</Text>
                         </View>
                       ) : (
                         <TouchableOpacity
@@ -913,6 +939,12 @@ export default function PoopcoinsScreen({
                   <Text style={styles.summaryRowLabel}>Estoque Disponível:</Text>
                   <Text style={[styles.summaryRowValue, { color: (selectedShopItem.currentStock ?? 10) <= 3 ? "#f59e0b" : "#38bdf8" }]}>
                     {selectedShopItem.currentStock ?? selectedShopItem.initialStock ?? 10} unidades
+                  </Text>
+                </View>
+                <View style={styles.purchaseSummaryRow}>
+                  <Text style={styles.summaryRowLabel}>Limite por Pessoa:</Text>
+                  <Text style={[styles.summaryRowValue, { color: "#eab308", fontWeight: "bold" }]}>
+                    1 unidade (Máx.)
                   </Text>
                 </View>
                 <View style={styles.purchaseSummaryRow}>
@@ -1701,5 +1733,18 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     textDecorationLine: "line-through",
     marginTop: 2,
+  },
+  limitBadge: {
+    backgroundColor: "rgba(148, 163, 184, 0.1)",
+    borderColor: "rgba(148, 163, 184, 0.25)",
+    borderWidth: 1,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  limitBadgeText: {
+    color: "#94a3b8",
+    fontSize: 10,
+    fontWeight: "700",
   },
 });

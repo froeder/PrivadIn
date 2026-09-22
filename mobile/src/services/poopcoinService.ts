@@ -853,9 +853,15 @@ export async function buyShopItem(
       );
     }
 
-    const alreadyOwned = userData.unlockedItems?.includes(item.id);
+    const alreadyOwned = Boolean(
+      userData.unlockedItems?.includes(item.id) ||
+      userData.unlockedItems?.includes(effectiveItem.id) ||
+      (effectiveItem.name && userData.unlockedItems?.includes(effectiveItem.name)) ||
+      (effectiveItem.category === "title" && userData.equippedTitle === effectiveItem.name) ||
+      (effectiveItem.category === "badge" && userData.equippedBadge === effectiveItem.icon)
+    );
     if (alreadyOwned) {
-      throw new Error("Você já possui este item em seu inventário!");
+      throw new Error("Você já possui este item em seu inventário! O limite é de 1 unidade por usuário.");
     }
 
     const previousHash = String(headSnap.data()?.lastHash ?? GENESIS_HASH);
