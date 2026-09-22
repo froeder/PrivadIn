@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   StyleSheet,
   View,
@@ -11,9 +11,9 @@ import {
   Platform,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
-import { AppUser, CuiterPost, PoopLog } from "../types";
+import { AppUser, CuiterPost, PoopLog, ShopItem } from "../types";
 import { fetchUserCuiterPosts, fetchUserProfile, formatTimeAgo } from "../services/cuiterService";
-import { formatPoopcoins } from "../services/poopcoinService";
+import { formatPoopcoins, listenShopItems, SHOP_CATALOG } from "../services/poopcoinService";
 import { getUserLogs } from "../services/poopService";
 import UserAvatar from "./UserAvatar";
 
@@ -53,6 +53,52 @@ export default function UserProfileModal({
   const [userLogs, setUserLogs] = useState<PoopLog[]>([]);
   const [activeTab, setActiveTab] = useState<"stats" | "history" | "cuiter">("stats");
   const [copiedUid, setCopiedUid] = useState(false);
+  const [shopCatalog, setShopCatalog] = useState<ShopItem[]>(SHOP_CATALOG);
+
+  useEffect(() => {
+    const unsub = listenShopItems((items) => {
+      setShopCatalog(items);
+    });
+    return () => unsub();
+  }, []);
+
+  const purchasedItems = useMemo(() => {
+    if (!profileUser) return [];
+    const list: ShopItem[] = [];
+    const seenKeys = new Set<string>();
+
+    shopCatalog.forEach((item) => {
+      const isOwned = Boolean(
+        profileUser.unlockedItems?.includes(item.id) ||
+        profileUser.unlockedItems?.includes(item.name) ||
+        (item.category === "title" && profileUser.equippedTitle === item.name) ||
+        (item.category === "badge" && profileUser.equippedBadge === item.icon)
+      );
+
+      if (isOwned) {
+        list.push(item);
+        seenKeys.add(item.id);
+        seenKeys.add(item.name);
+      }
+    });
+
+    profileUser.unlockedItems?.forEach((idOrName) => {
+      if (!seenKeys.has(idOrName)) {
+        list.push({
+          id: idOrName,
+          name: idOrName,
+          description: "Item colecionável exclusivo adquirido",
+          category: "badge",
+          rarity: "raro",
+          price: 0,
+          icon: "🎁",
+        });
+        seenKeys.add(idOrName);
+      }
+    });
+
+    return list;
+  }, [profileUser, shopCatalog]);
 
   const handleCopyUid = async () => {
     if (!profileUser?.uid) return;
@@ -462,6 +508,64 @@ export default function UserProfileModal({
                         </View>
                       ))}
                     </View>
+                  </View>
+
+                  {/* Badges / Purchased Items Gallery */}
+                  <View style={styles.medalsCard}>
+                    <View style={styles.medalsHeader}>
+                      <Text style={styles.sectionHeading}>🎒 Itens Comprados na Loja</Text>
+                      <View style={styles.badgeCounter}>
+                        <Text style={styles.badgeCounterText}>
+                          {purchasedItems.length} {purchasedItems.length === 1 ? "Item" : "Itens"}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {purchasedItems.length === 0 ? (
+                      <View style={styles.emptyItemsBox}>
+                        <Text style={{ fontSize: 26, marginBottom: 4 }}>🛍️</Text>
+                        <Text style={styles.emptyItemsText}>
+                          Nenhum item da loja adquirido ainda.
+                        </Text>
+                      </View>
+                    ) : (
+                      <View style={styles.purchasedGrid}>
+                        {purchasedItems.map((it) => {
+                          const isEquipped =
+                            it.category === "title"
+                              ? profileUser.equippedTitle === it.name
+                              : it.category === "badge"
+                              ? profileUser.equippedBadge === it.icon
+                              : false;
+
+                          return (
+                            <View key={it.id} style={styles.purchasedItemCard}>
+                              <View style={styles.purchasedItemIconCircle}>
+                                <Text style={{ fontSize: 22 }}>{it.icon}</Text>
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                                  <Text style={styles.purchasedItemName} numberOfLines={1}>
+                                    {it.name}
+                                  </Text>
+                                  {isEquipped && (
+                                    <View style={styles.purchasedEquippedPill}>
+                                      <Text style={styles.purchasedEquippedPillText}>Em Uso</Text>
+                                    </View>
+                                  )}
+                                </View>
+                                <Text style={styles.purchasedCategoryTag}>
+                                  {it.category === "title" ? "👑 Título" : it.category === "badge" ? "🥇 Emblema" : "☕ Privilégio"}
+                                </Text>
+                                <Text style={styles.purchasedItemDesc} numberOfLines={2}>
+                                  {it.perkEffect ? `⚡ ${it.perkEffect}` : it.description}
+                                </Text>
+                              </View>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    )}
                   </View>
                 </View>
               )}
@@ -1007,5 +1111,73 @@ const styles = StyleSheet.create({
     color: "#94a3b8",
     fontSize: 13,
     textAlign: "center",
+  },
+  emptyItemsBox: {
+    backgroundColor: "#1e293b",
+    borderRadius: 14,
+    padding: 20,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#334155",
+    borderStyle: "dashed",
+  },
+  emptyItemsText: {
+    color: "#94a3b8",
+    fontSize: 12,
+    textAlign: "center",
+  },
+  purchasedGrid: {
+    gap: 10,
+  },
+  purchasedItemCard: {
+    backgroundColor: "#1e293b",
+    borderRadius: 14,
+    padding: 12,
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  purchasedItemIconCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: "rgba(234, 179, 8, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(234, 179, 8, 0.25)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  purchasedItemName: {
+    color: "#f8fafc",
+    fontSize: 14,
+    fontWeight: "800",
+    flex: 1,
+  },
+  purchasedEquippedPill: {
+    backgroundColor: "rgba(34, 197, 94, 0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#22c55e",
+  },
+  purchasedEquippedPillText: {
+    color: "#4ade80",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  purchasedCategoryTag: {
+    color: "#eab308",
+    fontSize: 10,
+    fontWeight: "700",
+    marginTop: 1,
+  },
+  purchasedItemDesc: {
+    color: "#94a3b8",
+    fontSize: 11,
+    marginTop: 2,
+    lineHeight: 15,
   },
 });

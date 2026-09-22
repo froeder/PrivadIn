@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { AppUser, WorkSchedule } from "../types";
+import { AppUser, WorkSchedule, ShopItem } from "../types";
 import { signOutUser, deleteCurrentUserAccount } from "../services/authService";
 import {
   updateUserProfileCustomization,
@@ -23,6 +23,11 @@ import {
   updateUserFinancialSettings,
   uploadUserAvatarPhoto,
 } from "../services/poopService";
+import {
+  listenShopItems,
+  SHOP_CATALOG,
+  equipUserItem,
+} from "../services/poopcoinService";
 import PoopcoinWalletCard from "../components/PoopcoinWalletCard";
 import TransferPoopcoinsModal from "../components/TransferPoopcoinsModal";
 import UserProfileModal from "../components/UserProfileModal";
@@ -196,6 +201,92 @@ export default function ProfileScreen({
       setPhotoUri(null);
     }
   }, [user.avatar]);
+
+  // Shop items & Inventory state
+  const [shopCatalog, setShopCatalog] = useState<ShopItem[]>(SHOP_CATALOG);
+  const [inventoryCategory, setInventoryCategory] = useState<"all" | "title" | "badge" | "perk">("all");
+  const [equippingItemId, setEquippingItemId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsub = listenShopItems((items) => {
+      setShopCatalog(items);
+    });
+    return () => unsub();
+  }, []);
+
+  const ownedItems = useMemo(() => {
+    const list: ShopItem[] = [];
+    const seenKeys = new Set<string>();
+
+    shopCatalog.forEach((item) => {
+      const isOwned = Boolean(
+        user.unlockedItems?.includes(item.id) ||
+        user.unlockedItems?.includes(item.name) ||
+        (item.category === "title" && user.equippedTitle === item.name) ||
+        (item.category === "badge" && user.equippedBadge === item.icon)
+      );
+
+      if (isOwned) {
+        list.push(item);
+        seenKeys.add(item.id);
+        seenKeys.add(item.name);
+      }
+    });
+
+    user.unlockedItems?.forEach((idOrName) => {
+      if (!seenKeys.has(idOrName)) {
+        list.push({
+          id: idOrName,
+          name: idOrName,
+          description: "Item colecionável exclusivo adquirido",
+          category: "badge",
+          rarity: "raro",
+          price: 0,
+          icon: "🎁",
+        });
+        seenKeys.add(idOrName);
+      }
+    });
+
+    return list;
+  }, [shopCatalog, user.unlockedItems, user.equippedTitle, user.equippedBadge]);
+
+  const filteredOwnedItems = useMemo(() => {
+    if (inventoryCategory === "all") return ownedItems;
+    return ownedItems.filter((it) => it.category === inventoryCategory);
+  }, [ownedItems, inventoryCategory]);
+
+  const handleToggleEquipItem = async (item: ShopItem) => {
+    setEquippingItemId(item.id);
+    try {
+      const isEquipped =
+        item.category === "title"
+          ? user.equippedTitle === item.name
+          : item.category === "badge"
+          ? user.equippedBadge === item.icon
+          : false;
+
+      await equipUserItem(user.uid, item, !isEquipped);
+      onRefreshUser();
+    } catch (err: any) {
+      Alert.alert("Erro ao Equipar", err?.message || "Não foi possível atualizar o item.");
+    } finally {
+      setEquippingItemId(null);
+    }
+  };
+
+  const getRarityBadgeStyle = (rarity: string) => {
+    switch (rarity) {
+      case "lendario":
+        return { border: "#eab308", bg: "rgba(234, 179, 8, 0.15)", text: "#facc15" };
+      case "epico":
+        return { border: "#c084fc", bg: "rgba(192, 132, 252, 0.15)", text: "#d8b4fe" };
+      case "raro":
+        return { border: "#38bdf8", bg: "rgba(56, 189, 248, 0.15)", text: "#7dd3fc" };
+      default:
+        return { border: "#64748b", bg: "rgba(100, 116, 139, 0.15)", text: "#94a3b8" };
+    }
+  };
 
   // Handler: Copiar Própria Chave Poopcoin / UID
   const handleCopySelfUid = async () => {
@@ -1556,6 +1647,213 @@ export default function ProfileScreen({
         )}
       </View>
 
+      {/* 🎒 ITENS COMPRADOS / INVENTÁRIO */}
+      <View style={styles.card}>
+        <View style={styles.inventoryHeader}>
+          <View style={{ flex: 1 }}>
+            <View style={styles.inventoryTitleRow}>
+              <Text style={{ fontSize: 18 }}>🎒</Text>
+              <Text style={styles.cardTitle}>Itens Adquiridos</Text>
+              <View style={[styles.inventoryCountBadge, { borderColor: `${userThemeColor}60` }]}>
+                <Text style={[styles.inventoryCountBadgeText, { color: userThemeColor }]}>
+                  {ownedItems.length} {ownedItems.length === 1 ? "item" : "itens"}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.cardDescription}>
+              Seus títulos nobiliárquicos, emblemas de perfil e vantagens compradas na loja.
+            </Text>
+          </View>
+          {onNavigateToPoopcoins && (
+            <TouchableOpacity
+              style={styles.inventoryShopLink}
+              onPress={onNavigateToPoopcoins}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.inventoryShopLinkText, { color: userThemeColor }]}>
+                Loja ›
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {ownedItems.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.inventoryFiltersScroll}
+          >
+            {[
+              { key: "all", label: "✨ Todos", count: ownedItems.length },
+              { key: "title", label: "👑 Títulos", count: ownedItems.filter((i) => i.category === "title").length },
+              { key: "badge", label: "🥇 Emblemas", count: ownedItems.filter((i) => i.category === "badge").length },
+              { key: "perk", label: "☕ Vantagens", count: ownedItems.filter((i) => i.category === "perk").length },
+            ].map((f) => (
+              <TouchableOpacity
+                key={f.key}
+                style={[
+                  styles.inventoryFilterPill,
+                  inventoryCategory === f.key && [
+                    styles.inventoryFilterPillActive,
+                    { borderColor: userThemeColor, backgroundColor: `${userThemeColor}15` },
+                  ],
+                ]}
+                onPress={() => setInventoryCategory(f.key as any)}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.inventoryFilterPillText,
+                    inventoryCategory === f.key && { color: userThemeColor, fontWeight: "800" },
+                  ]}
+                >
+                  {f.label} ({f.count})
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
+
+        {filteredOwnedItems.length === 0 ? (
+          <View style={styles.inventoryEmptyState}>
+            <Text style={styles.inventoryEmptyEmoji}>
+              {ownedItems.length === 0 ? "🛍️" : "🔍"}
+            </Text>
+            <Text style={styles.inventoryEmptyTitle}>
+              {ownedItems.length === 0
+                ? "Nenhum item comprado ainda"
+                : "Nenhum item nesta categoria"}
+            </Text>
+            <Text style={styles.inventoryEmptyDesc}>
+              {ownedItems.length === 0
+                ? "Visite a Loja de Poopcoins para desbloquear títulos exclusivos, medalhas para seu avatar e privilégios da firma!"
+                : "Você ainda não adquiriu nenhum item desta categoria na loja."}
+            </Text>
+            {onNavigateToPoopcoins && (
+              <TouchableOpacity
+                style={[styles.inventoryExploreBtn, { backgroundColor: userThemeColor }]}
+                onPress={onNavigateToPoopcoins}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.inventoryExploreBtnText}>
+                  Explorar Loja de Poopcoins 🛍️
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        ) : (
+          <View style={styles.inventoryItemsList}>
+            {filteredOwnedItems.map((item) => {
+              const rarityStyle = getRarityBadgeStyle(item.rarity);
+              const isEquipped =
+                item.category === "title"
+                  ? user.equippedTitle === item.name
+                  : item.category === "badge"
+                  ? user.equippedBadge === item.icon
+                  : false;
+              const isBusy = equippingItemId === item.id;
+
+              return (
+                <View key={item.id} style={styles.inventoryItemCard}>
+                  <View style={styles.inventoryItemTop}>
+                    <View
+                      style={[
+                        styles.inventoryItemIconBox,
+                        { borderColor: rarityStyle.border, backgroundColor: rarityStyle.bg },
+                      ]}
+                    >
+                      <Text style={styles.inventoryItemIcon}>{item.icon}</Text>
+                    </View>
+
+                    <View style={styles.inventoryItemMeta}>
+                      <View style={styles.inventoryItemHeaderRow}>
+                        <Text style={styles.inventoryItemName} numberOfLines={1}>
+                          {item.name}
+                        </Text>
+                        <View
+                          style={[
+                            styles.inventoryRarityBadge,
+                            { borderColor: rarityStyle.border, backgroundColor: rarityStyle.bg },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.inventoryRarityBadgeText,
+                              { color: rarityStyle.text },
+                            ]}
+                          >
+                            {item.rarity.toUpperCase()}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <Text style={styles.inventoryItemCategoryLabel}>
+                        {item.category === "title"
+                          ? "👑 Título de Honra"
+                          : item.category === "badge"
+                          ? "🥇 Emblema de Avatar"
+                          : "☕ Privilégio Corporativo"}
+                      </Text>
+
+                      <Text style={styles.inventoryItemDescription}>
+                        {item.description}
+                      </Text>
+
+                      {item.perkEffect && (
+                        <View style={styles.inventoryPerkBox}>
+                          <Text style={styles.inventoryPerkText}>
+                            ⚡ Efeito: {item.perkEffect}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+
+                  <View style={styles.inventoryItemActions}>
+                    {item.category === "perk" ? (
+                      <View style={styles.inventoryPerkActiveBadge}>
+                        <Text style={styles.inventoryPerkActiveText}>
+                          ✓ Vantagem Adquirida & Ativa
+                        </Text>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        style={[
+                          styles.inventoryEquipBtn,
+                          isEquipped && styles.inventoryEquipBtnActive,
+                        ]}
+                        onPress={() => handleToggleEquipItem(item)}
+                        disabled={isBusy}
+                        activeOpacity={0.8}
+                      >
+                        {isBusy ? (
+                          <ActivityIndicator size="small" color="#f8fafc" />
+                        ) : (
+                          <Text
+                            style={[
+                              styles.inventoryEquipBtnText,
+                              isEquipped && styles.inventoryEquipBtnTextActive,
+                            ]}
+                          >
+                            {isEquipped
+                              ? item.category === "title"
+                                ? "✓ Título em Uso (Toque p/ Remover)"
+                                : "✓ No Avatar (Toque p/ Remover)"
+                              : item.category === "title"
+                              ? "👑 Equipar Título"
+                              : "🥇 Usar no Avatar"}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </View>
+
       {/* Poopcoin Wallet Card */}
       <PoopcoinWalletCard
         user={user}
@@ -2730,5 +3028,218 @@ const styles = StyleSheet.create({
   uploadOverlayText: {
     fontSize: 13,
     fontWeight: "700",
+  },
+  // Inventory styles
+  inventoryHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 14,
+  },
+  inventoryTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  inventoryCountBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    borderWidth: 1,
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
+  },
+  inventoryCountBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  inventoryShopLink: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    backgroundColor: "#1e293b",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  inventoryShopLinkText: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  inventoryFiltersScroll: {
+    marginBottom: 14,
+  },
+  inventoryFilterPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: "#1e293b",
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  inventoryFilterPillActive: {
+    borderWidth: 1,
+  },
+  inventoryFilterPillText: {
+    color: "#94a3b8",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  inventoryEmptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+    backgroundColor: "#0f172a",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    borderStyle: "dashed",
+  },
+  inventoryEmptyEmoji: {
+    fontSize: 36,
+    marginBottom: 8,
+  },
+  inventoryEmptyTitle: {
+    color: "#f8fafc",
+    fontSize: 15,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  inventoryEmptyDesc: {
+    color: "#94a3b8",
+    fontSize: 12,
+    textAlign: "center",
+    lineHeight: 17,
+    marginBottom: 16,
+    maxWidth: 300,
+  },
+  inventoryExploreBtn: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  inventoryExploreBtnText: {
+    color: "#020617",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  inventoryItemsList: {
+    gap: 10,
+  },
+  inventoryItemCard: {
+    backgroundColor: "#0f172a",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    padding: 14,
+  },
+  inventoryItemTop: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  inventoryItemIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  inventoryItemIcon: {
+    fontSize: 22,
+  },
+  inventoryItemMeta: {
+    flex: 1,
+  },
+  inventoryItemHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  inventoryItemName: {
+    color: "#f8fafc",
+    fontSize: 14,
+    fontWeight: "800",
+    flex: 1,
+  },
+  inventoryRarityBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    marginLeft: 6,
+  },
+  inventoryRarityBadgeText: {
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 0.6,
+  },
+  inventoryItemCategoryLabel: {
+    color: "#64748b",
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  inventoryItemDescription: {
+    color: "#94a3b8",
+    fontSize: 12,
+    marginTop: 4,
+    lineHeight: 16,
+  },
+  inventoryPerkBox: {
+    backgroundColor: "rgba(234, 179, 8, 0.1)",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: "rgba(234, 179, 8, 0.25)",
+    alignSelf: "flex-start",
+  },
+  inventoryPerkText: {
+    color: "#facc15",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  inventoryItemActions: {
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#1e293b",
+    alignItems: "flex-end",
+  },
+  inventoryPerkActiveBadge: {
+    backgroundColor: "rgba(234, 179, 8, 0.12)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(234, 179, 8, 0.3)",
+  },
+  inventoryPerkActiveText: {
+    color: "#eab308",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  inventoryEquipBtn: {
+    backgroundColor: "#1e293b",
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  inventoryEquipBtnActive: {
+    backgroundColor: "rgba(34, 197, 94, 0.15)",
+    borderColor: "#22c55e",
+  },
+  inventoryEquipBtnText: {
+    color: "#94a3b8",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  inventoryEquipBtnTextActive: {
+    color: "#4ade80",
+    fontWeight: "900",
   },
 });
