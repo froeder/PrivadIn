@@ -382,5 +382,19 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ITENS DA LOJA (SHOP ITEMS)
+    match /shop_items/{itemId} {
+      allow read: if signedIn();
+      allow create: if isAdmin() || !exists(/databases/$(database)/documents/shop_items/$(itemId));
+      allow update: if isAdmin()
+        || (
+          signedIn()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["currentStock", "updatedAt"])
+          && request.resource.data.currentStock == resource.data.currentStock - 1
+          && resource.data.currentStock >= 0
+        );
+      allow delete: if isAdmin();
+    }
+
   }
 }
