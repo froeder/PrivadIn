@@ -856,12 +856,13 @@ export async function buyShopItem(
     const alreadyOwned = Boolean(
       userData.unlockedItems?.includes(item.id) ||
       userData.unlockedItems?.includes(effectiveItem.id) ||
+      (item.name && userData.unlockedItems?.includes(item.name)) ||
       (effectiveItem.name && userData.unlockedItems?.includes(effectiveItem.name)) ||
-      (effectiveItem.category === "title" && userData.equippedTitle === effectiveItem.name) ||
-      (effectiveItem.category === "badge" && userData.equippedBadge === effectiveItem.icon)
+      (effectiveItem.category === "title" && (userData.equippedTitle === effectiveItem.name || userData.equippedTitle === item.name)) ||
+      (effectiveItem.category === "badge" && (userData.equippedBadge === effectiveItem.icon || userData.equippedBadge === item.icon))
     );
     if (alreadyOwned) {
-      throw new Error("Você já possui este item em seu inventário! O limite é de 1 unidade por usuário.");
+      throw new Error("Você já possui este item em seu inventário! O limite da loja é de apenas 1 unidade de cada item por usuário.");
     }
 
     const previousHash = String(headSnap.data()?.lastHash ?? GENESIS_HASH);
@@ -950,7 +951,15 @@ export async function buyShopItem(
 
     // 4. Atualiza usuário (desconta saldo e adiciona aos itens desbloqueados)
     const updatedUnlocked = Array.from(
-      new Set([...(userData.unlockedItems || []), item.id])
+      new Set(
+        [
+          ...(userData.unlockedItems || []),
+          item.id,
+          effectiveItem.id,
+          item.name,
+          effectiveItem.name,
+        ].filter(Boolean) as string[]
+      )
     );
     const userUpdates: any = {
       poopcoinBalance: increment(-livePrice),

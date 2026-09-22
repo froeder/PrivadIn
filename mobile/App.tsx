@@ -9,6 +9,8 @@ import {
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { listenAuthState, ensureUserProfile } from "./src/services/authService";
+import { onSnapshot, doc } from "firebase/firestore";
+import { db } from "./src/services/firebase";
 import { AppUser, TabType } from "./src/types";
 import LoginScreen from "./src/screens/LoginScreen";
 import DashboardScreen from "./src/screens/DashboardScreen";
@@ -56,10 +58,26 @@ function MainApp() {
   };
 
   useEffect(() => {
+    let unsubUserDoc: (() => void) | null = null;
+
     const unsubscribeAuth = listenAuthState(async (user) => {
       setFirebaseUser(user);
+      if (unsubUserDoc) {
+        unsubUserDoc();
+        unsubUserDoc = null;
+      }
       if (user) {
         await loadUserData(user);
+        unsubUserDoc = onSnapshot(doc(db, "users", user.uid), (docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data() as any;
+            setAppUser((prev) => ({
+              ...(prev || {}),
+              uid: user.uid,
+              ...data,
+            } as AppUser));
+          }
+        });
       } else {
         setAppUser(null);
       }
@@ -73,6 +91,9 @@ function MainApp() {
     return () => {
       unsubscribeAuth();
       unsubscribeSettings();
+      if (unsubUserDoc) {
+        unsubUserDoc();
+      }
     };
   }, []);
 

@@ -92,12 +92,43 @@ export default function PoopcoinsScreen({
   const [shopCategory, setShopCategory] = useState<"all" | ShopItemCategory>("all");
   const [shopItems, setShopItems] = useState<ShopItem[]>(SHOP_CATALOG);
   const [selectedShopItem, setSelectedShopItem] = useState<ShopItem | null>(null);
+  const [localPurchasedIds, setLocalPurchasedIds] = useState<Set<string>>(new Set());
   const [purchasing, setPurchasing] = useState(false);
   const [equipping, setEquipping] = useState(false);
   const [transferModalVisible, setTransferModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const balance = Number(user.poopcoinBalance ?? 0);
+
+  // Helper centralizado para verificar se o usuário já possui o item (limite de 1 por usuário)
+  const isItemPurchasedOrOwned = (item: ShopItem): boolean => {
+    // 1. Verificação no inventário desbloqueado do usuário ou no cache local da sessão
+    const byUnlocked = Boolean(
+      user.unlockedItems?.includes(item.id) ||
+      user.unlockedItems?.includes(item.name) ||
+      localPurchasedIds.has(item.id) ||
+      localPurchasedIds.has(item.name)
+    );
+
+    // 2. Verificação se está equipado atualmente
+    const byEquipped = Boolean(
+      (item.category === "title" && user.equippedTitle === item.name) ||
+      (item.category === "badge" && user.equippedBadge === item.icon)
+    );
+
+    // 3. Verificação no histórico do ledger de transações da blockchain
+    const byHistory = userTransactions.some(
+      (tx) =>
+        tx.type === "cuiter_spend" &&
+        Boolean(
+          tx.reason === `Loja: ${item.name}` ||
+          tx.reason === `Loja: ${item.id}` ||
+          (item.name && tx.reason?.toLowerCase().includes(item.name.toLowerCase()))
+        )
+    );
+
+    return byUnlocked || byEquipped || byHistory;
+  };
 
   // Load active users map for name resolution
   const loadUsersMap = async () => {
@@ -177,17 +208,12 @@ export default function PoopcoinsScreen({
   };
 
   const handleConfirmPurchase = async () => {
-    if (!selectedShopItem) return;
-    const isAlreadyOwned = Boolean(
-      user.unlockedItems?.includes(selectedShopItem.id) ||
-      user.unlockedItems?.includes(selectedShopItem.name) ||
-      (selectedShopItem.category === "title" && user.equippedTitle === selectedShopItem.name) ||
-      (selectedShopItem.category === "badge" && user.equippedBadge === selectedShopItem.icon)
-    );
-    if (isAlreadyOwned) {
+    if (!selectedShopItem || purchasing) return;
+
+    if (isItemPurchasedOrOwned(selectedShopItem)) {
       Alert.alert(
         "Item Já Adquirido",
-        "Você já possui este item. O limite da loja é de 1 unidade por usuário."
+        "Você já possui este item em sua conta. O limite da loja é de apenas 1 unidade de cada item por usuário."
       );
       setSelectedShopItem(null);
       return;
@@ -196,6 +222,15 @@ export default function PoopcoinsScreen({
     setPurchasing(true);
     try {
       await buyShopItem(user, selectedShopItem);
+
+      // Marca imediatamente em cache local para desabilitar compra em tempo real
+      setLocalPurchasedIds((prev) => {
+        const next = new Set(prev);
+        next.add(selectedShopItem.id);
+        next.add(selectedShopItem.name);
+        return next;
+      });
+
       Alert.alert(
         "🎉 Compra Realizada!",
         `Você adquiriu "${selectedShopItem.name}" por ${formatPoopcoins(selectedShopItem.price)} PC!`
@@ -611,12 +646,7 @@ export default function PoopcoinsScreen({
           {/* Shop Items List */}
           <View style={styles.shopGrid}>
             {filteredShopItems.map((item) => {
-              const isOwned = Boolean(
-                user.unlockedItems?.includes(item.id) ||
-                user.unlockedItems?.includes(item.name) ||
-                (item.category === "title" && user.equippedTitle === item.name) ||
-                (item.category === "badge" && user.equippedBadge === item.icon)
-              );
+              const isOwned = isItemPurchasedOrOwned(item);
               const isEquipped =
                 item.category === "title"
                   ? user.equippedTitle === item.name
@@ -694,8 +724,18 @@ export default function PoopcoinsScreen({
                                 </View>
                               )}
 
-                              <View style={styles.limitBadge}>
-                                <Text style={styles.limitBadgeText}>
+                              <View
+                                style={[
+                                  styles.limitBadge,
+                                  isOwned && styles.limitBadgeOwned,
+                                ]}
+                              >
+                                <Text
+                                  style={[
+                                    styles.limitBadgeText,
+                                    isOwned && styles.limitBadgeTextOwned,
+                                  ]}
+                                >
                                   {isOwned ? "✓ Limite Atingido (1/1)" : "🔒 Limite: 1 un."}
                                 </Text>
                               </View>
@@ -739,7 +779,7 @@ export default function PoopcoinsScreen({
                     {isOwned ? (
                       item.category === "perk" ? (
                         <View style={styles.ownedBadge}>
-                          <Text style={styles.ownedBadgeText}>✓ Adquirido (Limite: 1)</Text>
+                          <Text style={styles.ownedBadgeText}>✓ Adquirido (Limite: 1/1)</Text>
                         </View>
                       ) : (
                         <TouchableOpacity
@@ -959,6 +999,14 @@ export default function PoopcoinsScreen({
                 </View>
               </View>
 
+              {isItemPurchasedOrOwned(selectedShopItem) && (
+                <View style={styles.alreadyOwnedWarningBox}>
+                  <Text style={styles.alreadyOwnedWarningText}>
+                    ⚠️ Você já possui este item em sua conta. O limite da loja é de 1 unidade por usuário.
+                  </Text>
+                </View>
+              )}
+
               <View style={styles.purchaseActionsRow}>
                 <TouchableOpacity
                   style={styles.purchaseCancelBtn}
@@ -969,12 +1017,20 @@ export default function PoopcoinsScreen({
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={styles.purchaseConfirmBtn}
+                  style={[
+                    styles.purchaseConfirmBtn,
+                    (isItemPurchasedOrOwned(selectedShopItem) || balance < selectedShopItem.price) &&
+                      styles.purchaseConfirmBtnDisabled,
+                  ]}
                   onPress={handleConfirmPurchase}
-                  disabled={purchasing}
+                  disabled={purchasing || isItemPurchasedOrOwned(selectedShopItem) || balance < selectedShopItem.price}
                 >
                   {purchasing ? (
                     <ActivityIndicator color="#020617" />
+                  ) : isItemPurchasedOrOwned(selectedShopItem) ? (
+                    <Text style={styles.purchaseConfirmBtnTextDisabled}>✓ Já Adquirido (Limite: 1)</Text>
+                  ) : balance < selectedShopItem.price ? (
+                    <Text style={styles.purchaseConfirmBtnTextDisabled}>Saldo Insuficiente</Text>
                   ) : (
                     <Text style={styles.purchaseConfirmBtnText}>Confirmar Compra 🚀</Text>
                   )}
@@ -1742,9 +1798,40 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 6,
   },
+  limitBadgeOwned: {
+    backgroundColor: "rgba(34, 197, 94, 0.15)",
+    borderColor: "rgba(34, 197, 94, 0.4)",
+  },
   limitBadgeText: {
     color: "#94a3b8",
     fontSize: 10,
     fontWeight: "700",
+  },
+  limitBadgeTextOwned: {
+    color: "#4ade80",
+    fontWeight: "800",
+  },
+  alreadyOwnedWarningBox: {
+    backgroundColor: "rgba(239, 68, 68, 0.12)",
+    borderColor: "rgba(239, 68, 68, 0.3)",
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 12,
+  },
+  alreadyOwnedWarningText: {
+    color: "#f87171",
+    fontSize: 12,
+    fontWeight: "700",
+    textAlign: "center",
+    lineHeight: 16,
+  },
+  purchaseConfirmBtnDisabled: {
+    backgroundColor: "#334155",
+  },
+  purchaseConfirmBtnTextDisabled: {
+    color: "#94a3b8",
+    fontSize: 13,
+    fontWeight: "800",
   },
 });
