@@ -124,7 +124,7 @@ export default function ProfileScreen({
   const [copiedSelfUid, setCopiedSelfUid] = useState(false);
 
   // Active section tab in screen
-  const [activeSection, setActiveSection] = useState<"profile" | "work" | "financial" | "security">("profile");
+  const [activeSection, setActiveSection] = useState<"profile" | "inventory" | "work" | "financial" | "security">("profile");
 
   // Account Deletion States (Google Play & LGPD Compliance)
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
@@ -744,7 +744,12 @@ export default function ProfileScreen({
       </View>
 
       {/* Navigation Sub-Tabs */}
-      <View style={styles.sectionTabs}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.sectionTabsScroll}
+        contentContainerStyle={styles.sectionTabs}
+      >
         <TouchableOpacity
           style={[
             styles.sectionTabButton,
@@ -760,6 +765,24 @@ export default function ProfileScreen({
             ]}
           >
             Perfil
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.sectionTabButton,
+            activeSection === "inventory" && [styles.sectionTabButtonActive, { borderColor: userThemeColor }],
+          ]}
+          onPress={() => setActiveSection("inventory")}
+        >
+          <Text style={{ fontSize: 15 }}>🎒</Text>
+          <Text
+            style={[
+              styles.sectionTabText,
+              activeSection === "inventory" && { color: userThemeColor, fontWeight: "800" },
+            ]}
+          >
+            Itens {ownedItems.length > 0 ? `(${ownedItems.length})` : ""}
           </Text>
         </TouchableOpacity>
 
@@ -816,7 +839,7 @@ export default function ProfileScreen({
             Segurança
           </Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
 
       {/* SECTION 1: PROFILE & VISUAL CUSTOMIZATION */}
       {activeSection === "profile" && (
@@ -1648,7 +1671,8 @@ export default function ProfileScreen({
       </View>
 
       {/* 🎒 ITENS COMPRADOS / INVENTÁRIO */}
-      <View style={styles.card}>
+      {(activeSection === "profile" || activeSection === "inventory") && (
+        <View style={styles.card}>
         <View style={styles.inventoryHeader}>
           <View style={{ flex: 1 }}>
             <View style={styles.inventoryTitleRow}>
@@ -1853,6 +1877,7 @@ export default function ProfileScreen({
           </View>
         )}
       </View>
+      )}
 
       {/* Poopcoin Wallet Card */}
       <PoopcoinWalletCard
@@ -2076,17 +2101,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
   },
+  sectionTabsScroll: {
+    marginBottom: 16,
+  },
   sectionTabs: {
     flexDirection: "row",
     backgroundColor: "#0f172a",
     borderRadius: 14,
     padding: 4,
-    marginBottom: 16,
     borderWidth: 1,
     borderColor: "#1e293b",
+    gap: 4,
   },
   sectionTabButton: {
-    flex: 1,
+    paddingHorizontal: 14,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",

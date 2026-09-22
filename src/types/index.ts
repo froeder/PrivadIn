@@ -50,6 +50,28 @@ export interface AppUser {
   poopcoinMigratedAt?: Timestamp;
   bio?: string;
   ownedGroupId?: string | null;
+  equippedTitle?: string;
+  equippedBadge?: string;
+  unlockedItems?: string[];
+}
+
+export type ShopItemCategory = "title" | "badge" | "perk";
+export type ShopItemRarity = "comum" | "raro" | "epico" | "lendario";
+
+export interface ShopItem {
+  id: string;
+  name: string;
+  description: string;
+  category: ShopItemCategory;
+  rarity: ShopItemRarity;
+  price: number;
+  basePrice?: number;
+  initialStock?: number;
+  currentStock?: number;
+  priceMultiplier?: number;
+  icon: string;
+  perkEffect?: string;
+  active?: boolean;
 }
 
 export interface RankingGroup {

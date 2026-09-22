@@ -6,7 +6,7 @@ import * as Updates from "expo-updates";
  * Versão semântica do código do aplicativo.
  * Altere aqui a cada nova versão ou update que desejar destacar aos usuários.
  */
-export const APP_CODE_VERSION = "1.0.4";
+export const APP_CODE_VERSION = "1.0.5";
 
 export interface UpdateCheckResult {
   hasUpdate: boolean;
