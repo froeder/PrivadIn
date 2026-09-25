@@ -211,23 +211,12 @@ export default function AnalyticsScreen({
 
   const previewPoints = useMemo(() => {
     if (!editingLog) return 2000;
-    const oldDuration =
-      typeof editingLog.durationSeconds === "number"
-        ? editingLog.durationSeconds
-        : 600;
-    const oldBonus = Math.min(500, Math.floor(oldDuration / 60) * 10);
-    const newBonus = Math.min(500, Math.floor(previewTotalSeconds / 60) * 10);
-    const baseOldPoints =
-      typeof editingLog.points === "number" ? editingLog.points : 2000;
-    return Math.max(1, baseOldPoints - oldBonus + newBonus);
-  }, [editingLog, previewTotalSeconds]);
+    return typeof editingLog.points === "number" ? editingLog.points : 2000;
+  }, [editingLog]);
 
   const previewDeltaPoints = useMemo(() => {
-    if (!editingLog) return 0;
-    const oldPoints =
-      typeof editingLog.points === "number" ? editingLog.points : 2000;
-    return previewPoints - oldPoints;
-  }, [editingLog, previewPoints]);
+    return 0;
+  }, []);
 
   const openEditModal = (log: PoopLog, sessionNumber: number) => {
     setEditingLog(log);

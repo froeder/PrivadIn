@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -7,12 +7,15 @@ import {
   Alert,
   ScrollView,
   ActivityIndicator,
-  AppState,
-  AppStateStatus,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppUser, PoopLog, AppSettings } from "../types";
-import { registerPoopLog, getUserRecentLogs, getLeaderboard } from "../services/poopService";
+import {
+  registerPoopLog,
+  getUserRecentLogs,
+  getLeaderboard,
+  resolvePointsPerLog,
+} from "../services/poopService";
 import { fetchAppSettings } from "../services/authService";
 import { toRoman } from "../utils/roman";
 import { checkWorkScheduleStatus, ScheduleStatus } from "../utils/workSchedule";
@@ -47,9 +50,6 @@ export default function DashboardScreen({
   onNavigateToHistory,
   onNavigateToRanking,
 }: DashboardScreenProps) {
-  const [isActive, setIsActive] = useState(false);
-  const [startTime, setStartTime] = useState<number | null>(null);
-  const [seconds, setSeconds] = useState(0);
   const [saving, setSaving] = useState(false);
   const [recentLogs, setRecentLogs] = useState<PoopLog[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
@@ -85,20 +85,23 @@ export default function DashboardScreen({
     edition: number;
   } | null>(null);
 
-  const startTimeRef = useRef<number | null>(null);
-  startTimeRef.current = startTime;
-
   // Hourly rate calculation
   const hourlyRate = user.hourlyRate || (user.salary ? user.salary / 176 : 20);
-  const currentEarned = (seconds / 3600) * hourlyRate;
 
-  // Health Limit: 10 minutes default (or user-defined bathroomDurationMinutes)
-  const maxSafeMinutes =
+  // Standard duration (user-defined bathroomDurationMinutes or default 10 minutes)
+  const standardMinutes =
     user.bathroomDurationMinutes && user.bathroomDurationMinutes > 0
       ? Math.min(180, user.bathroomDurationMinutes)
       : 10;
-  const maxSafeSeconds = maxSafeMinutes * 60;
-  const isHealthAlert = isActive && seconds >= maxSafeSeconds;
+  const standardSeconds = standardMinutes * 60;
+  const standardEarned = (standardSeconds / 3600) * hourlyRate;
+
+  // Resolve points per log currently in effect (base 2000 or database setting, plus peak hour bonus if active)
+  const currentPointsPerLog = resolvePointsPerLog(
+    appSettings as any,
+    scheduleStatus.localTime,
+    appSettings?.pointsPerLog ?? 2000
+  );
 
   // Load app settings
   const loadSettings = async () => {
@@ -182,66 +185,13 @@ export default function DashboardScreen({
     return () => clearInterval(interval);
   }, [user.workSchedule]);
 
-  // Restore any persisted active timer on mount
+  // Initial load + clean up any leftover active timer storage
   useEffect(() => {
     loadSettings();
     loadRecentLogs();
     loadWeeklyLeaders();
-
-    const restoreTimer = async () => {
-      try {
-        const stored = await AsyncStorage.getItem(ACTIVE_TIMER_STORAGE_KEY);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (parsed && typeof parsed.startTime === "number") {
-            const now = Date.now();
-            const elapsed = Math.max(0, Math.floor((now - parsed.startTime) / 1000));
-            // Only restore if less than 8 hours old
-            if (elapsed < 8 * 3600) {
-              setStartTime(parsed.startTime);
-              setSeconds(elapsed);
-              setIsActive(true);
-            } else {
-              await AsyncStorage.removeItem(ACTIVE_TIMER_STORAGE_KEY);
-            }
-          }
-        }
-      } catch (err) {
-        console.error("Error restoring timer:", err);
-      }
-    };
-
-    restoreTimer();
+    AsyncStorage.removeItem(ACTIVE_TIMER_STORAGE_KEY).catch(() => {});
   }, [user.uid]);
-
-  // Handle AppState changes (coming from background / phone lock)
-  useEffect(() => {
-    const subscription = AppState.addEventListener("change", (nextAppState: AppStateStatus) => {
-      if (nextAppState === "active" && startTimeRef.current) {
-        const elapsed = Math.max(0, Math.floor((Date.now() - startTimeRef.current) / 1000));
-        setSeconds(elapsed);
-      }
-    });
-
-    return () => subscription.remove();
-  }, []);
-
-  // Timer interval with real timestamp delta calculation
-  useEffect(() => {
-    let interval: any = null;
-    if (isActive && startTime) {
-      // Immediate sync
-      setSeconds(Math.max(0, Math.floor((Date.now() - startTime) / 1000)));
-
-      interval = setInterval(() => {
-        setSeconds(Math.max(0, Math.floor((Date.now() - startTime) / 1000)));
-      }, 1000);
-    } else {
-      clearInterval(interval);
-    }
-
-    return () => clearInterval(interval);
-  }, [isActive, startTime]);
 
   const formatTime = (totalSeconds: number) => {
     const hrs = Math.floor(totalSeconds / 3600);
@@ -255,116 +205,42 @@ export default function DashboardScreen({
     return `${pad(mins)}:${pad(secs)}`;
   };
 
-  const startTimer = async () => {
-    const now = Date.now();
-    setStartTime(now);
-    setSeconds(0);
-    setIsActive(true);
-    try {
-      await AsyncStorage.setItem(
-        ACTIVE_TIMER_STORAGE_KEY,
-        JSON.stringify({ startTime: now })
+  const handleRegisterPoop = async () => {
+    if (saving) return;
+
+    // 1. Antifraud Cooldown Check
+    if (cooldownRemaining > 0) {
+      Alert.alert(
+        "🛡️ Cooldown Antifraude Ativo",
+        `Aguarde ${formatTime(cooldownRemaining)} para registrar um novo trono. Respeite o tempo de descanso entre registros!`
       );
-    } catch (e) {
-      console.error("Failed to persist timer:", e);
+      return;
     }
-  };
 
-  const handleCancelTimer = () => {
-    Alert.alert(
-      "Cancelar Trono",
-      "Deseja descartar a cagada em andamento?",
-      [
-        { text: "Continuar no Trono", style: "cancel" },
-        {
-          text: "Descartar",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              setIsActive(false);
-              setStartTime(null);
-              setSeconds(0);
-              await AsyncStorage.removeItem(ACTIVE_TIMER_STORAGE_KEY);
-            } catch (err) {
-              console.warn("Erro ao cancelar timer:", err);
-            }
+    // 2. Work Schedule Check
+    if (!scheduleStatus.isWorkTime) {
+      Alert.alert(
+        scheduleStatus.status === "lunch"
+          ? "🥪 Horário de Almoço"
+          : "🌙 Fora do Expediente",
+        `${scheduleStatus.message}\n\nDeseja registrar o trono mesmo assim?`,
+        [
+          { text: "Cancelar", style: "cancel" },
+          {
+            text: "Registrar Mesmo Assim",
+            onPress: () => executeRegisterPoop(),
           },
-        },
-      ]
-    );
-  };
-
-  const handleToggleTimer = async () => {
-    if (!isActive) {
-      // 1. Antifraud Cooldown Check
-      if (cooldownRemaining > 0) {
-        Alert.alert(
-          "🛡️ Cooldown Antifraude Ativo",
-          `Aguarde ${formatTime(cooldownRemaining)} para iniciar um novo trono. Respeite o tempo de descanso entre registros!`
-        );
-        return;
-      }
-
-      // 2. Work Schedule Check
-      if (!scheduleStatus.isWorkTime) {
-        Alert.alert(
-          scheduleStatus.status === "lunch"
-            ? "🥪 Horário de Almoço"
-            : "🌙 Fora do Expediente",
-          `${scheduleStatus.message}\n\nDeseja registrar o trono mesmo assim?`,
-          [
-            { text: "Cancelar", style: "cancel" },
-            {
-              text: "Iniciar Mesmo Assim",
-              onPress: () => startTimer(),
-            },
-          ]
-        );
-        return;
-      }
-
-      await startTimer();
-    } else {
-      const currentElapsed = startTime
-        ? Math.max(0, Math.floor((Date.now() - startTime) / 1000))
-        : seconds;
-
-      if (currentElapsed < 10) {
-        Alert.alert(
-          "Cagada muito rápida!",
-          "Você ficou menos de 10 segundos. Deseja cancelar ou salvar?",
-          [
-            {
-              text: "Cancelar",
-              style: "cancel",
-              onPress: async () => {
-                setIsActive(false);
-                setStartTime(null);
-                setSeconds(0);
-                await AsyncStorage.removeItem(ACTIVE_TIMER_STORAGE_KEY);
-              },
-            },
-            {
-              text: "Salvar Mesmo Assim",
-              onPress: () => finalizeBreak(currentElapsed),
-            },
-          ]
-        );
-      } else {
-        await finalizeBreak(currentElapsed);
-      }
+        ]
+      );
+      return;
     }
+
+    await executeRegisterPoop();
   };
 
-  const finalizeBreak = async (finalSeconds: number) => {
-    setIsActive(false);
-    // Reset timer display immediately so UI doesn't show stale values
-    setStartTime(null);
-    setSeconds(0);
+  const executeRegisterPoop = async () => {
     setSaving(true);
     try {
-      const earned = (finalSeconds / 3600) * hourlyRate;
-
       // Play flush sound effect
       void playFlushSound();
 
@@ -376,9 +252,15 @@ export default function DashboardScreen({
         console.warn("Location capture skipped:", locErr);
       }
 
-      // Register poop log with real business logic + location + peak hours bonus
-      const result = await registerPoopLog(user, finalSeconds, earned, undefined, location);
-      await AsyncStorage.removeItem(ACTIVE_TIMER_STORAGE_KEY);
+      // Register poop log with business logic + location + points from database/2000
+      const result = await registerPoopLog(
+        user,
+        standardSeconds,
+        standardEarned,
+        undefined,
+        location
+      );
+      await AsyncStorage.removeItem(ACTIVE_TIMER_STORAGE_KEY).catch(() => {});
 
       // Open celebration reward modal & trigger festive confetti shower
       setShowConfetti(true);
@@ -386,8 +268,8 @@ export default function DashboardScreen({
         visible: true,
         points: result.points,
         poopcoins: result.poopcoinsEarned,
-        durationSeconds: finalSeconds,
-        earnedAmount: earned,
+        durationSeconds: standardSeconds,
+        earnedAmount: standardEarned,
         streak: result.newStreak,
         edition: result.competitionEdition || appSettings?.edition || 1,
       });
@@ -397,8 +279,8 @@ export default function DashboardScreen({
       loadSettings();
       loadWeeklyLeaders();
     } catch (error: any) {
-      console.error(error);
-      Alert.alert("Erro", "Não foi possível registrar o intervalo.");
+      console.error("Erro ao registrar cagada:", error);
+      Alert.alert("Erro", "Não foi possível registrar o trono.");
     } finally {
       setSaving(false);
     }
@@ -442,7 +324,7 @@ export default function DashboardScreen({
     return `${day}/${month} às ${hours}:${minutes}`;
   };
 
-  const isOnCooldown = !isActive && cooldownRemaining > 0;
+  const isOnCooldown = cooldownRemaining > 0;
 
   const POOPCOIN_RULE_BANNER_MS = 24 * 60 * 60 * 1000;
   const poopcoinRuleUpdatedAtMs = parseTimestampMs(appSettings?.poopcoinsPerLogUpdatedAt);
@@ -579,70 +461,63 @@ export default function DashboardScreen({
         </TouchableOpacity>
       </View>
 
-      {/* Live Earnings & Timer Card */}
+      {/* 🚽 Card de Registro de Trono */}
       <View
         style={[
-          styles.timerCard,
-          isActive && styles.timerCardActive,
-          isHealthAlert && styles.timerCardHealthAlert,
-          isOnCooldown && styles.timerCardCooldown,
+          styles.actionCard,
+          isOnCooldown && styles.actionCardCooldown,
         ]}
       >
         <Text
           style={[
-            styles.timerCardTitle,
-            isHealthAlert && { color: "#ef4444" },
+            styles.actionCardTitle,
             isOnCooldown && { color: "#f59e0b" },
           ]}
         >
-          {isActive
-            ? isHealthAlert
-              ? "🚨 SESSÃO PROLONGADA (LIMITE ULTRAPASSADO)"
-              : "CAGADA EM ANDAMENTO"
-            : isOnCooldown
+          {isOnCooldown
             ? "🛡️ SISTEMA ANTIFRAUDE ATIVO"
-            : "PRONTO PARA O TRONO?"}
-        </Text>
-
-        <Text
-          style={[
-            styles.timerDisplay,
-            isHealthAlert && styles.timerDisplayAlert,
-            isOnCooldown && styles.timerDisplayCooldown,
-          ]}
-        >
-          {isOnCooldown ? formatTime(cooldownRemaining) : formatTime(seconds)}
+            : "🚽 REGISTRO DE TRONO"}
         </Text>
 
         {isOnCooldown ? (
-          <View style={styles.cooldownInfoBox}>
-            <Text style={styles.cooldownInfoTitle}>Tempo de Espera Obrigatório</Text>
-            <Text style={styles.cooldownInfoSubtitle}>
-              Descanse o esfíncter antes do próximo trono remunerado.
+          <>
+            <Text style={[styles.timerDisplay, styles.timerDisplayCooldown]}>
+              {formatTime(cooldownRemaining)}
             </Text>
-          </View>
+            <View style={styles.cooldownInfoBox}>
+              <Text style={styles.cooldownInfoTitle}>Tempo de Espera Obrigatório</Text>
+              <Text style={styles.cooldownInfoSubtitle}>
+                Descanse o esfíncter antes do próximo trono remunerado.
+              </Text>
+            </View>
+          </>
         ) : (
-          <View style={styles.earningsBox}>
-            <Text style={styles.earningsLabel}>Faturado neste trono:</Text>
-            <Text style={styles.earningsValue}>
-              R$ {currentEarned.toFixed(2).replace(".", ",")}
-            </Text>
-          </View>
-        )}
+          <View style={styles.rewardPreviewContainer}>
+            <View style={styles.pointsHighlightBox}>
+              <Text style={styles.pointsHighlightBadge}>PONTOS POR REGISTRO</Text>
+              <Text style={styles.pointsHighlightValue}>
+                +{currentPointsPerLog.toLocaleString("pt-BR")}{" "}
+                <Text style={styles.pointsHighlightUnit}>PTS</Text>
+              </Text>
+              <Text style={styles.pointsHighlightSub}>
+                Computados automaticamente ao registrar
+              </Text>
+            </View>
 
-        {/* 🚨 Alerta de Saúde (Prevenção de Hemorróidas) */}
-        {isHealthAlert && (
-          <View style={styles.healthAlertBanner}>
-            <Text style={styles.healthAlertIcon}>🚨</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.healthAlertTitle}>
-                ALERTA DE SAÚDE: Prevenção de Hemorróidas!
-              </Text>
-              <Text style={styles.healthAlertText}>
-                Você ultrapassou {maxSafeMinutes} minutos no trono. Permanecer sentado
-                por tempo excessivo no vaso sanitário comprime as veias anorretais e
-                favorece o desenvolvimento de hemorróidas. Finalize e levante-se!
-              </Text>
+            <View style={styles.earningsEstimateRow}>
+              <View style={styles.earningsEstimateCol}>
+                <Text style={styles.earningsEstimateLabel}>💰 Faturado Estimado</Text>
+                <Text style={styles.earningsEstimateValue}>
+                  R$ {standardEarned.toFixed(2).replace(".", ",")}
+                </Text>
+              </View>
+              <View style={styles.earningsEstimateDivider} />
+              <View style={styles.earningsEstimateCol}>
+                <Text style={styles.earningsEstimateLabel}>⏱️ Duração Padrão</Text>
+                <Text style={styles.earningsEstimateValue}>
+                  {standardMinutes} min
+                </Text>
+              </View>
             </View>
           </View>
         )}
@@ -651,42 +526,41 @@ export default function DashboardScreen({
         <TouchableOpacity
           style={[
             styles.actionButton,
-            isActive
-              ? styles.actionButtonStop
-              : isOnCooldown
+            isOnCooldown
               ? styles.actionButtonCooldown
               : styles.actionButtonStart,
           ]}
-          onPress={handleToggleTimer}
+          onPress={handleRegisterPoop}
           disabled={saving || isOnCooldown}
+          activeOpacity={0.85}
         >
           {saving ? (
-            <ActivityIndicator color={isActive ? "#fff" : "#020617"} />
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <ActivityIndicator color={isOnCooldown ? "#facc15" : "#020617"} />
+              <Text
+                style={[
+                  styles.actionButtonText,
+                  !isOnCooldown && styles.actionButtonTextStart,
+                  isOnCooldown && styles.actionButtonTextCooldown,
+                ]}
+              >
+                REGISTRANDO TRONO...
+              </Text>
+            </View>
           ) : (
             <Text
               style={[
                 styles.actionButtonText,
-                !isActive && !isOnCooldown && styles.actionButtonTextStart,
+                !isOnCooldown && styles.actionButtonTextStart,
                 isOnCooldown && styles.actionButtonTextCooldown,
               ]}
             >
-              {isActive
-                ? "🚽 FINALIZAR CAGADA"
-                : isOnCooldown
+              {isOnCooldown
                 ? `⏳ AGUARDE ${formatTime(cooldownRemaining)} (COOLDOWN)`
-                : "🚀 INICIAR TRONO"}
+                : "💩 REGISTRAR CAGADA"}
             </Text>
           )}
         </TouchableOpacity>
-
-        {isActive && !saving && (
-          <TouchableOpacity
-            style={styles.cancelButton}
-            onPress={handleCancelTimer}
-          >
-            <Text style={styles.cancelButtonText}>Descartar / Cancelar</Text>
-          </TouchableOpacity>
-        )}
       </View>
 
       {/* Poopcoin Wallet Card */}
@@ -1186,13 +1060,13 @@ const styles = StyleSheet.create({
     color: "#f8fafc",
   },
 
-  // Timer Card
-  timerCard: {
+  // Action / Registration Card
+  actionCard: {
     backgroundColor: "#0f172a",
     borderWidth: 1,
     borderColor: "#1e293b",
     borderRadius: 24,
-    padding: 24,
+    padding: 22,
     alignItems: "center",
     marginBottom: 20,
     shadowColor: "#000",
@@ -1200,22 +1074,10 @@ const styles = StyleSheet.create({
     shadowRadius: 15,
     elevation: 4,
   },
-  timerCardActive: {
-    borderColor: "#eab308",
-    shadowColor: "#eab308",
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-  },
-  timerCardCooldown: {
+  actionCardCooldown: {
     borderColor: "rgba(245, 158, 11, 0.4)",
   },
-  timerCardHealthAlert: {
-    borderColor: "#ef4444",
-    shadowColor: "#ef4444",
-    shadowOpacity: 0.4,
-    shadowRadius: 25,
-  },
-  timerCardTitle: {
+  actionCardTitle: {
     fontSize: 12,
     fontWeight: "800",
     color: "#94a3b8",
@@ -1223,15 +1085,84 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     textAlign: "center",
   },
+  rewardPreviewContainer: {
+    width: "100%",
+    alignItems: "center",
+  },
+  pointsHighlightBox: {
+    width: "100%",
+    backgroundColor: "rgba(234, 179, 8, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(234, 179, 8, 0.35)",
+    borderRadius: 18,
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  pointsHighlightBadge: {
+    fontSize: 10,
+    fontWeight: "900",
+    color: "#facc15",
+    letterSpacing: 1,
+    backgroundColor: "rgba(234, 179, 8, 0.18)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    marginBottom: 6,
+  },
+  pointsHighlightValue: {
+    fontSize: 42,
+    fontWeight: "900",
+    color: "#facc15",
+    letterSpacing: -0.5,
+  },
+  pointsHighlightUnit: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#eab308",
+  },
+  pointsHighlightSub: {
+    fontSize: 12,
+    color: "#94a3b8",
+    marginTop: 4,
+    textAlign: "center",
+  },
+  earningsEstimateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1e293b",
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    width: "100%",
+  },
+  earningsEstimateCol: {
+    flex: 1,
+    alignItems: "center",
+  },
+  earningsEstimateLabel: {
+    fontSize: 11,
+    color: "#94a3b8",
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  earningsEstimateValue: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#4ade80",
+  },
+  earningsEstimateDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: "rgba(148, 163, 184, 0.2)",
+  },
   timerDisplay: {
     fontSize: 56,
     fontWeight: "900",
     color: "#f8fafc",
     fontVariant: ["tabular-nums"],
     letterSpacing: -1,
-  },
-  timerDisplayAlert: {
-    color: "#ef4444",
   },
   timerDisplayCooldown: {
     color: "#f59e0b",
@@ -1258,75 +1189,21 @@ const styles = StyleSheet.create({
     marginTop: 2,
     textAlign: "center",
   },
-  earningsBox: {
-    backgroundColor: "#1e293b",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 14,
-    marginTop: 16,
-    alignItems: "center",
-  },
-  earningsLabel: {
-    fontSize: 12,
-    color: "#94a3b8",
-    fontWeight: "500",
-  },
-  earningsValue: {
-    fontSize: 26,
-    fontWeight: "900",
-    color: "#4ade80",
-    marginTop: 2,
-  },
-
-  // Health Alert Banner
-  healthAlertBanner: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    backgroundColor: "rgba(239, 68, 68, 0.18)",
-    borderWidth: 1,
-    borderColor: "#ef4444",
-    borderRadius: 14,
-    padding: 12,
-    marginTop: 18,
-    gap: 10,
-    width: "100%",
-  },
-  healthAlertIcon: {
-    fontSize: 24,
-  },
-  healthAlertTitle: {
-    color: "#f87171",
-    fontSize: 13,
-    fontWeight: "900",
-    marginBottom: 4,
-  },
-  healthAlertText: {
-    color: "#fee2e2",
-    fontSize: 12,
-    lineHeight: 16,
-  },
 
   // Actions
   actionButton: {
-    marginTop: 22,
+    marginTop: 18,
     width: "100%",
     paddingVertical: 16,
     borderRadius: 16,
     alignItems: "center",
+    justifyContent: "center",
   },
   actionButtonStart: {
     backgroundColor: "#eab308",
     shadowColor: "#eab308",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 4,
-  },
-  actionButtonStop: {
-    backgroundColor: "#ef4444",
-    shadowColor: "#ef4444",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.35,
     shadowRadius: 10,
     elevation: 4,
   },
@@ -1337,7 +1214,7 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     color: "#ffffff",
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "900",
     letterSpacing: 0.5,
   },
@@ -1346,17 +1223,6 @@ const styles = StyleSheet.create({
   },
   actionButtonTextCooldown: {
     color: "#facc15",
-  },
-  cancelButton: {
-    marginTop: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-  },
-  cancelButtonText: {
-    color: "#94a3b8",
-    fontSize: 13,
-    fontWeight: "600",
-    textDecorationLine: "underline",
   },
 
   // History

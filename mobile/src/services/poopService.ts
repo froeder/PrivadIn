@@ -108,13 +108,12 @@ export async function registerPoopLog(
     console.warn("Could not fetch global app_settings in registerPoopLog:", e);
   }
 
-  // Calculate points: base points with peak hours bonus + duration bonus
+  // Calculate points: base points with peak hours bonus (no extra points per minute)
   const schedule = resolveWorkSchedule(user.workSchedule);
   const localTime = localTimeInTimezone(new Date(), schedule.timezone);
   const resolvedBasePoints = resolvePointsPerLog(settingsData, localTime, basePoints);
 
-  const durationBonus = Math.min(500, Math.floor(durationSeconds / 60) * 10);
-  const pointsEarned = resolvedBasePoints + durationBonus;
+  const pointsEarned = resolvedBasePoints;
 
   const newStreak = calculateNextStreak(user.lastLogAt, user.currentDailyStreak || 0);
   const newBestStreak = Math.max(user.bestStreak || 0, newStreak);
@@ -465,15 +464,10 @@ export async function editUserPoopLog(
   const oldEarnedAmount = typeof log.earnedAmount === "number" ? log.earnedAmount : 0;
   const deltaEarned = Number((newEarnedAmount - oldEarnedAmount).toFixed(2));
 
-  // Recálculo de pontos baseado no bônus de duração: Math.min(500, Math.floor(sec / 60) * 10)
-  const oldDuration = typeof log.durationSeconds === "number" ? log.durationSeconds : 600;
-  const oldBonus = Math.min(500, Math.floor(oldDuration / 60) * 10);
-  const newBonus = Math.min(500, Math.floor(newDurationSeconds / 60) * 10);
-  const bonusDelta = newBonus - oldBonus;
-
+  // Pontos fixos por registro (sem pontos extras por minuto)
   const oldPoints = typeof log.points === "number" ? log.points : 2000;
-  const newPoints = Math.max(1, oldPoints + bonusDelta);
-  const deltaPoints = newPoints - oldPoints;
+  const newPoints = oldPoints;
+  const deltaPoints = 0;
 
   const logRef = doc(db, "poop_logs", log.id);
   const userRef = doc(db, "users", user.uid);
