@@ -13,7 +13,8 @@ import {
   writeBatch,
 } from "@firebase/firestore";
 import { db } from "./firebase";
-import type { AdminAuditAction, AppUser, BonusTimeRange, PoopLocation, PoopLog, RankingGroup } from "../types";
+import type { AdminAuditAction, AppUser, BonusTimeRange, PoopLocation, PoopLog, RankingGroup, EditionRecord, EditionCompetitor } from "../types";
+import { toRoman } from "../utils/roman";
 import {
   DAILY_LIMIT,
   calculateDailyStreak,
@@ -616,21 +617,121 @@ export async function resetWeeklyRanking(admin: AppUser, logs: PoopLog[], users:
   const nextEdition = Math.max(1, Math.trunc(currentEdition)) + 1;
   const resetKey = getDueWeeklyResetKey();
 
-  const batch = writeBatch(db);
-  users.forEach((user) => {
-    batch.update(doc(db, "users", user.uid), { weeklyPoints: 0 });
+  // Mapear pontuação dos logs ativos
+  const logPointsMap = new Map<string, number>();
+  logs.forEach((log) => {
+    if (log.isWeeklyActive && log.userId) {
+      logPointsMap.set(
+        log.userId,
+        (logPointsMap.get(log.userId) ?? 0) + Math.max(0, Number(log.points) || 0)
+      );
+    }
   });
+
+  // Lista de competidores e cálculo da pontuação da edição
+  const rawCompetitors = users.map((user) => {
+    const weeklyPts = Math.max(
+      0,
+      Math.max(Number(user.weeklyPoints ?? 0), logPointsMap.get(user.uid) ?? 0)
+    );
+    return {
+      uid: user.uid,
+      name: user.name || "Competidor",
+      nickname: user.nickname?.trim() || user.name || "Competidor",
+      avatar: user.avatar || "🚿",
+      points: weeklyPts,
+      wonEditions: Array.isArray(user.wonEditions) ? user.wonEditions : [],
+    };
+  });
+
+  rawCompetitors.sort((a, b) => b.points - a.points);
+  const maxWeeklyPoints = rawCompetitors.length > 0 ? rawCompetitors[0].points : 0;
+
+  let currentRank = 1;
+  const competitors: EditionCompetitor[] = rawCompetitors.map((comp, idx) => {
+    if (idx > 0 && comp.points < rawCompetitors[idx - 1].points) {
+      currentRank = idx + 1;
+    }
+    const isWinner = maxWeeklyPoints > 0 && comp.points === maxWeeklyPoints;
+    return {
+      uid: comp.uid,
+      name: comp.name,
+      nickname: comp.nickname,
+      avatar: comp.avatar,
+      points: comp.points,
+      rank: currentRank,
+      isWinner,
+    };
+  });
+
+  const winnersData = competitors
+    .filter((c) => c.isWinner)
+    .map((c) => ({
+      uid: c.uid,
+      name: c.name,
+      nickname: c.nickname,
+      avatar: c.avatar,
+      points: c.points,
+    }));
+  const winnersList = winnersData.map((w) => w.nickname || w.name);
+  const winnerUids = winnersData.map((w) => w.uid);
+
+  const romanEdition = toRoman(currentEdition);
+  const editionDocRef = doc(db, "editions", String(currentEdition));
+  const editionRecord: EditionRecord = {
+    id: String(currentEdition),
+    edition: currentEdition,
+    romanEdition,
+    title: `Edição ${romanEdition}`,
+    endedAt: Timestamp.now(),
+    resetByUid: admin.uid,
+    resetByName: admin.nickname?.trim() || admin.name || "Administrador",
+    totalCompetitors: competitors.length,
+    totalPoints: competitors.reduce((acc, c) => acc + c.points, 0),
+    maxPoints: maxWeeklyPoints,
+    winnerUids,
+    winnerNames: winnersList,
+    winners: winnersData,
+    competitors,
+    createdAt: Timestamp.now(),
+  };
+
+  const batch = writeBatch(db);
+
+  // Salvar snapshot da edição
+  batch.set(editionDocRef, editionRecord);
+
+  // Atualizar usuários
+  rawCompetitors.forEach((comp) => {
+    const isWinner = maxWeeklyPoints > 0 && comp.points === maxWeeklyPoints;
+    if (isWinner) {
+      const existing = new Set(comp.wonEditions);
+      existing.add(currentEdition);
+      const updatedWonEditions = Array.from(existing).sort((a, b) => a - b);
+      batch.update(doc(db, "users", comp.uid), {
+        weeklyPoints: 0,
+        wonEditions: updatedWonEditions,
+      });
+    } else {
+      batch.update(doc(db, "users", comp.uid), { weeklyPoints: 0 });
+    }
+  });
+
+  // Desativar logs
   logs.forEach((log) => {
     if (log.isWeeklyActive) {
       batch.update(doc(db, "poop_logs", log.id), { isWeeklyActive: false });
     }
   });
+
+  // Atualizar grupos
   groups.forEach((group) => {
     batch.update(doc(db, "groups", group.id), {
       edition: Math.max(1, Math.trunc(Number(group.edition ?? currentEdition))) + 1,
       updatedAt: Timestamp.now(),
     });
   });
+
   batch.set(
     appSettingsDocRef,
     {
@@ -644,6 +745,7 @@ export async function resetWeeklyRanking(admin: AppUser, logs: PoopLog[], users:
     },
     { merge: true },
   );
+
   batch.set(
     doc(adminLogsRef),
     createAuditLog({
@@ -652,5 +754,6 @@ export async function resetWeeklyRanking(admin: AppUser, logs: PoopLog[], users:
       edition: nextEdition,
     }),
   );
+
   await batch.commit();
 }

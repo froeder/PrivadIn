@@ -397,5 +397,13 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // HISTÓRICO DE EDIÇÕES / TROFÉUS DO TRONO
+    match /editions/{editionId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+
   }
 }
+

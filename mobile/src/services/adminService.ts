@@ -23,6 +23,8 @@ import {
   BonusTimeRange,
   PoopLog,
   RegistrationAttempt,
+  EditionRecord,
+  EditionCompetitor,
 } from "../types";
 import { toRoman } from "../utils/roman";
 import { normalizeWonEditions } from "../utils/editions";
@@ -374,7 +376,7 @@ export async function updateCompetitionSettings(
  */
 export async function resetWeeklyCompetition(
   admin: AppUser
-): Promise<{ newEdition: number; usersReset: number; winners?: string[] }> {
+): Promise<{ newEdition: number; usersReset: number; winners?: string[]; editionRecord?: EditionRecord }> {
   // 1. Carrega dados atuais
   const settingsSnap = await getDoc(appSettingsDocRef);
   const currentEdition = Number(settingsSnap.data()?.edition ?? 17);
@@ -387,17 +389,104 @@ export async function resetWeeklyCompetition(
     getDocs(collection(db, "groups")),
   ]);
 
-  // Identifica a maior pontuação semanal para coroar o(s) campeão(ões) da edição
-  let maxWeeklyPoints = 0;
-  usersSnap.forEach((userDoc) => {
-    const data = userDoc.data() as AppUser;
-    const pts = Number(data.weeklyPoints ?? 0);
-    if (pts > maxWeeklyPoints) {
-      maxWeeklyPoints = pts;
+  // Mapa de pontuação ativa extraída dos logs para precisão absoluta
+  const logPointsMap = new Map<string, number>();
+  activeLogsSnap.forEach((logDoc) => {
+    const logData = logDoc.data() as PoopLog;
+    if (logData.userId) {
+      logPointsMap.set(
+        logData.userId,
+        (logPointsMap.get(logData.userId) ?? 0) + Math.max(0, Number(logData.points) || 0)
+      );
     }
   });
 
-  const winnersList: string[] = [];
+  // Lista de competidores e cálculo de pontos finais da rodada
+  const rawCompetitors: Array<{
+    uid: string;
+    name: string;
+    nickname?: string;
+    avatar?: string;
+    themeColor?: string;
+    points: number;
+    wonEditions: number[];
+  }> = [];
+
+  usersSnap.forEach((userDoc) => {
+    const data = userDoc.data() as AppUser;
+    const weeklyPts = Math.max(
+      0,
+      Math.max(Number(data.weeklyPoints ?? 0), logPointsMap.get(userDoc.id) ?? 0)
+    );
+    rawCompetitors.push({
+      uid: userDoc.id,
+      name: data.name || "Competidor",
+      nickname: data.nickname?.trim() || data.name || "Competidor",
+      avatar: data.avatar || "🚿",
+      themeColor: data.themeColor || "#eab308",
+      points: weeklyPts,
+      wonEditions: Array.isArray(data.wonEditions) ? data.wonEditions : [],
+    });
+  });
+
+  // Ordena por pontuação decrescente
+  rawCompetitors.sort((a, b) => b.points - a.points);
+
+  const maxWeeklyPoints = rawCompetitors.length > 0 ? rawCompetitors[0].points : 0;
+
+  // Atribui posições / ranks na classificação da edição
+  let currentRank = 1;
+  const competitors: EditionCompetitor[] = rawCompetitors.map((comp, idx) => {
+    if (idx > 0 && comp.points < rawCompetitors[idx - 1].points) {
+      currentRank = idx + 1;
+    }
+    const isWinner = maxWeeklyPoints > 0 && comp.points === maxWeeklyPoints;
+    return {
+      uid: comp.uid,
+      name: comp.name,
+      nickname: comp.nickname,
+      avatar: comp.avatar,
+      themeColor: comp.themeColor,
+      points: comp.points,
+      rank: currentRank,
+      isWinner,
+    };
+  });
+
+  // Identifica vencedores da rodada
+  const winnersData = competitors
+    .filter((c) => c.isWinner)
+    .map((c) => ({
+      uid: c.uid,
+      name: c.name,
+      nickname: c.nickname,
+      avatar: c.avatar,
+      themeColor: c.themeColor,
+      points: c.points,
+    }));
+  const winnersList = winnersData.map((w) => w.nickname || w.name);
+  const winnerUids = winnersData.map((w) => w.uid);
+
+  // Snapshot estruturado da edição para gravação permanente na coleção "editions"
+  const romanEdition = toRoman(currentEdition);
+  const editionDocRef = doc(db, "editions", String(currentEdition));
+  const editionRecord: EditionRecord = {
+    id: String(currentEdition),
+    edition: currentEdition,
+    romanEdition,
+    title: `Edição ${romanEdition}`,
+    endedAt: Timestamp.now(),
+    resetByUid: admin.uid,
+    resetByName: admin.nickname?.trim() || admin.name || "Administrador",
+    totalCompetitors: competitors.length,
+    totalPoints: competitors.reduce((acc, c) => acc + c.points, 0),
+    maxPoints: maxWeeklyPoints,
+    winnerUids,
+    winnerNames: winnersList,
+    winners: winnersData,
+    competitors,
+    createdAt: Timestamp.now(),
+  };
 
   // Executa em lotes (Firestore suporta até 500 operações por batch)
   const MAX_BATCH_SIZE = 400;
@@ -412,24 +501,26 @@ export async function resetWeeklyCompetition(
     }
   };
 
+  // Salva o snapshot da edição encerrada
+  currentBatch.set(editionDocRef, editionRecord);
+  opCount++;
+
   // Zerar weeklyPoints dos usuários e conceder título da edição encerrada aos vencedores
-  usersSnap.forEach((userDoc) => {
-    const data = userDoc.data() as AppUser;
-    const pts = Number(data.weeklyPoints ?? 0);
-    const isWinner = maxWeeklyPoints > 0 && pts === maxWeeklyPoints;
+  rawCompetitors.forEach((comp) => {
+    const userDocRef = doc(db, "users", comp.uid);
+    const isWinner = maxWeeklyPoints > 0 && comp.points === maxWeeklyPoints;
 
     if (isWinner) {
       const updatedWonEditions = normalizeWonEditions([
-        ...(Array.isArray(data.wonEditions) ? data.wonEditions : []),
+        ...comp.wonEditions,
         currentEdition,
       ]);
-      winnersList.push(data.nickname?.trim() || data.name || userDoc.id);
-      currentBatch.update(userDoc.ref, {
+      currentBatch.update(userDocRef, {
         weeklyPoints: 0,
         wonEditions: updatedWonEditions,
       });
     } else {
-      currentBatch.update(userDoc.ref, { weeklyPoints: 0 });
+      currentBatch.update(userDocRef, { weeklyPoints: 0 });
     }
     opCount++;
   });
@@ -486,6 +577,7 @@ export async function resetWeeklyCompetition(
     newEdition: nextEdition,
     usersReset: usersSnap.size,
     winners: winnersList,
+    editionRecord,
   };
 }
 

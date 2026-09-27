@@ -21,3 +21,6 @@ export { default as PoopcoinWalletCard } from "./PoopcoinWalletCard";
 export { default as TermsModal } from "./TermsModal";
 export { default as TransferPoopcoinsModal } from "./TransferPoopcoinsModal";
 export { default as UserProfileModal } from "./UserProfileModal";
+export { EditionDetailsModal } from "./EditionDetailsModal";
+export { TrophiesGallery } from "./TrophiesGallery";
+

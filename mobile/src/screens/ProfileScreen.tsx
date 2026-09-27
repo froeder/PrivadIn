@@ -34,6 +34,7 @@ import UserProfileModal from "../components/UserProfileModal";
 import UserAvatar from "../components/UserAvatar";
 import ChangePasswordModal from "../components/ChangePasswordModal";
 import AvatarCropper from "../components/AvatarCropper";
+import { TrophiesGallery } from "../components/TrophiesGallery";
 import * as ImagePicker from "expo-image-picker";
 import { useTheme } from "../hooks/useTheme";
 import {
@@ -684,40 +685,15 @@ export default function ProfileScreen({
           </TouchableOpacity>
         )}
 
-        {/* 🏆 Champion of Editions Card */}
-        {wonInfo.count > 0 ? (
-          <View style={styles.championHeroCard}>
-            <View style={styles.championHeroTopRow}>
-              <View style={styles.championHeroBadge}>
-                <Text style={styles.championHeroBadgeText}>👑 CAMPEÃO DO TRONO</Text>
-              </View>
-              <View style={styles.championHeroCountPill}>
-                <Text style={styles.championHeroCountText}>{wonInfo.countLabel}</Text>
-              </View>
-            </View>
+        {/* 🏆 Champion of Editions / Trophies Gallery */}
+        <TrophiesGallery
+          wonEditions={user.wonEditions}
+          themeColor={userThemeColor}
+          isOwnProfile={true}
+          currentUserUid={user.uid}
+          userName={user.nickname || user.name}
+        />
 
-            <Text style={styles.championHeroTitle}>
-              {wonInfo.titleText}
-            </Text>
-
-            <View style={styles.championHeroTags}>
-              {wonInfo.romanList.map((roman, idx) => (
-                <View key={idx} style={styles.championHeroTagPill}>
-                  <Text style={styles.championHeroTagPillText}>Edição {roman}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        ) : (
-          <View style={styles.championAspirantCard}>
-            <View style={styles.championAspirantRow}>
-              <Text style={{ fontSize: 16 }}>🏆</Text>
-              <Text style={styles.championAspirantText}>
-                0 edições vencidas • Dispute o topo semanal para coroar seu perfil como Campeão da Edição!
-              </Text>
-            </View>
-          </View>
-        )}
 
         {/* Public Profile Preview Button */}
         <TouchableOpacity

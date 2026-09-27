@@ -17,6 +17,7 @@ import { formatPoopcoins, listenShopItems, SHOP_CATALOG } from "../services/poop
 import { getUserLogs } from "../services/poopService";
 import { formatWonEditions } from "../utils/editions";
 import UserAvatar from "./UserAvatar";
+import { TrophiesGallery } from "./TrophiesGallery";
 
 interface UserProfileModalProps {
   visible: boolean;
@@ -332,31 +333,15 @@ export default function UserProfileModal({
                   </View>
                 )}
 
-                {/* 🏆 Champion of Editions Card */}
-                {wonInfo.count > 0 && (
-                  <View style={styles.championBannerCard}>
-                    <View style={styles.championBannerTop}>
-                      <View style={styles.championBannerCrownPill}>
-                        <Text style={styles.championBannerCrownText}>👑 CAMPEÃO DO TRONO</Text>
-                      </View>
-                      <View style={styles.championBannerCountBadge}>
-                        <Text style={styles.championBannerCountText}>{wonInfo.countLabel}</Text>
-                      </View>
-                    </View>
+                {/* 🏆 Champion of Editions / Trophies Gallery */}
+                <TrophiesGallery
+                  wonEditions={profileUser.wonEditions}
+                  themeColor={themeColor}
+                  isOwnProfile={currentUserId === profileUser.uid}
+                  currentUserUid={currentUserId}
+                  userName={profileUser.nickname || profileUser.name}
+                />
 
-                    <Text style={styles.championBannerTitle}>
-                      {wonInfo.titleText}
-                    </Text>
-
-                    <View style={styles.championTagsRow}>
-                      {wonInfo.romanList.map((roman, idx) => (
-                        <View key={idx} style={styles.championEditionTag}>
-                          <Text style={styles.championEditionTagText}>Ed. {roman}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  </View>
-                )}
 
                 {/* Bio */}
                 {profileUser.bio ? (

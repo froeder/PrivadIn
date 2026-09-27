@@ -89,6 +89,44 @@ export interface RankingGroup {
   deletedBy?: string | null;
 }
 
+export interface EditionCompetitor {
+  uid: string;
+  name: string;
+  nickname?: string;
+  avatar?: string;
+  themeColor?: string;
+  points: number;
+  rank: number;
+  isWinner: boolean;
+}
+
+export interface EditionRecord {
+  id: string;
+  edition: number;
+  romanEdition: string;
+  title: string;
+  endedAt: Timestamp;
+  resetByUid?: string;
+  resetByName?: string;
+  totalCompetitors: number;
+  totalPoints: number;
+  maxPoints: number;
+  winnerUids: string[];
+  winnerNames: string[];
+  winners: Array<{
+    uid: string;
+    name: string;
+    nickname?: string;
+    avatar?: string;
+    themeColor?: string;
+    points: number;
+  }>;
+  competitors: EditionCompetitor[];
+  createdAt: Timestamp;
+  isHistoricalFallback?: boolean;
+}
+
+
 export interface PoopLog {
   id: string;
   userId: string;

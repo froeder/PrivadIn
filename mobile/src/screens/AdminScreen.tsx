@@ -27,6 +27,7 @@ import {
   ShopItem,
   ShopItemCategory,
   ShopItemRarity,
+  EditionRecord,
 } from "../types";
 import {
   listenAllUsers,
@@ -196,9 +197,12 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
   const [resetModalVisible, setResetModalVisible] = useState(false);
   const [resetConfirmText, setResetConfirmText] = useState("");
   const [resetting, setResetting] = useState(false);
-  const [resetResult, setResetResult] = useState<{ newEdition: number; usersReset: number } | null>(
-    null
-  );
+  const [resetResult, setResetResult] = useState<{
+    newEdition: number;
+    usersReset: number;
+    winners?: string[];
+    editionRecord?: EditionRecord;
+  } | null>(null);
 
   // Audit Logs Filter
   const [auditFilter, setAuditFilter] = useState<"all" | "users" | "rules" | "reset">("all");
