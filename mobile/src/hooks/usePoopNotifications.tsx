@@ -147,7 +147,7 @@ export function usePoopNotifications(
           if (nowMs - logTimeMs > 5 * 60 * 1000) return;
 
           const userName = data.userName?.trim() || "Um competidor";
-          const points = data.points || 10;
+          const points = typeof data.points === "number" ? data.points : 2000;
 
           const item: PoopNotification = {
             id: `notif_log_${docId}_${Date.now()}`,

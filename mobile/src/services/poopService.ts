@@ -102,7 +102,9 @@ export async function registerPoopLog(
       settingsData = settingsSnap.data();
       if (typeof settingsData.cooldownMinutes === "number") cooldownMinutes = settingsData.cooldownMinutes;
       if (typeof settingsData.edition === "number") currentEdition = settingsData.edition;
-      if (typeof settingsData.pointsPerLog === "number") basePoints = settingsData.pointsPerLog;
+      if (settingsData.pointsPerLog != null && !isNaN(Number(settingsData.pointsPerLog))) {
+        basePoints = Number(settingsData.pointsPerLog);
+      }
     }
   } catch (e) {
     console.warn("Could not fetch global app_settings in registerPoopLog:", e);
