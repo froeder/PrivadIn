@@ -53,6 +53,7 @@ export interface AppUser {
   equippedTitle?: string;
   equippedBadge?: string;
   unlockedItems?: string[];
+  wonEditions?: number[];
 }
 
 export type ShopItemCategory = "title" | "badge" | "perk";

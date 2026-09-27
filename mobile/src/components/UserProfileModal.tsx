@@ -15,6 +15,7 @@ import { AppUser, CuiterPost, PoopLog, ShopItem } from "../types";
 import { fetchUserCuiterPosts, fetchUserProfile, formatTimeAgo } from "../services/cuiterService";
 import { formatPoopcoins, listenShopItems, SHOP_CATALOG } from "../services/poopcoinService";
 import { getUserLogs } from "../services/poopService";
+import { formatWonEditions } from "../utils/editions";
 import UserAvatar from "./UserAvatar";
 
 interface UserProfileModalProps {
@@ -161,6 +162,12 @@ export default function UserProfileModal({
   const isSelf = currentUserId === userId;
   const themeColor = profileUser?.themeColor || "#eab308";
 
+  // Calculate won editions formatting (e.g. "Campeão das edições I, III, XV, XXX")
+  const wonInfo = useMemo(
+    () => formatWonEditions(profileUser?.wonEditions),
+    [profileUser?.wonEditions]
+  );
+
   // Calculate dynamic achievement medals
   const achievements: AchievementBadge[] = profileUser
     ? [
@@ -187,6 +194,22 @@ export default function UserProfileModal({
           description: "Alcançou 7+ dias consecutivos de cagada remunerada",
           unlocked: (profileUser.currentDailyStreak || 0) >= 7 || (profileUser.bestStreak || 0) >= 7,
           levelColor: "#eab308",
+        },
+        {
+          id: "champion_edition",
+          icon: "👑",
+          title: "Campeão da Edição",
+          description: wonInfo.count > 0 ? wonInfo.titleText : "Vença o ranking semanal de uma edição",
+          unlocked: wonInfo.count > 0,
+          levelColor: "#eab308",
+        },
+        {
+          id: "champion_dynasty",
+          icon: "🏆",
+          title: "Dinastia do Trono",
+          description: "Conquistou 3 ou mais edições do campeonato semanal",
+          unlocked: wonInfo.count >= 3,
+          levelColor: "#f59e0b",
         },
         {
           id: "points_100",
@@ -306,6 +329,32 @@ export default function UserProfileModal({
                 {profileUser.role === "admin" && (
                   <View style={styles.adminBadge}>
                     <Text style={styles.adminBadgeText}>🛡️ Administrador</Text>
+                  </View>
+                )}
+
+                {/* 🏆 Champion of Editions Card */}
+                {wonInfo.count > 0 && (
+                  <View style={styles.championBannerCard}>
+                    <View style={styles.championBannerTop}>
+                      <View style={styles.championBannerCrownPill}>
+                        <Text style={styles.championBannerCrownText}>👑 CAMPEÃO DO TRONO</Text>
+                      </View>
+                      <View style={styles.championBannerCountBadge}>
+                        <Text style={styles.championBannerCountText}>{wonInfo.countLabel}</Text>
+                      </View>
+                    </View>
+
+                    <Text style={styles.championBannerTitle}>
+                      {wonInfo.titleText}
+                    </Text>
+
+                    <View style={styles.championTagsRow}>
+                      {wonInfo.romanList.map((roman, idx) => (
+                        <View key={idx} style={styles.championEditionTag}>
+                          <Text style={styles.championEditionTagText}>Ed. {roman}</Text>
+                        </View>
+                      ))}
+                    </View>
                   </View>
                 )}
 
@@ -459,6 +508,15 @@ export default function UserProfileModal({
                           {userLogs.length} 🚽
                         </Text>
                         <Text style={styles.statLabel}>Sessões Salvas</Text>
+                      </View>
+
+                      <View style={[styles.statItem, wonInfo.count > 0 && styles.statItemHighlight]}>
+                        <Text style={[styles.statValue, wonInfo.count > 0 && { color: "#facc15" }]}>
+                          {wonInfo.count > 0 ? `${wonInfo.count} 👑` : "0"}
+                        </Text>
+                        <Text style={[styles.statLabel, wonInfo.count > 0 && { color: "#fef08a" }]}>
+                          Edições Ganhas
+                        </Text>
                       </View>
                     </View>
                   </View>
@@ -1180,4 +1238,76 @@ const styles = StyleSheet.create({
     marginTop: 2,
     lineHeight: 15,
   },
+  // Champion Banner Card Styles
+  championBannerCard: {
+    width: "100%",
+    backgroundColor: "rgba(234, 179, 8, 0.10)",
+    borderRadius: 14,
+    padding: 14,
+    marginTop: 14,
+    borderWidth: 1.5,
+    borderColor: "rgba(234, 179, 8, 0.4)",
+  },
+  championBannerTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  championBannerCrownPill: {
+    backgroundColor: "#eab308",
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  championBannerCrownText: {
+    color: "#0f172a",
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
+  championBannerCountBadge: {
+    backgroundColor: "rgba(234, 179, 8, 0.20)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(234, 179, 8, 0.35)",
+  },
+  championBannerCountText: {
+    color: "#facc15",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  championBannerTitle: {
+    color: "#fef08a",
+    fontSize: 14,
+    fontWeight: "800",
+    lineHeight: 20,
+    marginBottom: 10,
+  },
+  championTagsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  championEditionTag: {
+    backgroundColor: "rgba(15, 23, 42, 0.7)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "rgba(234, 179, 8, 0.3)",
+  },
+  championEditionTagText: {
+    color: "#fde047",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  statItemHighlight: {
+    backgroundColor: "rgba(234, 179, 8, 0.12)",
+    borderColor: "rgba(234, 179, 8, 0.35)",
+    borderWidth: 1,
+  },
 });
+

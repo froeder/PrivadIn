@@ -42,7 +42,14 @@ export {
 } from "./terms";
 
 // Roman numerals
-export { toRoman } from "./roman";
+export { toRoman, fromRoman } from "./roman";
+
+// Won Editions & Titles
+export {
+  normalizeWonEditions,
+  formatWonEditions,
+  WonEditionsFormat,
+} from "./editions";
 
 // Analytics formulas
 export {

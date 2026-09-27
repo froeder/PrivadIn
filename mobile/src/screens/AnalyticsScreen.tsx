@@ -426,8 +426,8 @@ export default function AnalyticsScreen({
                 <Text style={styles.heroValueUnit}> /ano</Text>
               </Text>
               <Text style={styles.heroDescription}>
-                Projeção estimada do valor que a firma transfere para o seu bolso
-                durante as pausas fisiológicas corporativas.
+                Valor que você ganha teoricamente da firma enquanto usa o banheiro ao
+                longo do ano de expediente corporativo.
               </Text>
 
               <View style={styles.heroStatsGrid}>
@@ -701,7 +701,7 @@ export default function AnalyticsScreen({
                   </Text>
                   <Text style={styles.selectionText}>
                     {selectedDay.count} sessões totalizando{" "}
-                    {formatCurrency(selectedDay.earnedAmount)} ganhos. Média de{" "}
+                    {formatCurrency(selectedDay.earnedAmount)} ganhos teoricamente no banheiro. Média de{" "}
                     {selectedDay.count > 0
                       ? formatCurrency(
                           selectedDay.earnedAmount / selectedDay.count
@@ -788,7 +788,7 @@ export default function AnalyticsScreen({
                             <Text style={styles.logEarnedText}>
                               + {formatCurrency(earned)}
                             </Text>
-                            <Text style={styles.logEarnedHint}>faturado</Text>
+                            <Text style={styles.logEarnedHint}>no banheiro (teórico)</Text>
                           </View>
                         </View>
 
@@ -1048,7 +1048,7 @@ export default function AnalyticsScreen({
                   </View>
 
                   <View style={styles.previewStatItem}>
-                    <Text style={styles.previewStatLabel}>Novo Faturado</Text>
+                    <Text style={styles.previewStatLabel}>Ganho Teórico</Text>
                     <Text style={[styles.previewStatVal, { color: "#4ade80" }]}>
                       {formatCurrency(previewEarned)}
                     </Text>

@@ -126,7 +126,7 @@ export default function WeeklyChart({
                 <Text style={styles.selectedStatVal}>
                   R$ {(typeof selectedDay.earnedAmount === "number" && !isNaN(selectedDay.earnedAmount) ? selectedDay.earnedAmount : 0).toFixed(2).replace(".", ",")}
                 </Text>
-                <Text style={styles.selectedStatLbl}>Faturado</Text>
+                <Text style={styles.selectedStatLbl}>Ganho Teórico</Text>
               </View>
             </View>
           </View>

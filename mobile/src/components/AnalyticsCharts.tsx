@@ -49,8 +49,8 @@ export function CompanyCostCard({
         <Text style={styles.heroValueUnit}> /ano</Text>
       </Text>
       <Text style={styles.heroDescription}>
-        Projeção estimada do valor que a firma transfere para o seu bolso durante
-        as pausas fisiológicas corporativas.
+        Valor que você ganha teoricamente da firma enquanto usa o banheiro ao
+        longo do ano de expediente corporativo.
       </Text>
 
       <View style={styles.heroStatsGrid}>
@@ -262,7 +262,7 @@ export function WeekdayProfitChart({
           <Text style={styles.selectionTitle}>{selectedDay.label}</Text>
           <Text style={styles.selectionText}>
             {selectedDay.count} sessões registradas com retorno de{" "}
-            {formatCurrency(selectedDay.earnedAmount)}.
+            {formatCurrency(selectedDay.earnedAmount)} ganhos teoricamente no banheiro.
           </Text>
         </View>
       )}

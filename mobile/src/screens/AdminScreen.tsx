@@ -47,6 +47,7 @@ import {
   updateBonusTimeRanges,
   updateTermsOfUse,
   resetWeeklyCompetition,
+  updateUserWonEditions,
   formatAuditLogMessage,
 } from "../services/adminService";
 import {
@@ -63,6 +64,7 @@ import {
   calculateCurrentItemPrice,
 } from "../services/poopcoinService";
 import { toRoman } from "../utils/roman";
+import { normalizeWonEditions, formatWonEditions } from "../utils/editions";
 import UserAvatar from "../components/UserAvatar";
 import UserProfileModal from "../components/UserProfileModal";
 
@@ -155,6 +157,12 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
   const [cooldownModalUser, setCooldownModalUser] = useState<AppUser | null>(null);
   const [customCooldownInput, setCustomCooldownInput] = useState("30");
   const [savingCooldown, setSavingCooldown] = useState(false);
+
+  // Edit Won Editions Modal State
+  const [editWonEditionsUser, setEditWonEditionsUser] = useState<AppUser | null>(null);
+  const [wonEditionsList, setWonEditionsList] = useState<number[]>([]);
+  const [newEditionInput, setNewEditionInput] = useState("");
+  const [savingWonEditions, setSavingWonEditions] = useState(false);
 
   // Competition Settings Form State
   const [cooldownMinutesInput, setCooldownMinutesInput] = useState("15");
@@ -746,6 +754,46 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
     );
   };
 
+  // Handlers: Edit Won Editions
+  const handleOpenEditWonEditions = (targetUser: AppUser) => {
+    setEditWonEditionsUser(targetUser);
+    setWonEditionsList(normalizeWonEditions(targetUser.wonEditions));
+    setNewEditionInput("");
+  };
+
+  const handleAddEditionToUser = () => {
+    if (!newEditionInput.trim()) return;
+    const added = normalizeWonEditions(newEditionInput);
+    if (added.length === 0) {
+      Alert.alert("Edição Inválida", "Digite o número da edição ou numeral romano (ex: 15 ou XV).");
+      return;
+    }
+    const combined = normalizeWonEditions([...wonEditionsList, ...added]);
+    setWonEditionsList(combined);
+    setNewEditionInput("");
+  };
+
+  const handleRemoveEditionFromUser = (editionToRemove: number) => {
+    setWonEditionsList((prev) => prev.filter((ed) => ed !== editionToRemove));
+  };
+
+  const handleSaveWonEditions = async () => {
+    if (!editWonEditionsUser) return;
+    setSavingWonEditions(true);
+    try {
+      await updateUserWonEditions(editWonEditionsUser.uid, wonEditionsList, user);
+      Alert.alert(
+        "Títulos Atualizados! 🏆",
+        `As edições vencidas por ${editWonEditionsUser.name} foram atualizadas com sucesso.`
+      );
+      setEditWonEditionsUser(null);
+    } catch (err: any) {
+      Alert.alert("Erro", err.message || "Falha ao atualizar títulos do colaborador.");
+    } finally {
+      setSavingWonEditions(false);
+    }
+  };
+
   // Handler: Trigger Weekly Reset
   const handleTriggerWeeklyReset = async () => {
     if (resetConfirmText.trim().toUpperCase() !== "RESETAR") {
@@ -1230,6 +1278,19 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
                         </View>
                       </View>
 
+                      {/* Won Editions / Champion Snippet */}
+                      {(() => {
+                        const won = formatWonEditions(item.wonEditions);
+                        if (won.count === 0) return null;
+                        return (
+                          <View style={styles.adminUserChampionSnippet}>
+                            <Text style={styles.adminUserChampionText}>
+                              👑 {won.titleText} ({won.countLabel})
+                            </Text>
+                          </View>
+                        );
+                      })()}
+
                       {/* Actions row */}
                       <View style={styles.userActionsRow}>
                         {/* Ban / Reativar */}
@@ -1312,6 +1373,14 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
                           }}
                         >
                           <Text style={styles.userActionBtnTextNeutral}>⏱️ Cooldown</Text>
+                        </TouchableOpacity>
+
+                        {/* Títulos / Edições Ganhas */}
+                        <TouchableOpacity
+                          style={[styles.userActionBtn, styles.userActionBtnGold]}
+                          onPress={() => handleOpenEditWonEditions(item)}
+                        >
+                          <Text style={styles.userActionBtnTextGold}>🏆 Títulos</Text>
                         </TouchableOpacity>
 
                         {/* View Profile */}
@@ -2776,6 +2845,112 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
                   <ActivityIndicator size="small" color="#000" />
                 ) : (
                   <Text style={styles.modalConfirmBtnText}>Aplicar</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ================= MODAL: GESTÃO DE EDIÇÕES GANHAS (TÍTULOS DE CAMPEÃO) ================= */}
+      <Modal
+        visible={!!editWonEditionsUser}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEditWonEditionsUser(null)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>🏆 Títulos de Campeão</Text>
+            <Text style={styles.modalSubtitle}>
+              Gerencie as edições vencidas por{" "}
+              <Text style={{ fontWeight: "700", color: "#eab308" }}>
+                {editWonEditionsUser?.name || "este colaborador"}
+              </Text>
+              . Estas conquistas serão exibidas no perfil do usuário no mobile.
+            </Text>
+
+            {/* Current Won Editions Pills */}
+            <Text style={styles.modalInputLabel}>
+              Edições Conquistadas ({wonEditionsList.length}):
+            </Text>
+            <View style={styles.wonEditionsPillsContainer}>
+              {wonEditionsList.length === 0 ? (
+                <Text style={styles.noWonEditionsText}>
+                  Nenhuma edição atribuída ainda.
+                </Text>
+              ) : (
+                wonEditionsList.map((editionNum) => (
+                  <TouchableOpacity
+                    key={editionNum}
+                    style={styles.wonEditionRemovablePill}
+                    onPress={() => handleRemoveEditionFromUser(editionNum)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.wonEditionRemovableText}>
+                      Ed. #{editionNum} ({toRoman(editionNum)}) ✕
+                    </Text>
+                  </TouchableOpacity>
+                ))
+              )}
+            </View>
+
+            {/* Add Edition Input & Button */}
+            <View style={styles.modalInputGroup}>
+              <Text style={styles.modalInputLabel}>Adicionar Edição (Número ou Romano):</Text>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <TextInput
+                  style={[styles.modalTextInput, { flex: 1 }]}
+                  value={newEditionInput}
+                  onChangeText={setNewEditionInput}
+                  placeholder="Ex: 15 ou XV ou I, III, XV"
+                  placeholderTextColor="#64748b"
+                  autoCapitalize="characters"
+                />
+                <TouchableOpacity
+                  style={styles.addEditionBtn}
+                  onPress={handleAddEditionToUser}
+                >
+                  <Text style={styles.addEditionBtnText}>+ Adicionar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Quick button to add current edition */}
+            {appSettings?.edition && !wonEditionsList.includes(appSettings.edition) && (
+              <TouchableOpacity
+                style={styles.quickAddCurrentEditionBtn}
+                onPress={() => {
+                  const combined = normalizeWonEditions([...wonEditionsList, appSettings.edition!]);
+                  setWonEditionsList(combined);
+                }}
+              >
+                <Text style={styles.quickAddCurrentEditionText}>
+                  + Adicionar Edição Vigente (Ed. {toRoman(appSettings.edition)})
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setEditWonEditionsUser(null)}
+                disabled={savingWonEditions}
+              >
+                <Text style={styles.modalCancelBtnText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalConfirmBtn, savingWonEditions && styles.btnDisabled]}
+                onPress={handleSaveWonEditions}
+                disabled={savingWonEditions}
+              >
+                {savingWonEditions ? (
+                  <ActivityIndicator size="small" color="#000" />
+                ) : (
+                  <Text style={styles.modalConfirmBtnText}>Salvar Títulos</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -4720,5 +4895,74 @@ const styles = StyleSheet.create({
     color: "#cbd5e1",
     fontSize: 11,
     lineHeight: 18,
+  },
+  // Won editions management & snippet styles
+  adminUserChampionSnippet: {
+    backgroundColor: "rgba(234, 179, 8, 0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(234, 179, 8, 0.3)",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginHorizontal: 12,
+    marginTop: 8,
+  },
+  adminUserChampionText: {
+    color: "#facc15",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  wonEditionsPillsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginVertical: 10,
+    minHeight: 36,
+  },
+  wonEditionRemovablePill: {
+    backgroundColor: "rgba(234, 179, 8, 0.15)",
+    borderWidth: 1,
+    borderColor: "#eab308",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  wonEditionRemovableText: {
+    color: "#fde047",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  noWonEditionsText: {
+    color: "#64748b",
+    fontSize: 12,
+    fontStyle: "italic",
+    paddingVertical: 4,
+  },
+  addEditionBtn: {
+    backgroundColor: "#eab308",
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addEditionBtnText: {
+    color: "#0f172a",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  quickAddCurrentEditionBtn: {
+    backgroundColor: "rgba(234, 179, 8, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(234, 179, 8, 0.35)",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  quickAddCurrentEditionText: {
+    color: "#facc15",
+    fontSize: 12,
+    fontWeight: "700",
   },
 });

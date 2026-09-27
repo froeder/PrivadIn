@@ -10,6 +10,7 @@ import {
   where,
   writeBatch,
   increment,
+  updateDoc,
   Timestamp,
 } from "firebase/firestore";
 import { db } from "./firebase";
@@ -24,6 +25,7 @@ import {
   RegistrationAttempt,
 } from "../types";
 import { toRoman } from "../utils/roman";
+import { normalizeWonEditions } from "../utils/editions";
 
 export const adminLogsRef = collection(db, "admin_audit_logs");
 export const appSettingsDocRef = doc(db, "app_settings", "global");
@@ -372,7 +374,7 @@ export async function updateCompetitionSettings(
  */
 export async function resetWeeklyCompetition(
   admin: AppUser
-): Promise<{ newEdition: number; usersReset: number }> {
+): Promise<{ newEdition: number; usersReset: number; winners?: string[] }> {
   // 1. Carrega dados atuais
   const settingsSnap = await getDoc(appSettingsDocRef);
   const currentEdition = Number(settingsSnap.data()?.edition ?? 17);
@@ -384,6 +386,18 @@ export async function resetWeeklyCompetition(
     getDocs(query(collection(db, "poop_logs"), where("isWeeklyActive", "==", true))),
     getDocs(collection(db, "groups")),
   ]);
+
+  // Identifica a maior pontuação semanal para coroar o(s) campeão(ões) da edição
+  let maxWeeklyPoints = 0;
+  usersSnap.forEach((userDoc) => {
+    const data = userDoc.data() as AppUser;
+    const pts = Number(data.weeklyPoints ?? 0);
+    if (pts > maxWeeklyPoints) {
+      maxWeeklyPoints = pts;
+    }
+  });
+
+  const winnersList: string[] = [];
 
   // Executa em lotes (Firestore suporta até 500 operações por batch)
   const MAX_BATCH_SIZE = 400;
@@ -398,9 +412,25 @@ export async function resetWeeklyCompetition(
     }
   };
 
-  // Zerar weeklyPoints dos usuários
+  // Zerar weeklyPoints dos usuários e conceder título da edição encerrada aos vencedores
   usersSnap.forEach((userDoc) => {
-    currentBatch.update(userDoc.ref, { weeklyPoints: 0 });
+    const data = userDoc.data() as AppUser;
+    const pts = Number(data.weeklyPoints ?? 0);
+    const isWinner = maxWeeklyPoints > 0 && pts === maxWeeklyPoints;
+
+    if (isWinner) {
+      const updatedWonEditions = normalizeWonEditions([
+        ...(Array.isArray(data.wonEditions) ? data.wonEditions : []),
+        currentEdition,
+      ]);
+      winnersList.push(data.nickname?.trim() || data.name || userDoc.id);
+      currentBatch.update(userDoc.ref, {
+        weeklyPoints: 0,
+        wonEditions: updatedWonEditions,
+      });
+    } else {
+      currentBatch.update(userDoc.ref, { weeklyPoints: 0 });
+    }
     opCount++;
   });
   await commitBatchIfNeeded();
@@ -455,6 +485,7 @@ export async function resetWeeklyCompetition(
   return {
     newEdition: nextEdition,
     usersReset: usersSnap.size,
+    winners: winnersList,
   };
 }
 
@@ -854,4 +885,20 @@ export async function updateTermsOfUse(
 
   await batch.commit();
   return nextVersion;
+}
+
+/**
+ * Atualiza manualmente a lista de edições ganhas de um usuário (gestão de títulos de campeão)
+ */
+export async function updateUserWonEditions(
+  userId: string,
+  wonEditions: number[],
+  admin?: AppUser
+): Promise<void> {
+  const normalized = normalizeWonEditions(wonEditions);
+  const userRef = doc(db, "users", userId);
+  await updateDoc(userRef, {
+    wonEditions: normalized,
+    updatedAt: Timestamp.now(),
+  });
 }

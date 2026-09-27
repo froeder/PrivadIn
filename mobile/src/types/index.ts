@@ -32,6 +32,7 @@ export interface AppUser {
   equippedBadge?: string;
   themeColor?: string;
   unlockedItems?: string[];
+  wonEditions?: number[];
   createdAt?: any;
   firstLogAt?: any;
   lastLogAt?: any;

@@ -61,7 +61,7 @@ export default function PoopRewardModal({
 
           <Text style={styles.title}>TRONO CONCLUÍDO!</Text>
           <Text style={styles.subtitle}>
-            Sua pausa sagrada foi remunerada e computada na firma.
+            Sua pausa sagrada foi remunerada teoricamente e computada na firma.
           </Text>
 
           {/* Edition Tag */}
@@ -94,7 +94,12 @@ export default function PoopRewardModal({
             </View>
 
             <View style={styles.statRow}>
-              <Text style={styles.statRowLabel}>💰 Faturado no Expediente:</Text>
+              <View style={{ flex: 1, marginRight: 8 }}>
+                <Text style={styles.statRowLabel}>💰 Ganho no Banheiro (Teórico):</Text>
+                <Text style={styles.statRowSubtext}>
+                  Valor que você ganha teoricamente enquanto usa o trono
+                </Text>
+              </View>
               <Text style={[styles.statRowValue, { color: "#10b981" }]}>
                 R$ {earnedAmount.toFixed(2).replace(".", ",")}
               </Text>
@@ -242,6 +247,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#94a3b8",
     fontWeight: "500",
+  },
+  statRowSubtext: {
+    fontSize: 10,
+    color: "#64748b",
+    marginTop: 2,
   },
   statRowValue: {
     fontSize: 13,

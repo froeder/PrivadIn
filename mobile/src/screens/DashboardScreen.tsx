@@ -506,7 +506,7 @@ export default function DashboardScreen({
 
             <View style={styles.earningsEstimateRow}>
               <View style={styles.earningsEstimateCol}>
-                <Text style={styles.earningsEstimateLabel}>💰 Faturado Estimado</Text>
+                <Text style={styles.earningsEstimateLabel}>💰 Ganho Teórico</Text>
                 <Text style={styles.earningsEstimateValue}>
                   R$ {standardEarned.toFixed(2).replace(".", ",")}
                 </Text>
@@ -518,6 +518,13 @@ export default function DashboardScreen({
                   {standardMinutes} min
                 </Text>
               </View>
+            </View>
+
+            <View style={styles.theoreticalNoticeBox}>
+              <Text style={styles.theoreticalNoticeIcon}>💡</Text>
+              <Text style={styles.theoreticalNoticeText}>
+                Valor que você ganha teoricamente enquanto usa o banheiro (cálculo proporcional ao seu salário ou taxa horária).
+              </Text>
             </View>
           </View>
         )}
@@ -758,6 +765,7 @@ export default function DashboardScreen({
                 <Text style={styles.historyEarnedText}>
                   + R$ {(log.earnedAmount || 0).toFixed(2).replace(".", ",")}
                 </Text>
+                <Text style={styles.historyEarnedSub}>no banheiro (teórico)</Text>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 4, justifyContent: "flex-end" }}>
                   <Text style={styles.historyPoints}>
                     +{log.points || 2000} pts
@@ -1157,6 +1165,29 @@ const styles = StyleSheet.create({
     height: 28,
     backgroundColor: "rgba(148, 163, 184, 0.2)",
   },
+  theoreticalNoticeBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(30, 41, 59, 0.7)",
+    borderWidth: 1,
+    borderColor: "rgba(74, 222, 128, 0.25)",
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginTop: 10,
+    gap: 8,
+    width: "100%",
+  },
+  theoreticalNoticeIcon: {
+    fontSize: 15,
+  },
+  theoreticalNoticeText: {
+    fontSize: 11,
+    color: "#94a3b8",
+    flex: 1,
+    lineHeight: 15,
+    fontWeight: "500",
+  },
   timerDisplay: {
     fontSize: 56,
     fontWeight: "900",
@@ -1292,6 +1323,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "800",
     color: "#4ade80",
+  },
+  historyEarnedSub: {
+    fontSize: 9,
+    color: "#64748b",
+    fontWeight: "600",
+    marginTop: 1,
+    marginBottom: 2,
   },
   historyPoints: {
     fontSize: 11,

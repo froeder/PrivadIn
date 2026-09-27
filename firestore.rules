@@ -31,7 +31,8 @@ service cloud.firestore {
     function userProtectedFields() {
       return [
         "uid", "email", "role", "createdAt",
-        "isActive", "deactivatedAt", "deactivatedBy", "ownedGroupId"
+        "isActive", "deactivatedAt", "deactivatedBy", "ownedGroupId",
+        "wonEditions"
       ];
     }
 

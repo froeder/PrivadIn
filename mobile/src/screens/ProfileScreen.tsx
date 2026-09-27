@@ -41,6 +41,7 @@ import {
   getPersistedLanguage,
   persistLanguage,
 } from "../utils/i18n";
+import { formatWonEditions } from "../utils/editions";
 import { IS_DEV, FIRESTORE_DATABASE_ID } from "../services/firebase";
 import {
   getAppDisplayVersion,
@@ -122,6 +123,12 @@ export default function ProfileScreen({
   const [transferModalVisible, setTransferModalVisible] = useState(false);
   const [changePasswordModalVisible, setChangePasswordModalVisible] = useState(false);
   const [copiedSelfUid, setCopiedSelfUid] = useState(false);
+
+  // Formatação das Edições Ganhas pelo Usuário
+  const wonInfo = useMemo(
+    () => formatWonEditions(user.wonEditions),
+    [user.wonEditions]
+  );
 
   // Active section tab in screen
   const [activeSection, setActiveSection] = useState<"profile" | "inventory" | "work" | "financial" | "security">("profile");
@@ -675,6 +682,41 @@ export default function ProfileScreen({
               👑 {user.equippedTitle}
             </Text>
           </TouchableOpacity>
+        )}
+
+        {/* 🏆 Champion of Editions Card */}
+        {wonInfo.count > 0 ? (
+          <View style={styles.championHeroCard}>
+            <View style={styles.championHeroTopRow}>
+              <View style={styles.championHeroBadge}>
+                <Text style={styles.championHeroBadgeText}>👑 CAMPEÃO DO TRONO</Text>
+              </View>
+              <View style={styles.championHeroCountPill}>
+                <Text style={styles.championHeroCountText}>{wonInfo.countLabel}</Text>
+              </View>
+            </View>
+
+            <Text style={styles.championHeroTitle}>
+              {wonInfo.titleText}
+            </Text>
+
+            <View style={styles.championHeroTags}>
+              {wonInfo.romanList.map((roman, idx) => (
+                <View key={idx} style={styles.championHeroTagPill}>
+                  <Text style={styles.championHeroTagPillText}>Edição {roman}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : (
+          <View style={styles.championAspirantCard}>
+            <View style={styles.championAspirantRow}>
+              <Text style={{ fontSize: 16 }}>🏆</Text>
+              <Text style={styles.championAspirantText}>
+                0 edições vencidas • Dispute o topo semanal para coroar seu perfil como Campeão da Edição!
+              </Text>
+            </View>
+          </View>
         )}
 
         {/* Public Profile Preview Button */}
@@ -1367,7 +1409,7 @@ export default function ProfileScreen({
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Configuração Financeira</Text>
           <Text style={styles.cardDescription}>
-            Escolha se prefere definir seu salário mensal ou o valor da sua hora. Calculamos exatamente quanto você ganha a cada minuto no banheiro.
+            Escolha se prefere definir seu salário mensal ou o valor da sua hora. Calculamos exatamente quanto você ganha teoricamente enquanto usa o banheiro durante seu expediente.
           </Text>
 
           {/* Financial Mode Switcher */}
@@ -1457,6 +1499,9 @@ export default function ProfileScreen({
           {/* Real-time Earnings Simulation Card */}
           <View style={styles.earningsSimulationCard}>
             <Text style={styles.earningsSimTitle}>Simulador de Ganhos no Trono 🚽</Text>
+            <Text style={styles.earningsSimSubtitle}>
+              Valor que você ganha teoricamente da firma enquanto usa o banheiro.
+            </Text>
 
             <View style={styles.earningsGrid}>
               <View style={styles.earningsGridItem}>
@@ -1489,7 +1534,7 @@ export default function ProfileScreen({
             </View>
 
             <Text style={styles.earningsSimNote}>
-              * Cálculo baseado em {monthlyWorkHours} horas mensais configuradas na sua jornada.
+              * Valor que você ganha teoricamente enquanto usa o banheiro, calculado proporcionalmente com base em {monthlyWorkHours} horas mensais configuradas na sua jornada.
             </Text>
           </View>
 
@@ -2409,7 +2454,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "800",
     color: "#f8fafc",
+    marginBottom: 2,
+  },
+  earningsSimSubtitle: {
+    fontSize: 11,
+    color: "#94a3b8",
     marginBottom: 10,
+    lineHeight: 15,
   },
   earningsGrid: {
     flexDirection: "row",
@@ -3269,5 +3320,92 @@ const styles = StyleSheet.create({
   inventoryEquipBtnTextActive: {
     color: "#4ade80",
     fontWeight: "900",
+  },
+  // Champion Hero Card Styles
+  championHeroCard: {
+    width: "100%",
+    backgroundColor: "rgba(234, 179, 8, 0.12)",
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 14,
+    borderWidth: 1.5,
+    borderColor: "rgba(234, 179, 8, 0.45)",
+  },
+  championHeroTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  championHeroBadge: {
+    backgroundColor: "#eab308",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  championHeroBadgeText: {
+    color: "#0f172a",
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
+  championHeroCountPill: {
+    backgroundColor: "rgba(234, 179, 8, 0.22)",
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(234, 179, 8, 0.4)",
+  },
+  championHeroCountText: {
+    color: "#facc15",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  championHeroTitle: {
+    color: "#fef08a",
+    fontSize: 15,
+    fontWeight: "800",
+    lineHeight: 21,
+    marginBottom: 10,
+  },
+  championHeroTags: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  championHeroTagPill: {
+    backgroundColor: "rgba(15, 23, 42, 0.75)",
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: "rgba(234, 179, 8, 0.35)",
+  },
+  championHeroTagPillText: {
+    color: "#fde047",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  championAspirantCard: {
+    width: "100%",
+    backgroundColor: "rgba(30, 41, 59, 0.6)",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: "rgba(100, 116, 139, 0.3)",
+  },
+  championAspirantRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  championAspirantText: {
+    color: "#94a3b8",
+    fontSize: 12,
+    flex: 1,
+    lineHeight: 16,
   },
 });
