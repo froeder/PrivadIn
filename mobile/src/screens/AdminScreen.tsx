@@ -3050,8 +3050,19 @@ export default function AdminScreen({ user, onBack, onRefreshUser }: AdminScreen
               </Text>{" "}
               da competição foi inaugurada com sucesso.
             </Text>
+            {resetResult?.winners && resetResult.winners.length > 0 && (
+              <View style={{ backgroundColor: "rgba(234, 179, 8, 0.15)", borderRadius: 12, padding: 10, marginVertical: 10, borderWidth: 1, borderColor: "rgba(234, 179, 8, 0.4)", width: "100%" }}>
+                <Text style={{ color: "#facc15", fontWeight: "900", fontSize: 13, textAlign: "center" }}>
+                  👑 Campeão(ões) Coroado(s):
+                </Text>
+                <Text style={{ color: "#f8fafc", fontWeight: "700", fontSize: 13, textAlign: "center", marginTop: 4 }}>
+                  {resetResult.winners.join(", ")}
+                </Text>
+              </View>
+            )}
             <Text style={styles.successStatsText}>
               • {resetResult?.usersReset} participante(s) tiveram sua pontuação semanal zerada.{"\n"}
+              • Edição salva com competidores, pontos e troféus adicionados aos perfis dos campeões!{"\n"}
               • As ligas privadas foram promovidas para a nova edição.{"\n"}• O evento foi registrado
               na trilha de auditoria.
             </Text>
