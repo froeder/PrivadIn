@@ -681,7 +681,14 @@ export default function UserProfileModal({
                           <Text style={styles.thoughtTime}>
                             {formatTimeAgo(post.createdAt)}
                           </Text>
-                          <Text style={styles.thoughtSpendBadge}>🪙 1 PC</Text>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                            {Boolean(post.commentsCount && post.commentsCount > 0) && (
+                              <Text style={styles.thoughtCommentBadge}>
+                                💬 {post.commentsCount}
+                              </Text>
+                            )}
+                            <Text style={styles.thoughtSpendBadge}>🪙 1 PC</Text>
+                          </View>
                         </View>
                         <Text style={styles.thoughtMessage}>{post.message}</Text>
                       </View>
@@ -1132,6 +1139,11 @@ const styles = StyleSheet.create({
   thoughtSpendBadge: {
     fontSize: 10,
     color: "#eab308",
+    fontWeight: "700",
+  },
+  thoughtCommentBadge: {
+    fontSize: 10,
+    color: "#38bdf8",
     fontWeight: "700",
   },
   thoughtMessage: {

@@ -20,6 +20,7 @@ import {
   fetchCuiterPostCost,
   formatTimeAgo,
   subscribeCuiterFeed,
+  syncPostCommentsCount,
   togglePostReaction,
 } from "../services/cuiterService";
 import { formatPoopcoins } from "../services/poopcoinService";
@@ -104,6 +105,18 @@ export default function CuiterScreen({
 
     return () => unsubscribe();
   }, []);
+
+  // Sincroniza contador de comentários de posts antigos ou que não tinham o campo commentsCount
+  const checkedPostIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    posts.forEach((post) => {
+      const count = Number(post.commentsCount || 0);
+      if (count <= 0 && !checkedPostIdsRef.current.has(post.id)) {
+        checkedPostIdsRef.current.add(post.id);
+        syncPostCommentsCount(post.id);
+      }
+    });
+  }, [posts]);
 
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -222,6 +235,8 @@ export default function CuiterScreen({
     });
 
     const userReaction = reactions[user.uid];
+    const commentsCount = Number(item.commentsCount || 0);
+    const hasComments = commentsCount > 0;
 
     return (
       <View style={styles.postCard}>
@@ -338,16 +353,21 @@ export default function CuiterScreen({
 
           {/* Comentários / Tópico */}
           <TouchableOpacity
-            style={styles.commentButton}
+            style={[
+              styles.commentButton,
+              hasComments && styles.commentButtonActive,
+            ]}
             onPress={() => handleOpenThread(item)}
             activeOpacity={0.7}
           >
             <Text style={styles.commentEmoji}>💬</Text>
-            <Text style={styles.commentCount}>
-              {item.commentsCount && item.commentsCount > 0
-                ? item.commentsCount
-                : "Responder"}
-            </Text>
+            {hasComments ? (
+              <Text style={styles.commentCount}>
+                {commentsCount} {commentsCount === 1 ? "comentário" : "comentários"}
+              </Text>
+            ) : (
+              <Text style={styles.commentText}>Responder</Text>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -864,8 +884,17 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginLeft: "auto",
   },
+  commentButtonActive: {
+    backgroundColor: "rgba(56, 189, 248, 0.12)",
+    borderColor: "rgba(56, 189, 248, 0.4)",
+  },
   commentEmoji: {
     fontSize: 14,
+  },
+  commentText: {
+    fontSize: 12,
+    color: "#94a3b8",
+    fontWeight: "600",
   },
   commentCount: {
     fontSize: 12,

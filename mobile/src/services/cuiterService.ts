@@ -14,6 +14,7 @@ import {
   updateDoc,
   deleteDoc,
   deleteField,
+  getCountFromServer,
   Unsubscribe,
 } from "firebase/firestore";
 import { db } from "./firebase";
@@ -358,6 +359,11 @@ export function subscribeCuiterComments(
           replyToUserName: data.replyToUserName || null,
         };
       });
+      // Sincroniza a quantidade real de comentários no documento do post
+      const realCount = snapshot.size;
+      const postRef = doc(db, "cuiter_posts", postId);
+      updateDoc(postRef, { commentsCount: realCount }).catch(() => {});
+
       callback(comments);
     },
     (error) => {
@@ -365,6 +371,25 @@ export function subscribeCuiterComments(
       onError?.(error);
     }
   );
+}
+
+/**
+ * Consulta a contagem real de comentários no servidor e atualiza o post se necessário.
+ */
+export async function syncPostCommentsCount(postId: string): Promise<number> {
+  try {
+    const commentsRef = collection(db, "cuiter_posts", postId, "comments");
+    const snap = await getCountFromServer(commentsRef);
+    const count = snap.data().count;
+    if (count > 0) {
+      const postRef = doc(db, "cuiter_posts", postId);
+      await updateDoc(postRef, { commentsCount: count }).catch(() => {});
+    }
+    return count;
+  } catch (err) {
+    console.warn("Aviso ao sincronizar contador de comentários do Cuiter:", err);
+    return 0;
+  }
 }
 
 export async function createCuiterComment(
@@ -504,9 +529,12 @@ export async function createCuiterComment(
     });
 
     // 4. Cria a resposta e incrementa o contador do post
+    const postSnapshot = await transaction.get(postRef);
+    const currentCommentsCount = Number(postSnapshot.data()?.commentsCount || 0);
+
     transaction.set(newCommentRef, commentData);
     transaction.update(postRef, {
-      commentsCount: increment(1),
+      commentsCount: currentCommentsCount + 1,
     });
   });
 
@@ -524,9 +552,12 @@ export async function deleteCuiterComment(
   const commentRef = doc(db, "cuiter_posts", postId, "comments", commentId);
 
   await runTransaction(db, async (transaction) => {
+    const postSnapshot = await transaction.get(postRef);
+    const currentCommentsCount = Number(postSnapshot.data()?.commentsCount || 0);
+
     transaction.delete(commentRef);
     transaction.update(postRef, {
-      commentsCount: increment(-1),
+      commentsCount: Math.max(0, currentCommentsCount - 1),
     });
   });
 }
