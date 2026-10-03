@@ -44,3 +44,5 @@ mobile/credentials.json
 credentials.json
 fcm-key.json
 *fcm*.json
+google-services.json
+*google-services*.json
