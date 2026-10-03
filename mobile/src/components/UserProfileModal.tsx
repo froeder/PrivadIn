@@ -158,16 +158,17 @@ export default function UserProfileModal({
     };
   }, [visible, userId]);
 
-  if (!visible) return null;
-
-  const isSelf = currentUserId === userId;
-  const themeColor = profileUser?.themeColor || "#eab308";
-
   // Calculate won editions formatting (e.g. "Campeão das edições I, III, XV, XXX")
+  // IMPORTANTE: hooks devem ficar antes de qualquer early return.
   const wonInfo = useMemo(
     () => formatWonEditions(profileUser?.wonEditions),
     [profileUser?.wonEditions]
   );
+
+  if (!visible) return null;
+
+  const isSelf = currentUserId === userId;
+  const themeColor = profileUser?.themeColor || "#eab308";
 
   // Calculate dynamic achievement medals
   const achievements: AchievementBadge[] = profileUser

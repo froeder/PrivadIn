@@ -44,6 +44,7 @@ import {
 } from "../utils/i18n";
 import { formatWonEditions } from "../utils/editions";
 import { IS_DEV, FIRESTORE_DATABASE_ID } from "../services/firebase";
+import { exportUserDataCsv } from "../utils/exportData";
 import {
   getAppDisplayVersion,
   checkAndFetchUpdate,
@@ -617,6 +618,20 @@ export default function ProfileScreen({
   const userHourlyRate = user.hourlyRate || (user.salary ? user.salary / 176 : 20);
 
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [exportingData, setExportingData] = useState(false);
+
+  const handleExportData = async () => {
+    if (exportingData) return;
+    setExportingData(true);
+    try {
+      await exportUserDataCsv(user);
+    } catch (err: any) {
+      console.error("Erro ao exportar dados:", err);
+      Alert.alert("Erro", "Não foi possível gerar o arquivo com seus dados. Tente novamente.");
+    } finally {
+      setExportingData(false);
+    }
+  };
 
   const handleCheckUpdates = async () => {
     if (checkingUpdate) return;
@@ -1559,6 +1574,28 @@ export default function ProfileScreen({
                 {user.termsAccepted ? "Aceito" : "Pendente"}
               </Text>
             </View>
+          </View>
+
+          {/* Download dos Dados Pessoais (CSV) */}
+          <View style={styles.changePasswordCard}>
+            <View style={styles.changePasswordHeader}>
+              <Text style={styles.changePasswordTitle}>📥 Baixar Meus Dados</Text>
+              <Text style={styles.changePasswordDesc}>
+                Exporte em CSV seus dados de perfil, suas pontuações e o histórico de sessões. Salve em Arquivos, Drive ou envie por e-mail e use como quiser.
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.changePasswordButton, { backgroundColor: userThemeColor }]}
+              onPress={handleExportData}
+              disabled={exportingData}
+              activeOpacity={0.85}
+            >
+              {exportingData ? (
+                <ActivityIndicator color="#020617" />
+              ) : (
+                <Text style={styles.changePasswordButtonText}>Baixar Dados (CSV)</Text>
+              )}
+            </TouchableOpacity>
           </View>
 
           {/* Troca de Senha Autenticada */}
