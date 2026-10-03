@@ -36,7 +36,13 @@
           }
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-notifications",
+        {
+          "color": "#eab308"
+        }
+      ]
     ],
     "extra": {
       "eas": {

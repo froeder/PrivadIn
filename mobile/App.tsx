@@ -25,6 +25,12 @@ import Shell from "./src/components/Shell";
 import ErrorBoundary from "./src/components/ErrorBoundary";
 import { listenAppSettings } from "./src/services/settingsService";
 import { ThemeProvider } from "./src/contexts/ThemeContext";
+import {
+  registerForPushNotifications,
+  configureForegroundNotifications,
+} from "./src/services/pushService";
+
+configureForegroundNotifications();
 
 function MainApp() {
   const [firebaseUser, setFirebaseUser] = useState<any>(null);
@@ -96,6 +102,14 @@ function MainApp() {
       }
     };
   }, []);
+
+  // Registra o aparelho para push assim que houver usuário logado
+  const pushUid = firebaseUser?.uid;
+  useEffect(() => {
+    if (pushUid) {
+      registerForPushNotifications(pushUid);
+    }
+  }, [pushUid]);
 
   if (loading) {
     return (
