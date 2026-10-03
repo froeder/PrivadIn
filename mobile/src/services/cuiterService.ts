@@ -381,6 +381,14 @@ export async function createCuiterComment(
     throw new Error(`A resposta deve ter no máximo ${CUITER_MAX_CHARS} caracteres.`);
   }
 
+  const cuiterPostCost = await fetchCuiterPostCost();
+  const currentBalance = Number(user.poopcoinBalance ?? 0);
+  if (currentBalance < cuiterPostCost) {
+    throw new Error(
+      `Saldo insuficiente. Responder no Cuiter custa ${formatPoopcoins(cuiterPostCost)} PC (você tem ${formatPoopcoins(currentBalance)} PC).`
+    );
+  }
+
   const postRef = doc(db, "cuiter_posts", postId);
   const commentsRef = collection(db, "cuiter_posts", postId, "comments");
   const newCommentRef = doc(commentsRef);
@@ -400,6 +408,102 @@ export async function createCuiterComment(
   };
 
   await runTransaction(db, async (transaction) => {
+    const userRef = doc(db, "users", user.uid);
+    const [userSnapshot, headSnapshot] = await Promise.all([
+      transaction.get(userRef),
+      transaction.get(poopcoinChainHeadRef),
+    ]);
+
+    const userData = userSnapshot.data() as AppUser | undefined;
+    if (!userData || userData.isActive === false) {
+      throw new Error("Seu usuário não está ativo para responder.");
+    }
+
+    const liveBalance = Number(userData.poopcoinBalance ?? 0);
+    if (liveBalance < cuiterPostCost) {
+      throw new Error(
+        `Saldo insuficiente. Seu saldo atual é de ${formatPoopcoins(liveBalance)} PC.`
+      );
+    }
+
+    const previousHash = String(headSnapshot.data()?.lastHash ?? GENESIS_HASH);
+    const previousSequence = Number(headSnapshot.data()?.lastSequence ?? 0);
+    const sequence = Math.max(0, Math.trunc(previousSequence)) + 1;
+    const txCreatedAt = Timestamp.now();
+    const nonce = randomNonce();
+    const entries: PoopcoinTransactionEntry[] = [
+      { userId: user.uid, delta: -cuiterPostCost },
+    ];
+    const affectedUserIds = [user.uid];
+    const role = (userData.role === "admin" ? "admin" : "player") as "player" | "admin";
+    const reason = "Resposta no Cuiter";
+
+    const unsignedPayload = {
+      previousHash,
+      sequence,
+      createdAt: txCreatedAt,
+      type: "cuiter_spend",
+      entries,
+      affectedUserIds,
+      fromUserId: user.uid,
+      toUserId: null,
+      amount: cuiterPostCost,
+      createdBy: user.uid,
+      createdByRole: role,
+      status: "active",
+      reversesTransactionHash: null,
+      linkedLogId: null,
+      linkedPostId: postId,
+      reason,
+      nonce,
+    };
+
+    const hash = sha256Hex(canonicalJson(unsignedPayload));
+
+    // 1. Grava o bloco da transação
+    transaction.set(doc(db, "poopcoin_transactions", hash), {
+      hash,
+      previousHash,
+      sequence,
+      createdAt: txCreatedAt,
+      type: "cuiter_spend",
+      entries,
+      affectedUserIds,
+      fromUserId: user.uid,
+      toUserId: null,
+      amount: cuiterPostCost,
+      createdBy: user.uid,
+      createdByRole: role,
+      status: "active",
+      reversesTransactionHash: null,
+      reversedByTransactionHash: null,
+      linkedLogId: null,
+      linkedPostId: postId,
+      reason,
+      nonce,
+    });
+
+    // 2. Atualiza a cabeça da cadeia (queima as moedas)
+    const currentBurned = Number(headSnapshot.data()?.burnedSupply ?? 0);
+    const currentCirculating = Number(headSnapshot.data()?.circulatingSupply ?? 0);
+    transaction.set(
+      poopcoinChainHeadRef,
+      {
+        lastHash: hash,
+        lastSequence: sequence,
+        updatedAt: txCreatedAt,
+        burnedSupply: currentBurned + cuiterPostCost,
+        circulatingSupply: Math.max(0, currentCirculating - cuiterPostCost),
+      },
+      { merge: true }
+    );
+
+    // 3. Debita o saldo do usuário
+    transaction.update(userRef, {
+      poopcoinBalance: increment(-cuiterPostCost),
+    });
+
+    // 4. Cria a resposta e incrementa o contador do post
     transaction.set(newCommentRef, commentData);
     transaction.update(postRef, {
       commentsCount: increment(1),

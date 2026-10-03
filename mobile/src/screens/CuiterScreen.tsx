@@ -553,6 +553,7 @@ export default function CuiterScreen({
         }}
         onOpenAuthorProfile={handleOpenAuthorProfile}
         onToggleReaction={handleToggleReaction}
+        onReplySent={onRefreshUser}
       />
     </KeyboardAvoidingView>
   );

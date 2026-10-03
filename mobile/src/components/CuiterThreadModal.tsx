@@ -16,11 +16,14 @@ import {
 import { AppUser, CuiterComment, CuiterPost, CuiterReactionType } from "../types";
 import {
   CUITER_MAX_CHARS,
+  DEFAULT_CUITER_POST_COST,
   createCuiterComment,
   deleteCuiterComment,
+  fetchCuiterPostCost,
   formatTimeAgo,
   subscribeCuiterComments,
 } from "../services/cuiterService";
+import { formatPoopcoins } from "../services/poopcoinService";
 
 interface CuiterThreadModalProps {
   visible: boolean;
@@ -29,6 +32,7 @@ interface CuiterThreadModalProps {
   onClose: () => void;
   onOpenAuthorProfile: (userId: string) => void;
   onToggleReaction: (postId: string, type: CuiterReactionType) => void;
+  onReplySent?: () => void;
 }
 
 export default function CuiterThreadModal({
@@ -38,17 +42,23 @@ export default function CuiterThreadModal({
   onClose,
   onOpenAuthorProfile,
   onToggleReaction,
+  onReplySent,
 }: CuiterThreadModalProps) {
   const [comments, setComments] = useState<CuiterComment[]>([]);
   const [loadingComments, setLoadingComments] = useState(true);
   const [replyText, setReplyText] = useState("");
   const [sending, setSending] = useState(false);
+  const [replyCost, setReplyCost] = useState(DEFAULT_CUITER_POST_COST);
   const [replyingTo, setReplyingTo] = useState<{
     commentId: string;
     userName: string;
   } | null>(null);
 
   const flatListRef = useRef<FlatList>(null);
+
+  useEffect(() => {
+    if (visible) fetchCuiterPostCost().then(setReplyCost);
+  }, [visible]);
 
   useEffect(() => {
     if (!visible || !post) {
@@ -73,9 +83,8 @@ export default function CuiterThreadModal({
     return () => unsubscribe();
   }, [visible, post?.id]);
 
-  if (!post) return null;
-
   const handleSendComment = async () => {
+    if (!post) return;
     const trimmed = replyText.trim();
     if (!trimmed) {
       Alert.alert("Aviso", "Escreva uma resposta para enviar.");
@@ -91,6 +100,7 @@ export default function CuiterThreadModal({
       await createCuiterComment(post.id, currentUser, trimmed, replyingTo);
       setReplyText("");
       setReplyingTo(null);
+      onReplySent?.();
       // Rola para o final da lista após enviar
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
@@ -104,6 +114,7 @@ export default function CuiterThreadModal({
   };
 
   const handleDeleteComment = (comment: CuiterComment) => {
+    if (!post) return;
     Alert.alert(
       "Excluir Comentário",
       "Deseja realmente apagar esta resposta?",
@@ -125,7 +136,7 @@ export default function CuiterThreadModal({
   };
 
   // Reactions calculations for main post
-  const reactions = post.reactions || {};
+  const reactions = post?.reactions || {};
   let likeCount = 0;
   let poopCount = 0;
   let laughCount = 0;
@@ -137,6 +148,7 @@ export default function CuiterThreadModal({
   const userReaction = reactions[currentUser.uid];
 
   const renderHeader = useCallback(() => {
+    if (!post) return null;
     return (
     <View style={styles.headerPostContainer}>
       {/* Post Original Card */}
@@ -351,6 +363,9 @@ export default function CuiterThreadModal({
 
   const charsRemaining = CUITER_MAX_CHARS - replyText.length;
 
+  // Hooks acima; early return somente depois de todos eles.
+  if (!post) return null;
+
   return (
     <Modal
       visible={visible}
@@ -471,7 +486,7 @@ export default function CuiterThreadModal({
                   charsRemaining <= 10 && styles.charCounterWarning,
                 ]}
               >
-                {charsRemaining} caracteres restantes
+                {charsRemaining} caracteres restantes • 🪙 Responder custa {formatPoopcoins(replyCost)} PC
               </Text>
             </View>
           </View>
