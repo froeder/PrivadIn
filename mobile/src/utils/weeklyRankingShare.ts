@@ -1,6 +1,8 @@
-import { Share, Platform, Alert } from "react-native";
+import React from "react";
+import { Share, Platform, Alert, View } from "react-native";
 import { AppUser } from "../types";
 import { toRoman } from "./roman";
+import { SHARE_CARD_WIDTH, getShareCardHeight } from "../components/RankingShareCard";
 
 export const RANKING_LIMIT = 10;
 
@@ -93,4 +95,44 @@ export async function shareWeeklyRanking(options: ShareWeeklyRankingOptions): Pr
     Alert.alert("Erro", "Não foi possível abrir o compartilhamento.");
     return false;
   }
+}
+
+/**
+ * Captura o cartão do ranking como PNG e abre o compartilhamento nativo da imagem
+ * (igual à imagem gerada no PWA). Se os módulos nativos não estiverem disponíveis
+ * no build instalado ou a captura falhar, cai para o compartilhamento em texto.
+ */
+export async function shareWeeklyRankingImage(
+  cardRef: React.RefObject<View | null>,
+  options: ShareWeeklyRankingOptions
+): Promise<boolean> {
+  if (Platform.OS !== "web" && cardRef.current && options.users.length > 0) {
+    try {
+      // require tardio: evita crash em builds antigos sem os módulos nativos
+      const { captureRef } = require("react-native-view-shot");
+      const Sharing = require("expo-sharing");
+
+      const scale = 2;
+      const uri: string = await captureRef(cardRef.current, {
+        format: "png",
+        quality: 1,
+        result: "tmpfile",
+        width: SHARE_CARD_WIDTH * scale,
+        height: getShareCardHeight(options.users.length) * scale,
+      });
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, {
+          mimeType: "image/png",
+          dialogTitle: `Ranking Semanal PrivadIn - Edição ${toRoman(options.edition)}`,
+          UTI: "public.png",
+        });
+        return true;
+      }
+    } catch (error) {
+      console.warn("Falha ao compartilhar imagem do ranking, usando texto:", error);
+    }
+  }
+
+  return shareWeeklyRanking(options);
 }

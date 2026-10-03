@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   StyleSheet,
   Text,
@@ -21,7 +21,8 @@ import { toRoman } from "../utils/roman";
 import { checkWorkScheduleStatus, ScheduleStatus } from "../utils/workSchedule";
 import { playFlushSound } from "../services/soundService";
 import { requestCurrentLocation } from "../services/locationService";
-import { shareWeeklyRanking } from "../utils/weeklyRankingShare";
+import { shareWeeklyRankingImage } from "../utils/weeklyRankingShare";
+import RankingShareCard from "../components/RankingShareCard";
 import PoopcoinWalletCard from "../components/PoopcoinWalletCard";
 import TransferPoopcoinsModal from "../components/TransferPoopcoinsModal";
 import PoopRewardModal from "../components/PoopRewardModal";
@@ -64,6 +65,7 @@ export default function DashboardScreen({
   const [selectedProfileUserId, setSelectedProfileUserId] = useState<string | null>(null);
   const [profileModalVisible, setProfileModalVisible] = useState(false);
   const [sharingRanking, setSharingRanking] = useState(false);
+  const shareCardRef = useRef<View>(null);
 
   // Antifraud Cooldown State
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
@@ -290,7 +292,7 @@ export default function DashboardScreen({
     if (sharingRanking) return;
     setSharingRanking(true);
     try {
-      await shareWeeklyRanking({
+      await shareWeeklyRankingImage(shareCardRef, {
         users: weeklyLeaders,
         edition: appSettings?.edition || 1,
         currentUserId: user.uid,
@@ -334,6 +336,12 @@ export default function DashboardScreen({
 
   return (
     <View style={{ flex: 1, backgroundColor: "#020617" }}>
+      <RankingShareCard
+        ref={shareCardRef}
+        users={weeklyLeaders}
+        edition={appSettings?.edition || 1}
+        currentUserId={user.uid}
+      />
       <ScrollView contentContainerStyle={styles.container}>
         {/* 👑 Banner da Competição: Edição em Romanos + Comunicado do Admin */}
         <View style={styles.competitionBanner}>

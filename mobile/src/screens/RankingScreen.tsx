@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   StyleSheet,
   Text,
@@ -15,7 +15,8 @@ import { formatPoopcoins } from "../services/poopcoinService";
 import UserProfileModal from "../components/UserProfileModal";
 import TransferPoopcoinsModal from "../components/TransferPoopcoinsModal";
 import UserAvatar from "../components/UserAvatar";
-import { shareWeeklyRanking } from "../utils/weeklyRankingShare";
+import { shareWeeklyRankingImage } from "../utils/weeklyRankingShare";
+import RankingShareCard from "../components/RankingShareCard";
 import { fetchAppSettings } from "../services/authService";
 
 interface RankingScreenProps {
@@ -53,6 +54,7 @@ export default function RankingScreen({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const shareCardRef = useRef<View>(null);
 
   // Profile and Tip Modal States
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
@@ -79,7 +81,7 @@ export default function RankingScreen({
     if (sharing || leaders.length === 0) return;
     setSharing(true);
     try {
-      await shareWeeklyRanking({
+      await shareWeeklyRankingImage(shareCardRef, {
         users: leaders,
         edition: appSettings?.edition || 1,
         currentUserId,
@@ -279,6 +281,12 @@ export default function RankingScreen({
 
   return (
     <View style={styles.container}>
+      <RankingShareCard
+        ref={shareCardRef}
+        users={leaders}
+        edition={appSettings?.edition || 1}
+        currentUserId={currentUserId}
+      />
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTitleRow}>
