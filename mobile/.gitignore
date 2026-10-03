@@ -42,3 +42,5 @@ yarn-error.*
 /android
 mobile/credentials.json
 credentials.json
+fcm-key.json
+*fcm*.json
