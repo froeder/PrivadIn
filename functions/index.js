@@ -62,7 +62,7 @@ async function sendExpoPush(db, tokens, tokenOwners, buildMessageFn) {
   logger.info(`Push enviado com sucesso: ${tokens.length} tokens, ${invalid.length} inválidos.`);
 }
 
-async function getActiveUserTokens(db, excludeUserId = null) {
+async function getActiveUserTokens(db, excludeUserId = null, respectScorePref = false) {
   const [privateSnap, inactiveSnap] = await Promise.all([
     db.collection("user_private").get(),
     db.collection("users").where("isActive", "==", false).get(),
@@ -74,6 +74,8 @@ async function getActiveUserTokens(db, excludeUserId = null) {
   privateSnap.docs.forEach((d) => {
     if (inactive.has(d.id)) return;
     if (excludeUserId && d.id === excludeUserId) return;
+    // Usuário que desativou notificações de pontuação não recebe avisos dos outros
+    if (respectScorePref && d.get("scoreNotificationsEnabled") === false) return;
     const tokens = d.get("expoPushTokens");
     if (!Array.isArray(tokens)) return;
     tokens.filter(isExpoToken).forEach((t) => tokenOwners.set(t, d.id));
@@ -94,7 +96,14 @@ async function notifyScored(databaseId, event) {
   const authorName = String(log.userName || "Um colega").slice(0, 60);
   const points = Number(log.points) || 0;
 
-  const { tokens, tokenOwners } = await getActiveUserTokens(db, authorId);
+  // Autor que desativou notificações de pontuação não notifica os outros
+  const authorPrivate = await db.collection("user_private").doc(authorId).get();
+  if (authorPrivate.exists && authorPrivate.get("scoreNotificationsEnabled") === false) {
+    logger.info(`Autor ${authorId} desativou notificações de pontuação; push não enviado.`);
+    return;
+  }
+
+  const { tokens, tokenOwners } = await getActiveUserTokens(db, authorId, true);
   if (tokens.length === 0) return;
 
   const body = points > 0

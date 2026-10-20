@@ -12,6 +12,7 @@ import {
   Linking,
   Platform,
   KeyboardAvoidingView,
+  Switch,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -50,6 +51,10 @@ import {
   checkAndFetchUpdate,
   reloadApp,
 } from "../services/updateService";
+import {
+  getScoreNotificationsEnabled,
+  setScoreNotificationsEnabled,
+} from "../services/pushService";
 
 interface ProfileScreenProps {
   user: AppUser;
@@ -619,6 +624,34 @@ export default function ProfileScreen({
 
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [exportingData, setExportingData] = useState(false);
+  const [scoreNotifEnabled, setScoreNotifEnabled] = useState(true);
+  const [savingScoreNotif, setSavingScoreNotif] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    getScoreNotificationsEnabled(user.uid)
+      .then((enabled) => mounted && setScoreNotifEnabled(enabled))
+      .catch((err) => console.warn("Erro ao carregar preferência de notificações:", err));
+    return () => {
+      mounted = false;
+    };
+  }, [user.uid]);
+
+  const handleToggleScoreNotif = async (value: boolean) => {
+    if (savingScoreNotif) return;
+    const previous = scoreNotifEnabled;
+    setScoreNotifEnabled(value);
+    setSavingScoreNotif(true);
+    try {
+      await setScoreNotificationsEnabled(user.uid, value);
+    } catch (err) {
+      console.error("Erro ao salvar preferência de notificações:", err);
+      setScoreNotifEnabled(previous);
+      Alert.alert("Erro", "Não foi possível salvar sua preferência. Tente novamente.");
+    } finally {
+      setSavingScoreNotif(false);
+    }
+  };
 
   const handleExportData = async () => {
     if (exportingData) return;
@@ -1573,6 +1606,28 @@ export default function ProfileScreen({
               <Text style={[styles.accountInfoValue, { color: "#4ade80" }]}>
                 {user.termsAccepted ? "Aceito" : "Pendente"}
               </Text>
+            </View>
+          </View>
+
+          {/* Notificações de Pontuação */}
+          <View style={styles.changePasswordCard}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <View style={[styles.changePasswordHeader, { flex: 1, marginBottom: 0 }]}>
+                <Text style={styles.changePasswordTitle}>🔔 Notificações de Pontuação</Text>
+                <Text style={styles.changePasswordDesc}>
+                  {scoreNotifEnabled
+                    ? "Ativado: os outros usuários são avisados quando você pontua e você recebe aviso quando eles pontuam."
+                    : "Desativado: ninguém é avisado quando você pontua e você não recebe avisos quando os outros pontuam."}
+                </Text>
+              </View>
+              <Switch
+                value={scoreNotifEnabled}
+                onValueChange={handleToggleScoreNotif}
+                disabled={savingScoreNotif}
+                trackColor={{ false: "#334155", true: userThemeColor }}
+                thumbColor={scoreNotifEnabled ? "#f8fafc" : "#94a3b8"}
+                ios_backgroundColor="#334155"
+              />
             </View>
           </View>
 

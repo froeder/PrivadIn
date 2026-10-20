@@ -1,5 +1,5 @@
 import { Platform } from "react-native";
-import { doc, setDoc, arrayUnion } from "firebase/firestore";
+import { doc, setDoc, getDoc, arrayUnion } from "firebase/firestore";
 import { db } from "./firebase";
 
 /**
@@ -49,6 +49,24 @@ export async function registerForPushNotifications(uid: string): Promise<string 
     console.warn("[Push] Não foi possível registrar notificações:", error);
     return null;
   }
+}
+
+/**
+ * Preferência de notificações de pontuação (user_private/{uid}.scoreNotificationsEnabled).
+ * Quando desativada, o usuário não notifica os outros ao pontuar e também não
+ * recebe notificações quando os outros pontuam. Ausente = ativada.
+ */
+export async function getScoreNotificationsEnabled(uid: string): Promise<boolean> {
+  const snap = await getDoc(doc(db, "user_private", uid));
+  return snap.exists() ? snap.data()?.scoreNotificationsEnabled !== false : true;
+}
+
+export async function setScoreNotificationsEnabled(uid: string, enabled: boolean): Promise<void> {
+  await setDoc(
+    doc(db, "user_private", uid),
+    { scoreNotificationsEnabled: enabled },
+    { merge: true }
+  );
 }
 
 /** Exibe notificações também com o app aberto. */
