@@ -50,6 +50,29 @@ export interface AppUser {
   poopcoinMigratedAt?: Timestamp;
   bio?: string;
   ownedGroupId?: string | null;
+  equippedTitle?: string;
+  equippedBadge?: string;
+  unlockedItems?: string[];
+  wonEditions?: number[];
+}
+
+export type ShopItemCategory = "title" | "badge" | "perk";
+export type ShopItemRarity = "comum" | "raro" | "epico" | "lendario";
+
+export interface ShopItem {
+  id: string;
+  name: string;
+  description: string;
+  category: ShopItemCategory;
+  rarity: ShopItemRarity;
+  price: number;
+  basePrice?: number;
+  initialStock?: number;
+  currentStock?: number;
+  priceMultiplier?: number;
+  icon: string;
+  perkEffect?: string;
+  active?: boolean;
 }
 
 export interface RankingGroup {
@@ -65,6 +88,44 @@ export interface RankingGroup {
   deletedAt?: Timestamp | null;
   deletedBy?: string | null;
 }
+
+export interface EditionCompetitor {
+  uid: string;
+  name: string;
+  nickname?: string;
+  avatar?: string;
+  themeColor?: string;
+  points: number;
+  rank: number;
+  isWinner: boolean;
+}
+
+export interface EditionRecord {
+  id: string;
+  edition: number;
+  romanEdition: string;
+  title: string;
+  endedAt: Timestamp;
+  resetByUid?: string;
+  resetByName?: string;
+  totalCompetitors: number;
+  totalPoints: number;
+  maxPoints: number;
+  winnerUids: string[];
+  winnerNames: string[];
+  winners: Array<{
+    uid: string;
+    name: string;
+    nickname?: string;
+    avatar?: string;
+    themeColor?: string;
+    points: number;
+  }>;
+  competitors: EditionCompetitor[];
+  createdAt: Timestamp;
+  isHistoricalFallback?: boolean;
+}
+
 
 export interface PoopLog {
   id: string;
@@ -181,6 +242,8 @@ export type AdminAuditAction =
   | "update_terms_of_use"
   | "deactivate_user"
   | "reactivate_user"
+  | "promote_admin"
+  | "demote_admin"
   | "update_competition_announcement"
   | "update_poopcoin_rules"
   | "adjust_poopcoins"

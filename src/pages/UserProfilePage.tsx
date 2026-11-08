@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
-import { ArrowLeft, Copy, Edit3, KeyRound, LogOut, MessageCircle, Moon, Sun } from "lucide-react";
+import { ArrowLeft, Copy, Edit3, KeyRound, LogOut, MessageCircle, Moon, PackageCheck, Sparkles, Sun } from "lucide-react";
 import { clsx } from "clsx";
 import { AvatarImage } from "../components/AvatarImage";
 import { Card } from "../components/Card";
@@ -10,14 +10,28 @@ import { LanguageSwitcher } from "../components/LanguageSwitcher";
 import { useAuth } from "../contexts/AuthContext";
 import { fetchUserCuiterPosts } from "../services/cuiterService";
 import { formatTimeAgo } from "../utils/date";
-import type { AppTheme, AppUser, AppView, CuiterPost } from "../types";
+import type { AppTheme, AppUser, AppView, CuiterPost, ShopItem, ShopItemCategory } from "../types";
 import { useTheme } from "../hooks/useTheme";
+import { equipUserShopItem, listenShopCatalog, resolveUserOwnedItems, SHOP_CATALOG } from "../constants/shop";
 
 interface UserProfilePageProps {
   currentUser: AppUser;
   profileUser: AppUser;
   setView: (view: AppView) => void;
   onBack: () => void;
+}
+
+function getRarityBadgeClasses(rarity: string) {
+  switch (rarity) {
+    case "lendario":
+      return "border-amber-500/40 bg-amber-500/15 text-amber-400";
+    case "epico":
+      return "border-purple-500/40 bg-purple-500/15 text-purple-400";
+    case "raro":
+      return "border-sky-500/40 bg-sky-500/15 text-sky-400";
+    default:
+      return "border-slate-500/40 bg-slate-500/15 text-slate-400";
+  }
 }
 
 export function UserProfilePage({
@@ -27,16 +41,57 @@ export function UserProfilePage({
   onBack,
 }: UserProfilePageProps) {
   const { t } = useTranslation(["profile", "common"]);
-  const { logout, firebaseUser } = useAuth();
+  const { logout, firebaseUser, refreshProfile } = useAuth();
   const { resolvedTheme, setTheme } = useTheme();
   const [posts, setPosts] = useState<CuiterPost[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [shopCatalog, setShopCatalog] = useState<ShopItem[]>(SHOP_CATALOG);
+  const [itemCategoryFilter, setItemCategoryFilter] = useState<"all" | ShopItemCategory>("all");
+  const [equippingItemId, setEquippingItemId] = useState<string | null>(null);
+
   const isOwnProfile = currentUser.uid === profileUser.uid;
   const themeOptions: Array<{ value: AppTheme; label: string; icon: React.ElementType }> = [
     { value: "light", label: t("common:theme.light"), icon: Sun },
     { value: "dark", label: t("common:theme.dark"), icon: Moon },
   ];
+
+  useEffect(() => {
+    const unsub = listenShopCatalog((items) => {
+      setShopCatalog(items);
+    });
+    return () => unsub();
+  }, []);
+
+  const ownedItems = useMemo(() => {
+    return resolveUserOwnedItems(profileUser, shopCatalog);
+  }, [profileUser, shopCatalog]);
+
+  const filteredOwnedItems = useMemo(() => {
+    if (itemCategoryFilter === "all") return ownedItems;
+    return ownedItems.filter((i) => i.category === itemCategoryFilter);
+  }, [ownedItems, itemCategoryFilter]);
+
+  async function handleToggleEquip(item: ShopItem) {
+    if (!isOwnProfile) return;
+    setEquippingItemId(item.id);
+    try {
+      const isEquipped =
+        item.category === "title"
+          ? profileUser.equippedTitle === item.name
+          : item.category === "badge"
+          ? profileUser.equippedBadge === item.icon
+          : false;
+
+      await equipUserShopItem(currentUser.uid, item, !isEquipped);
+      await refreshProfile();
+      toast.success(isEquipped ? "Item desequipado." : "Item equipado no seu perfil!");
+    } catch (err: any) {
+      toast.error(err?.message || "Erro ao equipar item.");
+    } finally {
+      setEquippingItemId(null);
+    }
+  }
 
   useEffect(() => {
     async function loadUserPosts() {
@@ -166,6 +221,14 @@ export function UserProfilePage({
                 name={profileUser.name}
                 className="h-24 w-24 rounded-full border-2 border-line/10 bg-panel"
               />
+              {profileUser.equippedBadge ? (
+                <span
+                  className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full border-2 border-panel bg-panel-strong text-base shadow-md"
+                  title="Emblema Ativo"
+                >
+                  {profileUser.equippedBadge}
+                </span>
+              ) : null}
             </div>
           </div>
 
@@ -183,13 +246,19 @@ export function UserProfilePage({
               </p>
             ) : null}
 
-            {/* Crachá de Cargo */}
-            <div className="pt-1">
+            {/* Crachá de Cargo e Título Equipado */}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
               <span className="inline-flex items-center rounded-full bg-panel-strong px-2.5 py-0.5 text-xs font-bold text-fg-muted">
                 {profileUser.role === "admin"
                   ? t("common:roles.admin")
                   : t("common:roles.player")}
               </span>
+
+              {profileUser.equippedTitle ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-accent/40 bg-accent/15 px-2.5 py-0.5 text-xs font-black text-accent-strong">
+                  👑 {profileUser.equippedTitle}
+                </span>
+              ) : null}
             </div>
           </div>
         </div>
@@ -236,6 +305,192 @@ export function UserProfilePage({
             </div>
           </div>
         </div>
+      </Card>
+
+      {/* Cartão de Itens Adquiridos / Colecionáveis da Loja */}
+      <Card>
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <PackageCheck size={20} className="text-accent-strong" />
+              <h3 className="text-xl font-black text-fg">
+                {t("profile:purchasedItemsTitle", { defaultValue: "Itens Adquiridos" })}
+              </h3>
+              <span className="rounded-full border border-accent/40 bg-accent/15 px-2.5 py-0.5 text-xs font-black text-accent-strong">
+                {ownedItems.length}
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-fg-muted">
+              {t("profile:purchasedItemsDescription", {
+                defaultValue: "Títulos honorários, emblemas e vantagens adquiridos na loja de Poopcoins.",
+              })}
+            </p>
+          </div>
+
+          {isOwnProfile && (
+            <button
+              type="button"
+              onClick={() => setView("poopcoins")}
+              className="inline-flex items-center gap-1.5 self-start rounded-xl border border-line/10 bg-field px-3 py-1.5 text-xs font-bold text-accent-strong transition hover:bg-panel-strong sm:self-auto"
+            >
+              <Sparkles size={14} />
+              <span>{t("profile:exploreShopButton", { defaultValue: "Loja Poopcoins" })} →</span>
+            </button>
+          )}
+        </div>
+
+        {ownedItems.length > 0 && (
+          <div className="mb-4 flex flex-wrap gap-2">
+            {[
+              { key: "all", label: t("profile:filterAll", { defaultValue: "Todos" }), count: ownedItems.length },
+              {
+                key: "title",
+                label: `👑 ${t("profile:filterTitles", { defaultValue: "Títulos" })}`,
+                count: ownedItems.filter((i) => i.category === "title").length,
+              },
+              {
+                key: "badge",
+                label: `🥇 ${t("profile:filterBadges", { defaultValue: "Emblemas" })}`,
+                count: ownedItems.filter((i) => i.category === "badge").length,
+              },
+              {
+                key: "perk",
+                label: `☕ ${t("profile:filterPerks", { defaultValue: "Privilégios" })}`,
+                count: ownedItems.filter((i) => i.category === "perk").length,
+              },
+            ].map((filter) => (
+              <button
+                key={filter.key}
+                type="button"
+                onClick={() => setItemCategoryFilter(filter.key as any)}
+                className={clsx(
+                  "rounded-xl px-3 py-1.5 text-xs font-bold transition",
+                  itemCategoryFilter === filter.key
+                    ? "bg-accent text-accent-fg shadow-accent"
+                    : "border border-line/10 bg-field text-fg-soft hover:bg-panel-strong hover:text-fg",
+                )}
+              >
+                {filter.label} ({filter.count})
+              </button>
+            ))}
+          </div>
+        )}
+
+        {filteredOwnedItems.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-line/15 p-8 text-center">
+            <span className="mb-2 block text-3xl">🛍️</span>
+            <p className="text-sm font-bold text-fg">
+              {ownedItems.length === 0
+                ? t("profile:purchasedItemsEmpty", { defaultValue: "Nenhum item da loja adquirido ainda." })
+                : "Nenhum item nesta categoria."}
+            </p>
+            {isOwnProfile && (
+              <button
+                type="button"
+                onClick={() => setView("poopcoins")}
+                className="mt-3 inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-xs font-black text-accent-fg shadow-accent transition hover:bg-accent-strong"
+              >
+                <Sparkles size={14} />
+                <span>{t("profile:exploreShopButton", { defaultValue: "Explorar Loja de Poopcoins" })}</span>
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {filteredOwnedItems.map((item) => {
+              const isEquipped =
+                item.category === "title"
+                  ? profileUser.equippedTitle === item.name
+                  : item.category === "badge"
+                  ? profileUser.equippedBadge === item.icon
+                  : false;
+              const isBusy = equippingItemId === item.id;
+              const rarityClasses = getRarityBadgeClasses(item.rarity);
+
+              return (
+                <div
+                  key={item.id}
+                  className="flex flex-col justify-between rounded-2xl border border-line/10 bg-panel-strong/40 p-4 transition hover:bg-panel-strong/60"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-line/20 bg-panel text-2xl shadow-sm">
+                      {item.icon}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <h4 className="truncate font-bold text-fg text-sm">{item.name}</h4>
+                        <span
+                          className={clsx(
+                            "rounded-md border px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider",
+                            rarityClasses,
+                          )}
+                        >
+                          {item.rarity}
+                        </span>
+                      </div>
+
+                      <p className="mt-0.5 text-xs text-fg-muted font-medium">
+                        {item.category === "title"
+                          ? "👑 Título de Honra"
+                          : item.category === "badge"
+                          ? "🥇 Emblema de Avatar"
+                          : "☕ Privilégio Corporativo"}
+                      </p>
+
+                      <p className="mt-1 text-xs text-fg-soft leading-relaxed">
+                        {item.description}
+                      </p>
+
+                      {item.perkEffect && (
+                        <div className="mt-2 inline-flex items-center gap-1 rounded-lg border border-accent/30 bg-accent/10 px-2 py-0.5 text-[11px] font-bold text-accent-strong">
+                          <span>⚡</span>
+                          <span>{item.perkEffect}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-end border-t border-line/10 pt-2.5">
+                    {item.category === "perk" ? (
+                      <span className="rounded-lg border border-accent/40 bg-accent/15 px-2.5 py-1 text-xs font-bold text-accent-strong">
+                        ✓ {t("profile:itemActive", { defaultValue: "Ativo" })}
+                      </span>
+                    ) : isOwnProfile ? (
+                      <button
+                        type="button"
+                        onClick={() => handleToggleEquip(item)}
+                        disabled={isBusy}
+                        className={clsx(
+                          "rounded-xl px-3 py-1.5 text-xs font-black transition",
+                          isEquipped
+                            ? "border border-success/40 bg-success/15 text-success hover:bg-success/25"
+                            : "border border-line/15 bg-panel text-fg hover:bg-panel-strong",
+                        )}
+                      >
+                        {isBusy
+                          ? "..."
+                          : isEquipped
+                          ? `✓ ${t("profile:itemInUse", { defaultValue: "Em uso" })} (${t("profile:unequipAction", { defaultValue: "Remover" })})`
+                          : item.category === "title"
+                          ? `👑 ${t("profile:equipAction", { defaultValue: "Equipar Título" })}`
+                          : `🥇 ${t("profile:equipAction", { defaultValue: "Usar no Avatar" })}`}
+                      </button>
+                    ) : isEquipped ? (
+                      <span className="rounded-lg border border-success/40 bg-success/15 px-2.5 py-1 text-xs font-bold text-success">
+                        ✓ {t("profile:itemInUse", { defaultValue: "Em uso" })}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-fg-muted">
+                        {t("profile:itemEquipped", { defaultValue: "Adquirido" })}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </Card>
 
       {/* Cartão de Posts Recentes */}

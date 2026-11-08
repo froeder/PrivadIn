@@ -1,0 +1,46 @@
+{
+  "name": "mobile",
+  "version": "1.0.8",
+  "main": "index.ts",
+  "dependencies": {
+    "@expo/metro-runtime": "~57.0.15",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "expo": "~57.0.22",
+    "expo-asset": "~57.0.17",
+    "expo-audio": "~57.0.5",
+    "expo-build-properties": "~57.0.21",
+    "expo-clipboard": "~57.0.2",
+    "expo-constants": "~57.0.18",
+    "expo-device": "~57.0.2",
+    "expo-image-picker": "~57.0.19",
+    "expo-location": "~57.0.17",
+    "expo-notifications": "~57.0.21",
+    "expo-sharing": "~57.0.22",
+    "expo-splash-screen": "~57.0.9",
+    "expo-status-bar": "~57.0.1",
+    "expo-updates": "~57.0.22",
+    "firebase": "^12.19.0",
+    "lucide-react-native": "^1.45.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0",
+    "react-native-svg": "15.15.4",
+    "react-native-view-shot": "5.1.0",
+    "react-native-web": "^0.21.2"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "build:apk": "eas build -p android --profile preview",
+    "build:aab": "eas build -p android --profile production"
+  },
+  "private": true
+}

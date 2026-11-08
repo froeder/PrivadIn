@@ -168,7 +168,7 @@ function AppContent() {
           onViewProfile={handleViewProfile}
         />
       ) : null}
-      {view === "history" ? <HistoryPage logs={userLogs} /> : null}
+      {view === "history" ? <HistoryPage user={liveUser} logs={userLogs} /> : null}
       {view === "stats" ? <StatsPage user={liveUser} logs={userLogs} allLogs={allLogs} rankedUsers={rankedUsers} overallRankingVisible={appSettings.overallRankingVisible === true} /> : null}
       {view === "cuiter" ? (
         <CuiterPage

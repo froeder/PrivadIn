@@ -97,6 +97,16 @@ export function formatAuditLogMessage(
         });
       }
       break;
+    case "promote_admin":
+      if (targetName) {
+        return `${adminName} promoveu o usuário ${targetName} a Administrador.`;
+      }
+      break;
+    case "demote_admin":
+      if (targetName) {
+        return `${adminName} rebaixou o usuário ${targetName} a Jogador.`;
+      }
+      break;
     case "update_competition_announcement":
       return t("auditMessages.updateCompetitionAnnouncement", {
         admin: adminName,

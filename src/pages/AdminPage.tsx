@@ -28,7 +28,7 @@ import {
   updatePointsPerLog,
   updateTermsOfUse,
 } from "../services/settingsService";
-import { deactivateUser, reactivateUser, setUserCooldown } from "../services/userService";
+import { deactivateUser, reactivateUser, setUserCooldown, setUserRole } from "../services/userService";
 import { formatDateTime } from "../utils/date";
 import { formatNumber } from "../utils/format";
 import { toRoman } from "../utils/roman";
@@ -663,6 +663,30 @@ export function AdminPage({
                       }}
                     >
                       {user.isActive === false ? t("actions.reactivateUser") : t("actions.deactivateUser")}
+                    </button>
+                    <button
+                      disabled={busy || (admin.uid === user.uid && user.role === "admin")}
+                      className={`col-span-2 min-w-0 rounded-xl px-3 py-2 text-sm font-black disabled:opacity-60 sm:col-span-1 ${
+                        user.role === "admin"
+                          ? "bg-amber-500/20 text-amber-300 hover:bg-amber-500/30"
+                          : "bg-purple-500/20 text-purple-300 hover:bg-purple-500/30"
+                      }`}
+                      onClick={() => {
+                        const isTargetAdmin = user.role === "admin";
+                        const confirmed = window.confirm(
+                          isTargetAdmin
+                            ? `Remover permissão de Administrador de ${user.name}?`
+                            : `Promover ${user.name} a Administrador Master?`
+                        );
+                        if (!confirmed) return;
+
+                        void runAdminAction(
+                          () => setUserRole(admin, user, isTargetAdmin ? "player" : "admin"),
+                          isTargetAdmin ? "Permissão de admin removida." : "Usuário promovido a Administrador!"
+                        );
+                      }}
+                    >
+                      {user.role === "admin" ? "⬇️ Rebaixar" : "👑 Promover Admin"}
                     </button>
                     <input
                       type="number"

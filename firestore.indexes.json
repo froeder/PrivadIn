@@ -15,6 +15,30 @@
         { "fieldPath": "userId", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "poopcoin_transactions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "toUserId", "order": "ASCENDING" },
+        { "fieldPath": "sequence", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "poopcoin_transactions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "affectedUserIds", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "sequence", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "poopcoin_transactions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "fromUserId", "order": "ASCENDING" },
+        { "fieldPath": "sequence", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

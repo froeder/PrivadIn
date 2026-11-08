@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "b6e47c76-099d-4726-a560-fdef1766dd36"
+      }
+    },
+    "android": {
+      "package": "com.froeder.privadin"
+    }
+  }
+}
