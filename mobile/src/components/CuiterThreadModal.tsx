@@ -97,11 +97,13 @@ export default function CuiterThreadModal({
 
     setSending(true);
     try {
-      await createCuiterComment(post.id, currentUser, trimmed, replyingTo);
+      const newComment = await createCuiterComment(post.id, currentUser, trimmed, replyingTo);
+      // Optimistic UI update: add the new comment locally
+      setComments((prev) => [...prev, newComment]);
       setReplyText("");
       setReplyingTo(null);
       onReplySent?.();
-      // Rola para o final da lista após enviar
+      // Scroll to the end after a short delay
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 300);
