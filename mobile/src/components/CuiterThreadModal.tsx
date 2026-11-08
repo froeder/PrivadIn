@@ -95,11 +95,23 @@ export default function CuiterThreadModal({
       return;
     }
 
+    const currentBalance = Number(currentUser.poopcoinBalance ?? 0);
+    if (currentBalance < replyCost) {
+      Alert.alert(
+        "Saldo Insuficiente",
+        `Responder no Cuiter custa ${formatPoopcoins(replyCost)} PC. Seu saldo atual é de ${formatPoopcoins(currentBalance)} PC.`
+      );
+      return;
+    }
+
     setSending(true);
     try {
       const newComment = await createCuiterComment(post.id, currentUser, trimmed, replyingTo);
-      // Optimistic UI update: add the new comment locally
-      setComments((prev) => [...prev, newComment]);
+      // Optimistic UI update: add the new comment locally if not already present
+      setComments((prev) => {
+        if (prev.some((c) => c.id === newComment.id)) return prev;
+        return [...prev, newComment];
+      });
       setReplyText("");
       setReplyingTo(null);
       onReplySent?.();
