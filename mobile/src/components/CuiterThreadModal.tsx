@@ -164,123 +164,123 @@ export default function CuiterThreadModal({
   const renderHeader = useCallback(() => {
     if (!post) return null;
     return (
-    <View style={styles.headerPostContainer}>
-      {/* Post Original Card */}
-      <View style={styles.originalPostCard}>
-        <View style={styles.postHeaderRow}>
-          <TouchableOpacity
-            style={styles.authorRow}
-            onPress={() => onOpenAuthorProfile(post.userId)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.authorAvatarCircle}>
-              <Text style={styles.authorAvatarText}>
-                {post.userBadge
-                  ? post.userBadge
-                  : (post.userName || "C").charAt(0).toUpperCase()}
-              </Text>
-            </View>
-
-            <View style={styles.authorInfo}>
-              <View style={styles.nameRow}>
-                <Text style={styles.authorName} numberOfLines={1}>
-                  {post.userName}
+      <View style={styles.headerPostContainer}>
+        {/* Post Original Card */}
+        <View style={styles.originalPostCard}>
+          <View style={styles.postHeaderRow}>
+            <TouchableOpacity
+              style={styles.authorRow}
+              onPress={() => onOpenAuthorProfile(post.userId)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.authorAvatarCircle}>
+                <Text style={styles.authorAvatarText}>
+                  {post.userBadge
+                    ? post.userBadge
+                    : (post.userName || "C").charAt(0).toUpperCase()}
                 </Text>
-                {post.userTitle ? (
-                  <View style={styles.postTitleBadge}>
-                    <Text style={styles.postTitleText} numberOfLines={1}>
-                      {post.userTitle}
-                    </Text>
-                  </View>
-                ) : null}
               </View>
-              <Text style={styles.postTimeText}>
-                {formatTimeAgo(post.createdAt)}
-              </Text>
-            </View>
-          </TouchableOpacity>
+
+              <View style={styles.authorInfo}>
+                <View style={styles.nameRow}>
+                  <Text style={styles.authorName} numberOfLines={1}>
+                    {post.userName}
+                  </Text>
+                  {post.userTitle ? (
+                    <View style={styles.postTitleBadge}>
+                      <Text style={styles.postTitleText} numberOfLines={1}>
+                        {post.userTitle}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+                <Text style={styles.postTimeText}>
+                  {formatTimeAgo(post.createdAt)}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* Message */}
+          <Text style={styles.postMessage}>{post.message}</Text>
+
+          {/* Reactions in Thread Header */}
+          <View style={styles.threadReactionsBar}>
+            <TouchableOpacity
+              style={[
+                styles.reactionButton,
+                userReaction === "like" && styles.reactionButtonActive,
+              ]}
+              onPress={() => onToggleReaction(post.id, "like")}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.reactionEmoji}>❤️</Text>
+              {likeCount > 0 && (
+                <Text
+                  style={[
+                    styles.reactionCount,
+                    userReaction === "like" && styles.reactionCountActive,
+                  ]}
+                >
+                  {likeCount}
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.reactionButton,
+                userReaction === "poop" && styles.reactionButtonActive,
+              ]}
+              onPress={() => onToggleReaction(post.id, "poop")}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.reactionEmoji}>💩</Text>
+              {poopCount > 0 && (
+                <Text
+                  style={[
+                    styles.reactionCount,
+                    userReaction === "poop" && styles.reactionCountActive,
+                  ]}
+                >
+                  {poopCount}
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.reactionButton,
+                userReaction === "laugh" && styles.reactionButtonActive,
+              ]}
+              onPress={() => onToggleReaction(post.id, "laugh")}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.reactionEmoji}>😂</Text>
+              {laughCount > 0 && (
+                <Text
+                  style={[
+                    styles.reactionCount,
+                    userReaction === "laugh" && styles.reactionCountActive,
+                  ]}
+                >
+                  {laughCount}
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* Message */}
-        <Text style={styles.postMessage}>{post.message}</Text>
-
-        {/* Reactions in Thread Header */}
-        <View style={styles.threadReactionsBar}>
-          <TouchableOpacity
-            style={[
-              styles.reactionButton,
-              userReaction === "like" && styles.reactionButtonActive,
-            ]}
-            onPress={() => onToggleReaction(post.id, "like")}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.reactionEmoji}>❤️</Text>
-            {likeCount > 0 && (
-              <Text
-                style={[
-                  styles.reactionCount,
-                  userReaction === "like" && styles.reactionCountActive,
-                ]}
-              >
-                {likeCount}
-              </Text>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.reactionButton,
-              userReaction === "poop" && styles.reactionButtonActive,
-            ]}
-            onPress={() => onToggleReaction(post.id, "poop")}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.reactionEmoji}>💩</Text>
-            {poopCount > 0 && (
-              <Text
-                style={[
-                  styles.reactionCount,
-                  userReaction === "poop" && styles.reactionCountActive,
-                ]}
-              >
-                {poopCount}
-              </Text>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.reactionButton,
-              userReaction === "laugh" && styles.reactionButtonActive,
-            ]}
-            onPress={() => onToggleReaction(post.id, "laugh")}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.reactionEmoji}>😂</Text>
-            {laughCount > 0 && (
-              <Text
-                style={[
-                  styles.reactionCount,
-                  userReaction === "laugh" && styles.reactionCountActive,
-                ]}
-              >
-                {laughCount}
-              </Text>
-            )}
-          </TouchableOpacity>
+        {/* Replies Divider */}
+        <View style={styles.repliesTitleRow}>
+          <Text style={styles.repliesTitle}>Respostas Encadeadas</Text>
+          <View style={styles.repliesBadge}>
+            <Text style={styles.repliesBadgeText}>
+              {comments.length} {comments.length === 1 ? "resposta" : "respostas"}
+            </Text>
+          </View>
         </View>
       </View>
-
-      {/* Replies Divider */}
-      <View style={styles.repliesTitleRow}>
-        <Text style={styles.repliesTitle}>Respostas Encadeadas</Text>
-        <View style={styles.repliesBadge}>
-          <Text style={styles.repliesBadgeText}>
-            {comments.length} {comments.length === 1 ? "resposta" : "respostas"}
-          </Text>
-        </View>
-      </View>
-    </View>
     );
   }, [post, likeCount, poopCount, laughCount, userReaction, comments.length, onOpenAuthorProfile, onToggleReaction]); // eslint-disable-line react-hooks/exhaustive-deps
 
